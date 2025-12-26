@@ -36,32 +36,11 @@ local Players = game:GetService("Players")
 local localiservice = game:GetService("LocalizationService")
 local marketservice = game:GetService("MarketplaceService")
 local rbxservice = game:GetService("RbxAnalyticsService")
+local placestructure
 local tspmo = game:GetService("TweenService")
-local itemslist = {"Adurite", "Berry", "Bloodfruit", "Bluefruit", "Coin", "Essence", "Hide", "Ice Cube", "Iron", "Jelly", "Leaves", "Log", "Steel", "Stone", "Wood", "Gold", "Raw Gold", "Crystal Chunk", "Raw Emerald", "Pink Diamond", "Raw Adurite", "Raw Iron", "Coal"}
+local itemslist = {
+"Adurite", "Berry", "Bloodfruit", "Bluefruit", "Coin", "Essence", "Hide", "Ice Cube", "Iron", "Jelly", "Leaves", "Log", "Steel", "Stone", "Wood", "Gold", "Raw Gold", "Crystal Chunk", "Raw Emerald", "Pink Diamond", "Raw Adurite", "Raw Iron", "Coal"}
 local Options = Library.Options
-
--- // FIXED: Function defined before UI Buttons use it
-local placestructure = function(gridsize)
-    if not plr or not plr.Character then return end
-    local torso = plr.Character:FindFirstChild("HumanoidRootPart")
-    if not torso then return end
-    local startpos = torso.Position - Vector3.new(0, 3, 0)
-    local spacing = 6.04
-    for x = 0, gridsize - 1 do
-        for z = 0, gridsize - 1 do
-            task.wait(0.3)
-            local position = startpos + Vector3.new(x * spacing, 0, z * spacing)
-            if packets.PlaceStructure and packets.PlaceStructure.send then
-                packets.PlaceStructure.send{
-                    ["buildingName"] = "Plant Box",
-                    ["yrot"] = 45,
-                    ["vec"] = position,
-                    ["isMobile"] = false
-                }
-            end
-        end
-    end
-end
 
 local wstoggle = Tabs.Main:CreateToggle("wstoggle", { Title = "Walkspeed", Default = false })
 local wsslider = Tabs.Main:CreateSlider("wsslider", { Title = "Value", Min = 1, Max = 35, Rounding = 1, Default = 16 })
@@ -69,7 +48,7 @@ local jptoggle = Tabs.Main:CreateToggle("jptoggle", { Title = "JumpPower", Defau
 local jpslider = Tabs.Main:CreateSlider("jpslider", { Title = "Value", Min = 1, Max = 65, Rounding = 1, Default = 50 })
 local msatoggle = Tabs.Main:CreateToggle("msatoggle", { Title = "No Mountain Slip", Default = false })
 
-local killauratoggle 
+local killauratoggle -- removed combat; placeholder to avoid nil indexing if referenced elsewhere
 
 local resourceauratoggle = Tabs.Map:CreateToggle("resourceauratoggle", { Title = "Resource Aura", Default = false })
 local resourceaurarange = Tabs.Map:CreateSlider("resourceaurarange", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
@@ -98,7 +77,6 @@ local harvestrangeslider = Tabs.Farming:CreateSlider("harvestrange", { Title = "
 local tweenplantboxtoggle = Tabs.Farming:AddToggle("tweentoplantbox", { Title = "Tween to Plant Box", Default = false })
 local tweenbushtoggle = Tabs.Farming:AddToggle("tweentobush", { Title = "Tween to Bush + Plant Box", Default = false })
 local tweenrangeslider = Tabs.Farming:AddSlider("tweenrange", { Title = "Range", Min = 1, Max = 250, Rounding = 1, Default = 250 })
-
 Tabs.Farming:CreateButton({Title = "Place 16x16 Plantboxes (256)", Callback = function() placestructure(16) end })
 Tabs.Farming:CreateButton({Title = "Place 15x15 Plantboxes (225)", Callback = function() placestructure(15) end })
 Tabs.Farming:CreateButton({Title = "Place 10x10 Plantboxes (100)", Callback = function() placestructure(10) end })
@@ -114,6 +92,28 @@ local function updws()
                 hum.JumpPower = Options.jptoggle.Value and Options.jpslider.Value or 50
             end
         end)
+    end
+end
+
+placestructure = function(gridsize)
+    if not plr or not plr.Character then return end
+    local torso = plr.Character:FindFirstChild("HumanoidRootPart")
+    if not torso then return end
+    local startpos = torso.Position - Vector3.new(0, 3, 0)
+    local spacing = 6.04
+    for x = 0, gridsize - 1 do
+        for z = 0, gridsize - 1 do
+            task.wait(0.3)
+            local position = startpos + Vector3.new(x * spacing, 0, z * spacing)
+            if packets.PlaceStructure and packets.PlaceStructure.send then
+                packets.PlaceStructure.send{
+                    ["buildingName"] = "Plant Box",
+                    ["yrot"] = 45,
+                    ["vec"] = position,
+                    ["isMobile"] = false
+                }
+            end
+        end
     end
 end
 
@@ -143,11 +143,14 @@ end
 plr.CharacterAdded:Connect(onplradded)
 Options.wstoggle:OnChanged(updws)
 Options.jptoggle:OnChanged(updws)
+
 Options.msatoggle:OnChanged(updmsa)
 
 local function getlayout(itemname)
     local inventory = game:GetService("Players").LocalPlayer.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
-    if not inventory then return nil end
+    if not inventory then
+        return nil
+    end
     for _, child in ipairs(inventory:GetChildren()) do
         if child:IsA("ImageLabel") and child.Name == itemname then
             return child.LayoutOrder
@@ -201,9 +204,13 @@ task.spawn(function()
         local cooldown = tonumber(Options.resourcecooldownslider.Value) or 0.1
         local targets = {}
         local allresources = {}
-        for _, r in pairs(workspace.Resources:GetChildren()) do table.insert(allresources, r) end
+        for _, r in pairs(workspace.Resources:GetChildren()) do
+            table.insert(allresources, r)
+        end
         for _, r in pairs(workspace:GetChildren()) do
-            if r:IsA("Model") and r.Name == "Gold Node" then table.insert(allresources, r) end
+            if r:IsA("Model") and r.Name == "Gold Node" then
+                table.insert(allresources, r)
+            end
         end
         for _, res in pairs(allresources) do
             if res:IsA("Model") and res:GetAttribute("EntityID") then
@@ -218,7 +225,9 @@ task.spawn(function()
             end
         end
         if #targets > 0 then
-            table.sort(targets, function(a, b) return a.dist < b.dist end)
+            table.sort(targets, function(a, b)
+                return a.dist < b.dist
+            end)
             local selectedTargets = {}
             for i = 1, math.min(targetCount, #targets) do
                 table.insert(selectedTargets, targets[i].eid)
@@ -252,7 +261,9 @@ task.spawn(function()
             end
         end
         if #targets > 0 then
-            table.sort(targets, function(a, b) return a.dist < b.dist end)
+            table.sort(targets, function(a, b)
+                return a.dist < b.dist
+            end)
             local selectedTargets = {}
             for i = 1, math.min(targetCount, #targets) do
                 table.insert(selectedTargets, targets[i].eid)
@@ -273,7 +284,9 @@ task.spawn(function()
                     local entityid = item:GetAttribute("EntityID")
                     if entityid and table.find(selecteditems, selecteditem) then
                         local dist = (item.Position - root.Position).Magnitude
-                        if dist <= range then pickup(entityid) end
+                        if dist <= range then
+                            pickup(entityid)
+                        end
                     end
                 end
             end
@@ -287,7 +300,9 @@ task.spawn(function()
                             local entityid = item:GetAttribute("EntityID")
                             if entityid and table.find(selecteditems, selecteditem) then
                                 local dist = (chest.PrimaryPart.Position - root.Position).Magnitude
-                                if dist <= range then pickup(entityid) end
+                                if dist <= range then
+                                    pickup(entityid)
+                                end
                             end
                         end
                     end
@@ -303,13 +318,18 @@ local cd = 0
 runs.Heartbeat:Connect(function()
     if Options.droptoggle.Value then
         if tick() - debounce >= cd then
-            drop(Options.dropdropdown.Value)
+            local selectedItem = Options.dropdropdown.Value
+            drop(selectedItem)
             debounce = tick()
         end
     end
+end)
+
+runs.Heartbeat:Connect(function()
     if Options.droptogglemanual.Value then
         if tick() - debounce >= cd then
-            drop(Options.droptextbox.Value)
+            local itemname = Options.droptextbox.Value
+            drop(itemname)
             debounce = tick()
         end
     end
@@ -317,7 +337,24 @@ end)
 
 local plantedboxes = {}
 local fruittoitemid = {
-    Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147
+    Bloodfruit = 94,
+    Bluefruit = 377,
+    Lemon = 99,
+    Coconut = 1,
+    Jelly = 604,
+    Banana = 606,
+    Orange = 602,
+    Oddberry = 32,
+    Berry = 35,
+    Strangefruit = 302,
+    Strawberry = 282,
+    Sunfruit = 128,
+    Pumpkin = 80,
+    ["Prickly Pear"] = 378,
+    Apple = 243,
+    Barley = 247,
+    Cloudberry = 101,
+    Carrot = 147
 }
 
 local function plant(entityid, itemID)
@@ -353,7 +390,9 @@ local function getbushes(range, fruitname)
                 local dist = (ppart.Position - root.Position).Magnitude
                 if dist <= range then
                     local entityid = model:GetAttribute("EntityID")
-                    if entityid then table.insert(bushes, { entityid = entityid, model = model, dist = dist }) end
+                    if entityid then
+                        table.insert(bushes, { entityid = entityid, model = model, dist = dist })
+                    end
                 end
             end
         end
@@ -378,7 +417,8 @@ local function tweenplantbox(range)
         table.sort(plantboxes, function(a, b) return a.dist < b.dist end)
         for _, box in ipairs(plantboxes) do
             if not box.deployable:FindFirstChild("Seed") then
-                tween(box.deployable.PrimaryPart.CFrame + Vector3.new(0, 5, 0))
+                local target = box.deployable.PrimaryPart.CFrame + Vector3.new(0, 5, 0)
+                tween(target)
                 break
             end
         end
@@ -392,7 +432,8 @@ local function tweenpbs(range, fruitname)
         table.sort(bushes, function(a, b) return a.dist < b.dist end)
         if #bushes > 0 then
             for _, bush in ipairs(bushes) do
-                tween(bush.model.PrimaryPart.CFrame + Vector3.new(0, 5, 0))
+                local target = bush.model.PrimaryPart.CFrame + Vector3.new(0, 5, 0)
+                tween(target)
                 break
             end
         else
@@ -400,7 +441,8 @@ local function tweenpbs(range, fruitname)
             table.sort(plantboxes, function(a, b) return a.dist < b.dist end)
             for _, box in ipairs(plantboxes) do
                 if not box.deployable:FindFirstChild("Seed") then
-                    tween(box.deployable.PrimaryPart.CFrame + Vector3.new(0, 5, 0))
+                    local target = box.deployable.PrimaryPart.CFrame + Vector3.new(0, 5, 0)
+                    tween(target)
                     break
                 end
             end
@@ -411,51 +453,64 @@ end
 
 task.spawn(function()
     while true do
-        if Options.planttoggle.Value then
-            local range = tonumber(Options.plantrange.Value) or 30
-            local delay = tonumber(Options.plantdelay.Value) or 0.1
-            local itemID = fruittoitemid[Options.fruitdropdown.Value] or 94
-            local plantboxes = getpbs(range)
-            table.sort(plantboxes, function(a, b) return a.dist < b.dist end)
-            for _, box in ipairs(plantboxes) do
-                if not box.deployable:FindFirstChild("Seed") then
-                    plant(box.entityid, itemID)
-                else
-                    plantedboxes[box.entityid] = true
-                end
+        if not Options.planttoggle.Value then
+            task.wait(0.1)
+            continue
+        end
+        local range = tonumber(Options.plantrange.Value) or 30
+        local delay = tonumber(Options.plantdelay.Value) or 0.1
+        local selectedfruit = Options.fruitdropdown.Value
+        local itemID = fruittoitemid[selectedfruit] or 94
+        local plantboxes = getpbs(range)
+        table.sort(plantboxes, function(a, b) return a.dist < b.dist end)
+        for _, box in ipairs(plantboxes) do
+            if not box.deployable:FindFirstChild("Seed") then
+                plant(box.entityid, itemID)
+            else
+                plantedboxes[box.entityid] = true
             end
-            task.wait(delay)
-        else
-            task.wait(0.1)
         end
+        task.wait(delay)
     end
 end)
 
 task.spawn(function()
     while true do
-        if Options.harvesttoggle.Value then
-            local harvestrange = tonumber(Options.harvestrange.Value) or 30
-            local bushes = getbushes(harvestrange, Options.fruitdropdown.Value)
-            table.sort(bushes, function(a, b) return a.dist < b.dist end)
-            for _, bush in ipairs(bushes) do pickup(bush.entityid) end
+        if not Options.harvesttoggle.Value then
             task.wait(0.1)
-        else
-            task.wait(0.1)
+            continue
         end
-    end
-end)
-
-task.spawn(function()
-    while true do
-        if tweenplantboxtoggle.Value then tweenplantbox(tonumber(Options.tweenrange.Value) or 250) end
+        local harvestrange = tonumber(Options.harvestrange.Value) or 30
+        local selectedfruit = Options.fruitdropdown.Value
+        local bushes = getbushes(harvestrange, selectedfruit)
+        table.sort(bushes, function(a, b) return a.dist < b.dist end)
+        for _, bush in ipairs(bushes) do
+            pickup(bush.entityid)
+        end
         task.wait(0.1)
     end
 end)
 
 task.spawn(function()
     while true do
-        if tweenbushtoggle.Value then tweenpbs(tonumber(Options.tweenrange.Value) or 20, Options.fruitdropdown.Value) end
-        task.wait(0.1)
+        if not tweenplantboxtoggle.Value then
+            task.wait(0.1)
+            continue
+        end
+        local range = tonumber(Options.tweenrange.Value) or 250
+        tweenplantbox(range)
+    end
+end)
+
+task.spawn(function()
+    while true do
+        if not tweenbushtoggle.Value then
+            task.wait(0.1)
+            continue
+        end
+        local range = tonumber(Options.tweenrange.Value) or 20
+        local selectedfruit = Options.fruitdropdown.Value
+        tweenpbs(range, selectedfruit)
     end
 end)
 
