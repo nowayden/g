@@ -95,28 +95,6 @@ local function updws()
     end
 end
 
-placestructure = function(gridsize)
-    if not plr or not plr.Character then return end
-    local torso = plr.Character:FindFirstChild("HumanoidRootPart")
-    if not torso then return end
-    local startpos = torso.Position - Vector3.new(0, 3, 0)
-    local spacing = 6.04
-    for x = 0, gridsize - 1 do
-        for z = 0, gridsize - 1 do
-            task.wait(0.3)
-            local position = startpos + Vector3.new(x * spacing, 0, z * spacing)
-            if packets.PlaceStructure and packets.PlaceStructure.send then
-                packets.PlaceStructure.send{
-                    ["buildingName"] = "Plant Box",
-                    ["yrot"] = 45,
-                    ["vec"] = position,
-                    ["isMobile"] = false
-                }
-            end
-        end
-    end
-end
-
 local slopecon
 local function updmsa()
     if slopecon then slopecon:Disconnect() end
@@ -513,6 +491,28 @@ task.spawn(function()
         tweenpbs(range, selectedfruit)
     end
 end)
+
+placestructure = function(gridsize)
+    if not plr or not plr.Character then return end
+    local torso = plr.Character:FindFirstChild("HumanoidRootPart")
+    if not torso then return end
+    local startpos = torso.Position - Vector3.new(0, 3, 0)
+    local spacing = 6.04
+    for x = 0, gridsize - 1 do
+        for z = 0, gridsize - 1 do
+            task.wait(0.3)
+            local position = startpos + Vector3.new(x * spacing, 0, z * spacing)
+            if packets.PlaceStructure and packets.PlaceStructure.send then
+                packets.PlaceStructure.send{
+                    ["buildingName"] = "Plant Box",
+                    ["yrot"] = 45,
+                    ["vec"] = position,
+                    ["isMobile"] = false
+                }
+            end
+        end
+    end
+end
 
 SaveManager:SetLibrary(Library)
 InterfaceManager:SetLibrary(Library)
