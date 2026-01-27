@@ -390,44 +390,155 @@ local function tween(target)
 end
 
 local function tweenplantbox(range)
-    while tweenplantboxtoggle.Value do
-        local plantboxes = getpbs(range)
-        table.sort(plantboxes, function(a, b) return a.dist < b.dist end)
-        for _, box in ipairs(plantboxes) do
-            if not box.deployable:FindFirstChild("Seed") then
-                local target = box.deployable.PrimaryPart.CFrame + Vector3.new(0, 5, 0)
-                tween(target)
-                break
-            end
-        end
-        task.wait(0.1)
-    end
-end
-
-local function tweenpbs(range, fruitname)
-    while tweenbushtoggle.Value do
-        local bushes = getbushes(range, fruitname)
-        table.sort(bushes, function(a, b) return a.dist < b.dist end)
-        if #bushes > 0 then
-            for _, bush in ipairs(bushes) do
-                local target = bush.model.PrimaryPart.CFrame + Vector3.new(0, 5, 0)
-                tween(target)
-                break
-            end
-        else
+    local function mainLoop()
+        while Options.tweentoplantbox.Value do
             local plantboxes = getpbs(range)
             table.sort(plantboxes, function(a, b) return a.dist < b.dist end)
+            
             for _, box in ipairs(plantboxes) do
+                if not Options.tweentoplantbox.Value then break end
+                
+                -- Check if plant box already has a seed
                 if not box.deployable:FindFirstChild("Seed") then
-                    local target = box.deployable.PrimaryPart.CFrame + Vector3.new(0, 5, 0)
-                    tween(target)
+                    local targetCFrame = box.deployable.PrimaryPart.CFrame + Vector3.new(0, 5, 0)
+                    tween(targetCFrame)
+                    
+                    -- Wait for tween to complete
+                    local startTime = tick()
+                    while tweening and tweening.PlaybackState == Enum.PlaybackState.Playing and tick() - startTime < 10 do
+                        if not Options.tweentoplantbox.Value then break end
+                        task.wait(0.1)
+                    end
+                    
+                    -- Break after reaching one plant box
                     break
                 end
             end
+            
+            if not Options.tweentoplantbox.Value then break end
+            task.wait(0.5) -- Small delay between checks
         end
-        task.wait(0.1)
     end
+    
+    task.spawn(mainLoop)
 end
+
+local function tweenpbs(range, fruitname)
+    local function mainLoop()
+        while Options.tweentobush.Value do
+            local fruitname = Options.fruitdropdown.Value
+            
+            -- First try to find bushes
+            local bushes = getbushes(range, fruitname)
+            table.sort(bushes, function(a, b) return a.dist < b.dist end)
+            
+            if #bushes > 0 then
+                for _, bush in ipairs(bushes) do
+                    if not Options.tweentobush.Value then break end
+                    
+                    local targetCFrame = bush.model.PrimaryPart.CFrame + Vector3.new(0, 5, 0)
+                    tween(targetCFrame)
+                    
+                    -- Wait for tween to complete
+                    local startTime = tick()
+                    while tweening and tweening.PlaybackState == Enum.PlaybackState.Playing and tick() - startTime < 10 do
+                        if not Options.tweentobush.Value then break end
+                        task.wait(0.1)
+                    end
+                    
+                    -- Plant in the bush after reaching it
+                    if packets.InteractStructure and packets.InteractStructure.send then
+                        pcall(function()
+                            packets.InteractStructure.send({
+                                entityID = bush.entityid,
+                                itemID = fruittoitemid[fruitname] or 94
+                            })
+                        end)
+                    end
+                    
+                    break -- Process one bush at a time
+                end
+            else
+                -- If no bushes, find empty plant boxes
+                local plantboxes = getpbs(range)
+                table.sort(plantboxes, function(a, b) return a.dist < b.dist end)
+                
+                for _, box in ipairs(plantboxes) do
+                    if not Options.tweentobush.Value then break end
+                    
+                    if not box.deployable:FindFirstChild("Seed") then
+                        local targetCFrame = box.deployable.PrimaryPart.CFrame + Vector3.new(0, 5, 0)
+                        tween(targetCFrame)
+                        
+                        -- Wait for tween to complete
+                        local startTime = tick()
+                        while tweening and tweening.PlaybackState == Enum.PlaybackState.Playing and tick() - startTime < 10 do
+                            if not Options.tweentobush.Value then break end
+                            task.wait(0.1)
+                        end
+                        
+                        -- Plant in the box after reaching it
+                        if packets.InteractStructure and packets.InteractStructure.send then
+                            pcall(function()
+                                packets.InteractStructure.send({
+                                    entityID = box.entityid,
+                                    itemID = fruittoitemid[fruitname] or 94
+                                })
+                            end)
+                        end
+                        
+                        break -- Process one plant box at a time
+                    end
+                end
+            end
+            
+            if not Options.tweentobush.Value then break end
+            task.wait(1) -- Wait before next cycle
+        end
+    end
+    
+    task.spawn(mainLoop)
+end
+
+-- Connect toggles to start/stop functions
+Options.tweentoplantbox:OnChanged(function(value)
+    if value then
+        local range = tonumber(Options.tweenrange.Value) or 250
+        tweenplantbox(range)
+    else
+        if tweening then
+            tweening:Cancel()
+            tweening = nil
+        end
+    end
+end)
+
+Options.tweentobush:OnChanged(function(value)
+    if value then
+        local range = tonumber(Options.tweenrange.Value) or 250
+        local fruitname = Options.fruitdropdown.Value
+        tweenpbs(range, fruitname)
+    else
+        if tweening then
+            tweening:Cancel()
+            tweening = nil
+        end
+    end
+end)
+
+-- Update range slider to restart tweening if active
+Options.tweenrange:OnChanged(function(value)
+    if Options.tweentoplantbox.Value then
+        Options.tweentoplantbox.Value = false
+        task.wait(0.1)
+        Options.tweentoplantbox.Value = true
+    end
+    if Options.tweentobush.Value then
+        Options.tweentobush.Value = false
+        task.wait(0.1)
+        Options.tweentobush.Value = true
+    end
+end)
 
 task.spawn(function()
     while true do
@@ -466,29 +577,6 @@ task.spawn(function()
             pickup(bush.entityid)
         end
         task.wait(0.1)
-    end
-end)
-
-task.spawn(function()
-    while true do
-        if not tweenplantboxtoggle.Value then
-            task.wait(0.1)
-            continue
-        end
-        local range = tonumber(Options.tweenrange.Value) or 250
-        tweenplantbox(range)
-    end
-end)
-
-task.spawn(function()
-    while true do
-        if not tweenbushtoggle.Value then
-            task.wait(0.1)
-            continue
-        end
-        local range = tonumber(Options.tweenrange.Value) or 20
-        local selectedfruit = Options.fruitdropdown.Value
-        tweenpbs(range, selectedfruit)
     end
 end)
 
