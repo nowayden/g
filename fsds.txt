@@ -74,6 +74,16 @@ local plantrangeslider = Tabs.Farming:CreateSlider("plantrange", { Title = "Plan
 local plantdelayslider = Tabs.Farming:CreateSlider("plantdelay", { Title = "Plant Delay (s)", Min = 0.01, Max = 1, Rounding = 2, Default = 0.1 })
 local harvesttoggle = Tabs.Farming:CreateToggle("harvesttoggle", { Title = "Auto Harvest", Default = false })
 local harvestrangeslider = Tabs.Farming:CreateSlider("harvestrange", { Title = "Harvest Range", Min = 1, Max = 30, Rounding = 1, Default = 30 })
+
+-- NEW: Tween Speed Slider
+local tweenspeedslider = Tabs.Farming:AddSlider("tweenspeed", { 
+    Title = "Tween Speed (Higher = Faster)", 
+    Min = 10, 
+    Max = 200, 
+    Rounding = 1, 
+    Default = 50 
+})
+
 local tweenplantboxtoggle = Tabs.Farming:AddToggle("tweentoplantbox", { Title = "Tween to Plant Box", Default = false })
 local tweenbushtoggle = Tabs.Farming:AddToggle("tweentobush", { Title = "Tween to Bush + Plant Box", Default = false })
 local tweenrangeslider = Tabs.Farming:AddSlider("tweenrange", { Title = "Range", Min = 1, Max = 250, Rounding = 1, Default = 250 })
@@ -378,7 +388,7 @@ local function getbushes(range, fruitname)
     return bushes
 end
 
--- FASTER TWEENING SYSTEM
+-- TWEENING SYSTEM WITH SPEED CONTROL
 local tweening = nil
 local lastPlantTime = 0
 local function tween(target)
@@ -388,8 +398,13 @@ local function tween(target)
     end
     
     local distance = (root.Position - target.Position).Magnitude
-    -- FASTER: Reduced tween duration (was distance/21, now distance/50 for ultra speed)
-    local duration = distance / 50  -- MUCH FASTER!
+    -- USE SPEED SLIDER: Higher value = Faster movement
+    local tweenSpeed = Options.tweenspeed.Value
+    local duration = distance / tweenSpeed  -- Speed controlled by slider
+    
+    -- Safety: Minimum duration to prevent instant teleport at very high speeds
+    if duration < 0.1 then duration = 0.1 end
+    
     local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
     local tween = tspmo:Create(root, tweenInfo, { CFrame = target })
     tween:Play()
@@ -397,7 +412,7 @@ local function tween(target)
     return tween
 end
 
--- FASTER TWEEN TO PLANT BOX
+-- TWEEN TO PLANT BOX WITH SPEED CONTROL
 local function tweenplantbox(range)
     while Options.tweentoplantbox.Value do
         local plantboxes = getpbs(range)
@@ -411,11 +426,13 @@ local function tweenplantbox(range)
                 local targetCFrame = box.deployable.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
                 local currentTween = tween(targetCFrame)
                 
-                -- SHORTER WAIT: Wait for tween to complete or short timeout
+                -- Wait for tween to complete or timeout
                 local startTime = tick()
-                while currentTween and currentTween.PlaybackState == Enum.PlaybackState.Playing and tick() - startTime < 2 do
+                local timeout = 3  -- Max wait time
+                
+                while currentTween and currentTween.PlaybackState == Enum.PlaybackState.Playing and tick() - startTime < timeout do
                     if not Options.tweentoplantbox.Value then break end
-                    task.wait(0.05)  -- Faster check interval
+                    task.wait(0.05)
                 end
                 
                 -- Break after reaching one plant box
@@ -424,11 +441,11 @@ local function tweenplantbox(range)
         end
         
         if not Options.tweentoplantbox.Value then break end
-        task.wait(0.05)  -- Faster check between cycles
+        task.wait(0.05)
     end
 end
 
--- FASTER TWEEN TO BUSH + PLANT BOX
+-- TWEEN TO BUSH + PLANT BOX WITH SPEED CONTROL
 local function tweenpbs(range, fruitname)
     while Options.tweentobush.Value do
         local fruitname = Options.fruitdropdown.Value
@@ -444,15 +461,17 @@ local function tweenpbs(range, fruitname)
                 local targetCFrame = bush.model.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
                 local currentTween = tween(targetCFrame)
                 
-                -- SHORTER WAIT for tween
+                -- Wait for tween to complete
                 local startTime = tick()
-                while currentTween and currentTween.PlaybackState == Enum.PlaybackState.Playing and tick() - startTime < 2 do
+                local timeout = 3
+                
+                while currentTween and currentTween.PlaybackState == Enum.PlaybackState.Playing and tick() - startTime < timeout do
                     if not Options.tweentobush.Value then break end
-                    task.wait(0.05)  -- Faster check
+                    task.wait(0.05)
                 end
                 
-                -- INSTANT PLANT after reaching (no delay)
-                if tick() - lastPlantTime > 0.1 then  -- Small cooldown
+                -- Plant after reaching
+                if tick() - lastPlantTime > 0.1 then
                     if packets.InteractStructure and packets.InteractStructure.send then
                         pcall(function()
                             packets.InteractStructure.send({
@@ -464,7 +483,7 @@ local function tweenpbs(range, fruitname)
                     end
                 end
                 
-                break  -- Process one at a time
+                break
             end
         else
             -- If no bushes, find empty plant boxes
@@ -478,15 +497,17 @@ local function tweenpbs(range, fruitname)
                     local targetCFrame = box.deployable.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
                     local currentTween = tween(targetCFrame)
                     
-                    -- SHORTER WAIT for tween
+                    -- Wait for tween to complete
                     local startTime = tick()
-                    while currentTween and currentTween.PlaybackState == Enum.PlaybackState.Playing and tick() - startTime < 2 do
+                    local timeout = 3
+                    
+                    while currentTween and currentTween.PlaybackState == Enum.PlaybackState.Playing and tick() - startTime < timeout do
                         if not Options.tweentobush.Value then break end
-                        task.wait(0.05)  -- Faster check
+                        task.wait(0.05)
                     end
                     
-                    -- INSTANT PLANT after reaching
-                    if tick() - lastPlantTime > 0.1 then  -- Small cooldown
+                    -- Plant after reaching
+                    if tick() - lastPlantTime > 0.1 then
                         if packets.InteractStructure and packets.InteractStructure.send then
                             pcall(function()
                                 packets.InteractStructure.send({
@@ -498,17 +519,17 @@ local function tweenpbs(range, fruitname)
                         end
                     end
                     
-                    break  -- Process one at a time
+                    break
                 end
             end
         end
         
         if not Options.tweentobush.Value then break end
-        task.wait(0.05)  -- Much faster cycle time
+        task.wait(0.05)
     end
 end
 
--- Connect toggles with FASTER restarts
+-- Connect toggles with speed control
 Options.tweentoplantbox:OnChanged(function(value)
     if value then
         task.spawn(function()
@@ -538,18 +559,27 @@ Options.tweentobush:OnChanged(function(value)
     end
 end)
 
--- FASTER range update
-Options.tweenrange:OnChanged(function(value)
+-- Restart tweens when speed or range changes
+local function restartTweensIfActive()
     if Options.tweentoplantbox.Value then
         Options.tweentoplantbox.Value = false
-        task.wait(0.05)  -- Shorter delay
+        task.wait(0.05)
         Options.tweentoplantbox.Value = true
     end
     if Options.tweentobush.Value then
         Options.tweentobush.Value = false
-        task.wait(0.05)  -- Shorter delay
+        task.wait(0.05)
         Options.tweentobush.Value = true
     end
+end
+
+-- Update when speed slider changes
+Options.tweenspeed:OnChanged(function(value)
+    restartTweensIfActive()
+end)
+
+Options.tweenrange:OnChanged(function(value)
+    restartTweensIfActive()
 end)
 
 task.spawn(function()
@@ -625,7 +655,7 @@ SaveManager:BuildConfigSection(Tabs.Settings)
 Window:SelectTab(1)
 Library:Notify{
     Title = "PhantomHub",
-    Content = "Loaded with FASTER tweening!",
+    Content = "Loaded with Tween Speed Control!",
     Duration = 8
 }
 SaveManager:LoadAutoloadConfig()
