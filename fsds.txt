@@ -1,12 +1,12 @@
-print("Loading PhantomHub")
+print("Loading neverlose")
 print("-----------------------------------------")
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "PhantomHub",
-    SubTitle = "by PhantomHub",
+    Title = "neverlose",
+    SubTitle = ":)",
     TabWidth = 160,
     Size = UDim2.fromOffset(830, 525),
     Resize = true,
@@ -654,9 +654,10 @@ InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 Window:SelectTab(1)
 Library:Notify{
-    Title = "PhantomHub",
-    Content = "Loaded with Tween Speed Control!",
+    Title = "neverlose",
+    Content = "holy sigma gang",
     Duration = 8
 }
 SaveManager:LoadAutoloadConfig()
 print("Done! Enjoy PhantomHub!")
+
