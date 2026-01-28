@@ -659,5 +659,6 @@ Library:Notify{
     Duration = 8
 }
 SaveManager:LoadAutoloadConfig()
-print("Done! Enjoy PhantomHub!")
+print("Done! Enjoy neverlose!")
+
 
