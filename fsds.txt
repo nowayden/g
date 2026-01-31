@@ -1,8 +1,8 @@
 print("Loading neverlose")
 print("-----------------------------------------")
-local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau  "))()
-local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau  "))()
-local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau  "))()
+local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
+local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
+local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
     Title = "neverlose",
@@ -87,6 +87,13 @@ local tweenspeedslider = Tabs.Farming:AddSlider("tweenspeed", {
 local tweenplantboxtoggle = Tabs.Farming:AddToggle("tweentoplantbox", { Title = "Tween to Plant Box", Default = false })
 local tweenbushtoggle = Tabs.Farming:AddToggle("tweentobush", { Title = "Tween to Bush + Plant Box", Default = false })
 local tweenrangeslider = Tabs.Farming:AddSlider("tweenrange", { Title = "Range", Min = 1, Max = 250, Rounding = 1, Default = 250 })
+
+-- NEW: Continuous Plant Box Placer Toggle
+local placeplantboxestoggle = Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Continuously", Default = false })
+
+-- Button to trigger single placement (optional, can be removed if only using toggle)
+Tabs.Farming:CreateButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placestructure(1) end }) 
+
 Tabs.Farming:CreateButton({Title = "Place 16x16 Plantboxes (256)", Callback = function() placestructure(16) end })
 Tabs.Farming:CreateButton({Title = "Place 15x15 Plantboxes (225)", Callback = function() placestructure(15) end })
 Tabs.Farming:CreateButton({Title = "Place 10x10 Plantboxes (100)", Callback = function() placestructure(10) end })
@@ -659,36 +666,169 @@ task.spawn(function()
     end
 end)
 
--- IMPROVED: Place Structure (Corrected Y Rotation)
-placestructure = function(gridsize)
-    if not plr or not plr.Character or not plr.Character:FindFirstChild("HumanoidRootPart") then
-        warn("Player character or root part not found for placement.")
+-- IMPROVED: Place Structure (Uses Snapping Logic, Handles Single and Grid Placement, Includes Continuous Option)
+local placementConnection = nil
+local function placeSingleSnappedBox()
+    local player = game.Players.LocalPlayer
+    local character = player.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then
+        print("Player character or root part not found for placement.")
         return
     end
-    local torso = plr.Character.HumanoidRootPart
-    local startpos = torso.Position - Vector3.new(0, 3, 0) -- Offset down slightly
-    local spacing = 6.04 -- Approximate spacing between plant boxes
 
-    for x = 0, gridsize - 1 do
-        for z = 0, gridsize - 1 do
-            -- Add a small delay between placement attempts
-            task.wait(0.3)
+    local rootPart = character.HumanoidRootPart
+    local currentPosition = rootPart.Position
 
-            local position = startpos + Vector3.new(x * spacing, 0, z * spacing)
-            if packets.PlaceStructure and packets.PlaceStructure.send then
-                packets.PlaceStructure.send{
-                    ["buildingName"] = "Plant Box", -- Ensure this name matches exactly
-                    ["yrot"] = 0, -- Changed from 45 to 0, might be the issue
-                    ["vec"] = position,
-                    ["isMobile"] = false
-                }
+    -- Snap to grid (similar to L Hub)
+    local gridSize = 6.05
+    local snappedX = math.round(currentPosition.X / gridSize) * gridSize
+    local snappedZ = math.round(currentPosition.Z / gridSize) * gridSize
+    local snappedPosition = Vector3.new(snappedX, currentPosition.Y, snappedZ)
+
+    -- Raycast down to find terrain/floor
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+    rayParams.FilterDescendantsInstances = {character} -- Ignore player's own parts
+    rayParams.IgnoreWater = true
+
+    local rayOrigin = Vector3.new(snappedPosition.X, snappedPosition.Y + 100, snappedPosition.Z) -- Start above
+    local rayDirection = Vector3.new(0, -200, 0)       -- Raycast down
+
+    local rayResult = workspace:Raycast(rayOrigin, rayDirection, rayParams)
+
+    if rayResult then
+        -- Use the hit position for placement
+        local finalPosition = rayResult.Position
+        if packets.PlaceStructure and packets.PlaceStructure.send then
+            packets.PlaceStructure.send({
+                buildingName = "Plant Box",
+                cframe = CFrame.new(finalPosition), -- Use CFrame for placement if possible
+                yrot = 0, -- Standard rotation
+                vec = finalPosition, -- Include vec as backup if cframe isn't used server-side
+                isMobile = false
+            })
+            print("Placed plant box at:", finalPosition)
+        else
+            warn("PlaceStructure packet not found or send method missing.")
+        end
+    else
+        warn("Could not find ground/floor to place plant box at snapped position:", snappedPosition)
+        -- Fallback: Place at snapped position without raycast if no ground is found
+        if packets.PlaceStructure and packets.PlaceStructure.send then
+            packets.PlaceStructure.send({
+                buildingName = "Plant Box",
+                cframe = CFrame.new(snappedPosition),
+                yrot = 0,
+                vec = snappedPosition,
+                isMobile = false
+            })
+            print("Placed plant box at fallback snapped position:", snappedPosition)
+        end
+    end
+end
+
+-- Grid placement function (keeps original grid logic but uses snapped positions)
+local function placeGridOfBoxes(gridSize)
+    local player = game.Players.LocalPlayer
+    local character = player.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then
+        print("Player character or root part not found for placement.")
+        return
+    end
+
+    local torso = character.HumanoidRootPart
+    local startpos = torso.Position - Vector3.new(0, 3, 0) -- Offset down slightly from player
+    local spacing = 6.05 -- Approximate spacing between plant boxes (matches snap grid)
+
+    for x = 0, gridSize - 1 do
+        for z = 0, gridSize - 1 do
+            task.wait(0.3) -- Add a small delay between placement attempts
+
+            -- Calculate grid position
+            local gridX = startpos.X + (x * spacing)
+            local gridZ = startpos.Z + (z * spacing)
+            local gridPos = Vector3.new(gridX, startpos.Y, gridZ)
+
+             -- Snap grid position to the same grid system
+            local snappedX = math.round(gridPos.X / spacing) * spacing
+            local snappedZ = math.round(gridPos.Z / spacing) * spacing
+            local snappedGridPos = Vector3.new(snappedX, gridPos.Y, snappedZ)
+
+            -- Raycast down from the snapped grid position
+            local rayParams = RaycastParams.new()
+            rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+            rayParams.FilterDescendantsInstances = {character}
+            rayParams.IgnoreWater = true
+
+            local rayOrigin = Vector3.new(snappedGridPos.X, snappedGridPos.Y + 100, snappedGridPos.Z)
+            local rayDirection = Vector3.new(0, -200, 0)
+
+            local rayResult = workspace:Raycast(rayOrigin, rayDirection, rayParams)
+
+            if rayResult then
+                -- Use the hit position for placement
+                local finalPosition = rayResult.Position
+                if packets.PlaceStructure and packets.PlaceStructure.send then
+                    packets.PlaceStructure.send({
+                        buildingName = "Plant Box",
+                        cframe = CFrame.new(finalPosition),
+                        yrot = 0,
+                        vec = finalPosition,
+                        isMobile = false
+                    })
+                    print("Placed plant box in grid at:", finalPosition)
+                else
+                    warn("PlaceStructure packet not found or send method missing during grid placement.")
+                    break -- Stop if packet fails
+                end
             else
-                warn("PlaceStructure packet not found or send method missing.")
-                break -- Stop if packet fails
+                 warn("Could not find ground/floor to place plant box in grid at snapped position:", snappedGridPos)
+                 -- Fallback: Place at snapped grid position without raycast if no ground is found
+                 if packets.PlaceStructure and packets.PlaceStructure.send then
+                    packets.PlaceStructure.send({
+                        buildingName = "Plant Box",
+                        cframe = CFrame.new(snappedGridPos),
+                        yrot = 0,
+                        vec = snappedGridPos,
+                        isMobile = false
+                    })
+                    print("Placed plant box in grid at fallback snapped position:", snappedGridPos)
+                 end
             end
         end
     end
 end
+
+-- Update the placestructure function to handle both grid and single snapped placement
+placestructure = function(gridsize)
+    if gridsize == 1 then
+        -- If gridsize is 1, treat it as a single snapped placement
+        placeSingleSnappedBox()
+    else
+        -- Otherwise, treat it as a grid placement
+        placeGridOfBoxes(gridsize)
+    end
+end
+
+-- Handle the continuous placement toggle
+Options.placeplantboxestoggle:OnChanged(function(value)
+    if value then
+        -- Enable continuous placement
+        if placementConnection then
+            placementConnection:Disconnect() -- Disconnect any existing connection
+        end
+        placementConnection = runs.Heartbeat:Connect(function()
+            placeSingleSnappedBox() -- Place a box every heartbeat frame
+            task.wait(0.1) -- Add a small delay to prevent spamming too quickly
+        end)
+    else
+        -- Disable continuous placement
+        if placementConnection then
+            placementConnection:Disconnect()
+            placementConnection = nil
+        end
+    end
+end)
 
 SaveManager:SetLibrary(Library)
 InterfaceManager:SetLibrary(Library)
