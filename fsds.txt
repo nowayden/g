@@ -74,8 +74,6 @@ local deployableauratoggle = Tabs.Map:CreateToggle("deployableauratoggle", { Tit
 local deployablerangeslider = Tabs.Map:CreateSlider("deployablerangeslider", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
 local deployabletargetdropdown = Tabs.Map:CreateDropdown("deployabletargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
 local deployablecooldownslider = Tabs.Map:CreateSlider("deployablecooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
--- NEW: Toggle to include Rubble in Deployable Aura (Always enabled by default now)
--- local includeRubbleToggle = Tabs.Map:CreateToggle("includerubble", { Title = "Include Rubble", Default = true }) -- Removed toggle, always includes rubble now
 
 local autopickuptoggle = Tabs.Pickup:CreateToggle("autopickuptoggle", { Title = "Auto Pickup", Default = false })
 local chestpickuptoggle = Tabs.Pickup:CreateToggle("chestpickuptoggle", { Title = "Auto Pickup From Chests", Default = false })
@@ -283,7 +281,7 @@ task.spawn(function()
     end
 end)
 
--- NEW: Deployable & Rubble Aura Task (Updated - Always scans both Deployables and Rubble)
+-- NEW: Deployable & Rubble Aura Task (Corrected - ONLY scans Deployables and Rubble folders)
 task.spawn(function()
     while true do
         if not Options.deployableauratoggle.Value then
@@ -309,7 +307,7 @@ task.spawn(function()
             end
         end
         
-        -- Collect Rubble (always included now)
+        -- Collect Rubble
         for _, rubble in pairs(workspace.Rubble:GetChildren()) do
             if rubble:IsA("Model") and rubble:GetAttribute("EntityID") then
                 local eid = rubble:GetAttribute("EntityID")
@@ -327,7 +325,6 @@ task.spawn(function()
             table.sort(targets, function(a, b)
                 return a.dist < b.dist
             end)
-            local selectedTargets = {}
             local selectedDeployables = {} -- For SwingTool
             local selectedRubbles = {}     -- For Pickup
             
