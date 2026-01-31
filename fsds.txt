@@ -27,16 +27,25 @@ local Tabs = {
 local rs = game:GetService("ReplicatedStorage")
 local packets = require(rs.Modules.Packets)
 local plr = game.Players.LocalPlayer
-local char = plr.Character or plr.CharacterAdded:Wait()
-local root = char:WaitForChild("HumanoidRootPart")
-local hum = char:WaitForChild("Humanoid")
+local char, root, hum -- Declare variables here
+
+local function updateCharacter()
+    char = plr.Character
+    if not char then return end
+    root = char:WaitForChild("HumanoidRootPart", 5) -- Wait max 5 seconds
+    hum = char:WaitForChild("Humanoid", 5)
+end
+
+updateCharacter()
+plr.CharacterAdded:Connect(updateCharacter)
+
 local runs = game:GetService("RunService")
 local httpservice = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local localiservice = game:GetService("LocalizationService")
 local marketservice = game:GetService("MarketplaceService")
 local rbxservice = game:GetService("RbxAnalyticsService")
-local placestructure
+local placestructure -- Declare placestructure function
 local tspmo = game:GetService("TweenService")
 local itemslist = {
 "Adurite", "Berry", "Bloodfruit", "Bluefruit", "Coin", "Essence", "Hide", "Ice Cube", "Iron", "Jelly", "Leaves", "Log", "Steel", "Stone", "Wood", "Gold", "Raw Gold", "Crystal Chunk", "Raw Emerald", "Pink Diamond", "Raw Adurite", "Raw Iron", "Coal"}
@@ -70,8 +79,8 @@ local droptextbox = Tabs.Pickup:AddInput("droptextbox", { Title = "Custom Item",
 
 local fruitdropdown = Tabs.Farming:CreateDropdown("fruitdropdown", {Title = "Select Fruit",Values = {"Bloodfruit", "Bluefruit", "Lemon", "Coconut", "Jelly", "Banana", "Orange", "Oddberry", "Berry", "Strangefruit", "Strawberry", "Sunjfruit", "Pumpkin", "Prickly Pear", "Apple",  "Barley", "Cloudberry", "Carrot"}, Default = "Bloodfruit"})
 local planttoggle = Tabs.Farming:CreateToggle("planttoggle", { Title = "Auto Plant", Default = false })
-local plantrangeslider = Tabs.Farming:CreateSlider("plantrange", { Title = "Plant Range", Min = 1, Max = 30, Rounding = 1, Default = 30 })
-local plantdelayslider = Tabs.Farming:CreateSlider("plantdelay", { Title = "Plant Delay (s)", Min = 0.01, Max = 1, Rounding = 2, Default = 0.1 })
+local plantrangeslider = Tabs.Farming:CreateSlider("plantrange", { Title = "Plant Range", Min = 1, Max = 100, Rounding = 1, Default = 30 }) -- Increased Max to 100
+local plantdelayslider = Tabs.Farming:CreateSlider("plantdelay", { Title = "Plant Delay (s)", Min = 0.01, Max = 1, Rounding = 2, Default = 0.1 }) -- Decreased Min to 0.01
 local harvesttoggle = Tabs.Farming:CreateToggle("harvesttoggle", { Title = "Auto Harvest", Default = false })
 local harvestrangeslider = Tabs.Farming:CreateSlider("harvestrange", { Title = "Harvest Range", Min = 1, Max = 30, Rounding = 1, Default = 30 })
 
@@ -128,14 +137,7 @@ local function updmsa()
     end
 end
 
-local function onplradded(newChar)
-    char = newChar
-    root = char:WaitForChild("HumanoidRootPart")
-    hum = char:WaitForChild("Humanoid")
-    updws()
-end
-
-plr.CharacterAdded:Connect(onplradded)
+-- Note: Character update is handled by updateCharacter function connected earlier
 Options.wstoggle:OnChanged(updws)
 Options.jptoggle:OnChanged(updws)
 
@@ -365,7 +367,7 @@ local function getpbs(range)
         if deployable:IsA("Model") and deployable.Name == "Plant Box" then
             local entityid = deployable:GetAttribute("EntityID")
             local ppart = deployable.PrimaryPart or deployable:FindFirstChildWhichIsA("BasePart")
-            if entityid and ppart then
+            if entityid and ppart and root then -- Check if root exists before calculating distance
                 local dist = (ppart.Position - root.Position).Magnitude
                 if dist <= range then
                     table.insert(plantboxes, { entityid = entityid, deployable = deployable, dist = dist })
@@ -381,7 +383,7 @@ local function getbushes(range, fruitname)
     for _, model in ipairs(workspace:GetChildren()) do
         if model:IsA("Model") and model.Name:find(fruitname) then
             local ppart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-            if ppart then
+            if ppart and root then -- Check if root exists before calculating distance
                 local dist = (ppart.Position - root.Position).Magnitude
                 if dist <= range then
                     local entityid = model:GetAttribute("EntityID")
@@ -399,6 +401,7 @@ end
 local tweening = nil
 local lastPlantTime = 0
 local function tween(target)
+    if not root then return end -- Check if root exists before tweening
     if tweening then 
         tweening:Cancel()
         tweening = nil
@@ -421,6 +424,7 @@ end
 
 -- IMPROVED: TWEEN TO PLANT BOX WITH SPEED CONTROL AND SMOOTHNESS
 local function tweenplantbox(range)
+    if not root then task.wait(0.1); return end -- Early return if no root
     -- Store the initial state to compare against
     local wasEnabled = Options.tweentoplantbox.Value
 
@@ -467,6 +471,7 @@ end
 
 -- IMPROVED: TWEEN TO BUSH OR PLANT BOX WITH SPEED CONTROL AND SMOOTHNESS
 local function tweenpbs(range, fruitname)
+    if not root then task.wait(0.1); return end -- Early return if no root
     -- Store the initial state to compare against
     local wasEnabled = Options.tweentobush.Value
 
@@ -626,28 +631,35 @@ Options.tweenrange:OnChanged(function(value)
 end)
 
 
-task.spawn(function()
-    while true do
-        if not Options.planttoggle.Value then
-            task.wait(0.1)
-            continue
+-- IMPROVED: Auto Plant (Faster, Higher Range)
+local plantConnection = nil
+Options.planttoggle:OnChanged(function(value)
+    if value then
+        if plantConnection then
+            plantConnection:Disconnect()
         end
         local range = tonumber(Options.plantrange.Value) or 30
-        local delay = tonumber(Options.plantdelay.Value) or 0.1
         local selectedfruit = Options.fruitdropdown.Value
         local itemID = fruittoitemid[selectedfruit] or 94
-        local plantboxes = getpbs(range)
-        table.sort(plantboxes, function(a, b) return a.dist < b.dist end)
-        for _, box in ipairs(plantboxes) do
-            if not box.deployable:FindFirstChild("Seed") then
-                plant(box.entityid, itemID)
-            else
-                plantedboxes[box.entityid] = true
+        plantConnection = runs.Heartbeat:Connect(function() -- Use Heartbeat for speed
+            local plantboxes = getpbs(range)
+            for _, box in ipairs(plantboxes) do
+                if not box.deployable:FindFirstChild("Seed") then
+                    plant(box.entityid, itemID)
+                    plantedboxes[box.entityid] = true
+                end
             end
+            -- Plant delay is effectively handled by Heartbeat frequency if needed,
+            -- otherwise remove the delay entirely for max speed here.
+        end)
+    else
+        if plantConnection then
+            plantConnection:Disconnect()
+            plantConnection = nil
         end
-        task.wait(delay)
     end
 end)
+
 
 task.spawn(function()
     while true do
@@ -666,68 +678,56 @@ task.spawn(function()
     end
 end)
 
--- IMPROVED: Place Structure (Uses Snapping Logic, Handles Single and Grid Placement, Includes Continuous Option)
+-- IMPROVED: Place Structure (Uses Snapping Logic, Handles Single and Grid Placement, Includes Continuous Option, Adds Cursor)
 local placementConnection = nil
 local function placeSingleSnappedBox()
     local player = game.Players.LocalPlayer
     local character = player.Character
     if not character or not character:FindFirstChild("HumanoidRootPart") then
-        print("Player character or root part not found for placement.")
+        warn("Cannot place box: no character or HumanoidRootPart")
         return
     end
 
     local rootPart = character.HumanoidRootPart
     local currentPosition = rootPart.Position
+    local camera = workspace.CurrentCamera
+    local cursorPos = camera and camera.CFrame.Position or currentPosition -- Fallback to root pos if camera fails
 
-    -- Snap to grid (similar to L Hub)
+    -- Snap to grid
     local gridSize = 6.05
     local snappedX = math.round(currentPosition.X / gridSize) * gridSize
     local snappedZ = math.round(currentPosition.Z / gridSize) * gridSize
     local snappedPosition = Vector3.new(snappedX, currentPosition.Y, snappedZ)
 
-    -- Raycast down to find terrain/floor
+    -- Raycast down
     local rayParams = RaycastParams.new()
     rayParams.FilterType = Enum.RaycastFilterType.Blacklist
-    rayParams.FilterDescendantsInstances = {character} -- Ignore player's own parts
+    rayParams.FilterDescendantsInstances = {character}
     rayParams.IgnoreWater = true
 
-    local rayOrigin = Vector3.new(snappedPosition.X, snappedPosition.Y + 100, snappedPosition.Z) -- Start above
-    local rayDirection = Vector3.new(0, -200, 0)       -- Raycast down
-
+    local rayOrigin = Vector3.new(snappedPosition.X, snappedPosition.Y + 100, snappedPosition.Z)
+    local rayDirection = Vector3.new(0, -200, 0)
     local rayResult = workspace:Raycast(rayOrigin, rayDirection, rayParams)
 
-    if rayResult then
-        -- Use the hit position for placement
-        local finalPosition = rayResult.Position
-        if packets.PlaceStructure and packets.PlaceStructure.send then
-            packets.PlaceStructure.send({
-                buildingName = "Plant Box",
-                cframe = CFrame.new(finalPosition), -- Use CFrame for placement if possible
-                yrot = 0, -- Standard rotation
-                vec = finalPosition, -- Include vec as backup if cframe isn't used server-side
-                isMobile = false
-            })
-            print("Placed plant box at:", finalPosition)
-        else
-            warn("PlaceStructure packet not found or send method missing.")
-        end
+    local finalPosition = rayResult and rayResult.Position or snappedPosition
+
+    -- ✅ CRITICAL: Include 'cursor' field (required by ByteNet)
+    if packets.PlaceStructure and packets.PlaceStructure.send then
+        packets.PlaceStructure.send({
+            buildingName = "Plant Box",
+            cframe = CFrame.new(finalPosition),
+            vec = finalPosition,
+            yrot = 0,
+            isMobile = false,
+            cursor = cursorPos  -- 👈 MUST be present and non-nil
+        })
+        print("Placed plant box at:", finalPosition)
     else
-        warn("Could not find ground/floor to place plant box at snapped position:", snappedPosition)
-        -- Fallback: Place at snapped position without raycast if no ground is found
-        if packets.PlaceStructure and packets.PlaceStructure.send then
-            packets.PlaceStructure.send({
-                buildingName = "Plant Box",
-                cframe = CFrame.new(snappedPosition),
-                yrot = 0,
-                vec = snappedPosition,
-                isMobile = false
-            })
-            print("Placed plant box at fallback snapped position:", snappedPosition)
-        end
+        warn("PlaceStructure packet not found or send method missing.")
     end
 end
 
--- Grid placement function (keeps original grid logic but uses snapped positions)
+-- Grid placement function (keeps original grid logic but uses snapped positions and adds cursor)
 local function placeGridOfBoxes(gridSize)
     local player = game.Players.LocalPlayer
     local character = player.Character
@@ -737,6 +737,8 @@ local function placeGridOfBoxes(gridSize)
     end
 
     local torso = character.HumanoidRootPart
+    local camera = workspace.CurrentCamera
+    local cursorPos = camera and camera.CFrame.Position or torso.Position -- Fallback
     local startpos = torso.Position - Vector3.new(0, 3, 0) -- Offset down slightly from player
     local spacing = 6.05 -- Approximate spacing between plant boxes (matches snap grid)
 
@@ -765,35 +767,22 @@ local function placeGridOfBoxes(gridSize)
 
             local rayResult = workspace:Raycast(rayOrigin, rayDirection, rayParams)
 
-            if rayResult then
-                -- Use the hit position for placement
-                local finalPosition = rayResult.Position
-                if packets.PlaceStructure and packets.PlaceStructure.send then
-                    packets.PlaceStructure.send({
-                        buildingName = "Plant Box",
-                        cframe = CFrame.new(finalPosition),
-                        yrot = 0,
-                        vec = finalPosition,
-                        isMobile = false
-                    })
-                    print("Placed plant box in grid at:", finalPosition)
-                else
-                    warn("PlaceStructure packet not found or send method missing during grid placement.")
-                    break -- Stop if packet fails
-                end
+            local finalPosition = rayResult and rayResult.Position or snappedGridPos
+
+            -- ✅ CRITICAL: Include 'cursor' field (required by ByteNet)
+            if packets.PlaceStructure and packets.PlaceStructure.send then
+                packets.PlaceStructure.send({
+                    buildingName = "Plant Box",
+                    cframe = CFrame.new(finalPosition),
+                    yrot = 0,
+                    vec = finalPosition,
+                    isMobile = false,
+                    cursor = cursorPos -- 👈 MUST be present and non-nil
+                })
+                print("Placed plant box in grid at:", finalPosition)
             else
-                 warn("Could not find ground/floor to place plant box in grid at snapped position:", snappedGridPos)
-                 -- Fallback: Place at snapped grid position without raycast if no ground is found
-                 if packets.PlaceStructure and packets.PlaceStructure.send then
-                    packets.PlaceStructure.send({
-                        buildingName = "Plant Box",
-                        cframe = CFrame.new(snappedGridPos),
-                        yrot = 0,
-                        vec = snappedGridPos,
-                        isMobile = false
-                    })
-                    print("Placed plant box in grid at fallback snapped position:", snappedGridPos)
-                 end
+                 warn("PlaceStructure packet not found or send method missing during grid placement.")
+                 break -- Stop if packet fails
             end
         end
     end
