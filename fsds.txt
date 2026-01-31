@@ -281,7 +281,7 @@ task.spawn(function()
     end
 end)
 
--- NEW: Deployable & Rubble Aura Task (Corrected - ONLY scans Deployables and Rubble folders)
+-- NEW: Deployable & Rubble Aura Task (Corrected - Uses ONLY SwingTool for BOTH Deployables and Rubble)
 task.spawn(function()
     while true do
         if not Options.deployableauratoggle.Value then
@@ -307,7 +307,7 @@ task.spawn(function()
             end
         end
         
-        -- Collect Rubble
+        -- Collect Rubble (also treated as a target for SwingTool)
         for _, rubble in pairs(workspace.Rubble:GetChildren()) do
             if rubble:IsA("Model") and rubble:GetAttribute("EntityID") then
                 local eid = rubble:GetAttribute("EntityID")
@@ -325,27 +325,17 @@ task.spawn(function()
             table.sort(targets, function(a, b)
                 return a.dist < b.dist
             end)
-            local selectedDeployables = {} -- For SwingTool
-            local selectedRubbles = {}     -- For Pickup
+            local selectedEntities = {} -- For SwingTool (holds IDs for both deployables and rubble)
             
             -- Select closest targets up to targetCount
             for i = 1, math.min(targetCount, #targets) do
                 local target = targets[i]
-                if target.type == "deployable" then
-                    table.insert(selectedDeployables, target.eid)
-                elseif target.type == "rubble" then
-                    table.insert(selectedRubbles, target.eid)
-                end
+                table.insert(selectedEntities, target.eid) -- Add EntityID regardless of type
             end
             
-            -- Send packets based on type
-            if #selectedDeployables > 0 then
-                swingtool(selectedDeployables) -- Use SwingTool for deployables
-            end
-            if #selectedRubbles > 0 then
-                for _, entityId in pairs(selectedRubbles) do
-                    pickup(entityId) -- Use Pickup for rubble
-                end
+            -- Send SwingTool packet for ALL selected entities (deployables + rubble)
+            if #selectedEntities > 0 then
+                swingtool(selectedEntities) -- Use SwingTool for everything in the combined list
             end
         end
         task.wait(cooldown)
