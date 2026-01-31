@@ -1,116 +1,8 @@
 print("Loading neverlose")
 print("-----------------------------------------")
--- Load libraries
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
--- Corrected InterfaceManager (backticks removed)
-local InterfaceManagerCode = [[
-local httpService = game:GetService("HttpService")
-local InterfaceManager = {} do
-InterfaceManager.Folder = "FluentRenewedSettings"
-InterfaceManager.Settings = {
-Theme = "Dark",
-Acrylic = true,
-Transparency = true,
-MenuKeybind = Enum.KeyCode.RightControl
-}
-function InterfaceManager:SetFolder(folder)
-self.Folder = folder;
-self:BuildFolderTree()
-end
-function InterfaceManager:SetLibrary(library)
-self.Library = library
-InterfaceManager.Settings = {
-Theme = self.Library.Theme or "Dark",
-Acrylic = self.Library.UseAcrylic or true,
-Transparency = self.Library.Transparency or true,
-MenuKeybind = self.Library.MinimizeKey or Enum.KeyCode.RightControl
-}
-end
-function InterfaceManager:BuildFolderTree()
-local paths = {}
-local parts = self.Folder:split("/")
-for idx = 1, #parts do
-paths[#paths + 1] = table.concat(parts, "/", 1, idx)
-end
-paths[#paths + 1] = self.Folder
-paths[#paths + 1] = self.Folder .. "/settings" -- Fixed: removed backticks
-for i = 1, #paths do
-local str = paths[i]
-if not isfolder(str) then
-makefolder(str)
-end
-end
-end
-function InterfaceManager:SaveSettings()
-writefile(self.Folder .. "/options.json", httpService:JSONEncode(InterfaceManager.Settings)) -- Fixed: removed backticks
-end
-function InterfaceManager:LoadSettings()
-local path = self.Folder .. "/options.json" -- Fixed: removed backticks
-if isfile(path) then
-local data = readfile(path)
-local success, decoded = pcall(httpService.JSONDecode, httpService, data)
-if success then
-for i, v in next, decoded do
-InterfaceManager.Settings[i] = v
-end
-end
-end
-end
-function InterfaceManager:BuildInterfaceSection(tab)
-assert(self.Library, "Must set InterfaceManager.Library")
-local Library = self.Library
-local Settings = InterfaceManager.Settings
-InterfaceManager:LoadSettings()
-local section = tab:AddSection("Interface")
-local InterfaceTheme = section:AddDropdown("InterfaceManager_InterfaceTheme", {
-Title = "Theme",
-Description = "Changes the interface theme.",
-Values = Library.Themes,
-Default = Settings.Theme,
-Callback = function(Value)
-Library:SetTheme(Value)
-Settings.Theme = Value
-InterfaceManager:SaveSettings()
-end
-})
-InterfaceTheme:SetValue(Settings.Theme)
-if Library.UseAcrylic then
-section:AddToggle("InterfaceManager_AcrylicToggle", {
-Title = "Acrylic",
-Description = "The blurred background requires graphic quality 8+",
-Default = Settings.Acrylic,
-Callback = function(Value)
-Library:ToggleAcrylic(Value)
-Settings.Acrylic = Value
-InterfaceManager:SaveSettings()
-end
-})
-end
-section:AddToggle("InterfaceManager_TransparentToggle", {
-Title = "Transparency",
-Description = "Makes the interface transparent.",
-Default = Settings.Transparency,
-Callback = function(Value)
-Library:ToggleTransparency(Value)
-Settings.Transparency = Value
-InterfaceManager:SaveSettings()
-end
-})
-local MenuKeybind = section:AddKeybind("InterfaceManager_MenuKeybind", {
-Title = "Minimize Bind",
-Default = Settings.MenuKeybind,
-ChangedCallback = function(Value)
-Settings.MenuKeybind = Value
-InterfaceManager:SaveSettings()
-end
-})
-Library.MinimizeKeybind = MenuKeybind
-end
-end
-return InterfaceManager
-]]
-local InterfaceManager = loadstring(InterfaceManagerCode)()
+local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
     Title = "neverlose",
@@ -136,18 +28,9 @@ local rs = game:GetService("ReplicatedStorage")
 local packets = require(rs.Modules.Packets)
 local plr = game.Players.LocalPlayer
 -- Initialize char, root, hum initially
-local char, root, hum
-
-local function updateCharacter()
-    char = plr.Character
-    if not char then return end
-    root = char:WaitForChild("HumanoidRootPart", 5) -- Wait max 5 seconds
-    hum = char:WaitForChild("Humanoid", 5)
-end
-
-updateCharacter()
-plr.CharacterAdded:Connect(updateCharacter)
-
+local char = plr.Character or plr.CharacterAdded:Wait()
+local root = char:WaitForChild("HumanoidRootPart")
+local hum = char:WaitForChild("Humanoid")
 local runs = game:GetService("RunService")
 local httpservice = game:GetService("HttpService")
 local Players = game:GetService("Players")
@@ -176,12 +59,6 @@ local critterauratoggle = Tabs.Map:CreateToggle("critterauratoggle", { Title = "
 local critterrangeslider = Tabs.Map:CreateSlider("critterrangeslider", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
 local crittertargetdropdown = Tabs.Map:CreateDropdown("crittertargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
 local crittercooldownslider = Tabs.Map:CreateSlider("crittercooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
-
--- NEW: Deployable Aura (Fixed)
-local deployableauratoggle = Tabs.Map:CreateToggle("deployableauratoggle", { Title = "Deployable Aura", Default = false })
-local deployableaurarange = Tabs.Map:CreateSlider("deployableaurarange", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
-local deployabletargetdropdown = Tabs.Map:CreateDropdown("deployabletargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
-local deployablecooldownslider = Tabs.Map:CreateSlider("deployablecooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
 
 local autopickuptoggle = Tabs.Pickup:CreateToggle("autopickuptoggle", { Title = "Auto Pickup", Default = false })
 local chestpickuptoggle = Tabs.Pickup:CreateToggle("chestpickuptoggle", { Title = "Auto Pickup From Chests", Default = false })
@@ -255,7 +132,15 @@ local function updmsa()
     end
 end
 
--- Note: Character update is handled by updateCharacter function connected earlier
+-- Function to update character and root references
+local function onplradded(newChar)
+    char = newChar
+    root = char:WaitForChild("HumanoidRootPart")
+    hum = char:WaitForChild("Humanoid")
+    updws()
+end
+
+plr.CharacterAdded:Connect(onplradded)
 Options.wstoggle:OnChanged(updws)
 Options.jptoggle:OnChanged(updws)
 
@@ -389,66 +274,6 @@ task.spawn(function()
     end
 end)
 
--- NEW: Deployable Aura Task Spawn (Fixed)
-task.spawn(function()
-    while true do
-        if not Options.deployableauratoggle.Value then
-            task.wait(0.1)
-            continue
-        end
-        local range = tonumber(Options.deployableaurarange.Value) or 20
-        local targetCount = tonumber(Options.deployabletargetdropdown.Value) or 1
-        local cooldown = tonumber(Options.deployablecooldownslider.Value) or 0.1
-        local targets = {}
-
-        -- Look for Rubble models near the player
-        for _, rubleModel in pairs(workspace.Rubble:GetChildren()) do -- Iterate Rubble folder
-            if rubleModel:IsA("Model") then -- Ensure it's a model
-                local ppart = rubleModel.PrimaryPart or rubleModel:FindFirstChildWhichIsA("BasePart")
-                if ppart then
-                    local dist = (ppart.Position - root.Position).Magnitude
-                    if dist <= range then
-                        -- Now, find the corresponding Deployable model at the same position
-                        local correspondingDeployable = nil
-                        for _, deployable in pairs(workspace.Deployables:GetChildren()) do
-                            if deployable:IsA("Model") and deployable:GetAttribute("EntityID") then
-                                local dp = deployable.PrimaryPart or deployable:FindFirstChildWhichIsA("BasePart")
-                                if dp then
-                                     -- Check if positions are very close (within a small tolerance)
-                                     if (dp.Position - ppart.Position).Magnitude < 5 then -- Adjust tolerance if needed
-                                        correspondingDeployable = deployable
-                                        break -- Found the matching deployable
-                                     end
-                                end
-                            end
-                        end
-
-                        if correspondingDeployable then -- If a matching deployable is found
-                            local eid = correspondingDeployable:GetAttribute("EntityID")
-                            if eid then
-                                table.insert(targets, { eid = eid, dist = dist }) -- Add the deployable's EntityID
-                            end
-                        end
-                    end
-                end
-            end
-        end
-
-        if #targets > 0 then
-            table.sort(targets, function(a, b)
-                return a.dist < b.dist
-            end)
-            local selectedTargets = {}
-            for i = 1, math.min(targetCount, #targets) do
-                table.insert(selectedTargets, targets[i].eid)
-            end
-            swingtool(selectedTargets) -- Use the same swingtool function
-        end
-        task.wait(cooldown)
-    end
-end)
-
-
 task.spawn(function()
     while true do
         local range = tonumber(Options.pickuprange.Value) or 35
@@ -581,11 +406,13 @@ end
 local tweening = nil
 local lastPlantTime = 0
 local function tween(target)
-    if not root then return end -- Check if root exists before tweening
     if tweening then 
         tweening:Cancel()
         tweening = nil
     end
+    
+    -- Check if root exists before tweening
+    if not root then return end
     
     local distance = (root.Position - target.Position).Magnitude
     -- USE SPEED SLIDER: Higher value = Faster movement
@@ -604,117 +431,160 @@ end
 
 -- IMPROVED: TWEEN TO PLANT BOX WITH SPEED CONTROL AND SMOOTHNESS
 local function tweenplantbox(range)
-    if not root then task.wait(0.1); return end -- Early return if no root
-    -- Get the list of available plant boxes within range that don't have seeds
-    local plantboxes = getpbs(range)
-    local closestEmptyBox = nil
-    local minDist = math.huge
+    -- Store the initial state to compare against
+    local wasEnabled = Options.tweentoplantbox.Value
 
-    for _, box in ipairs(plantboxes) do
-        if not box.deployable:FindFirstChild("Seed") then
-            if box.dist < minDist then
-                minDist = box.dist
-                closestEmptyBox = box
-            end
-        end
-    end
-
-    if closestEmptyBox then
-        local targetCFrame = closestEmptyBox.deployable.PrimaryPart.CFrame + Vector3.new(0, 3, 0) -- Adjust offset as needed
-        -- Call the updated tween function which cancels previous tweens
-        local currentTween = tween(targetCFrame)
-    end
-end
-
--- IMPROVED: TWEEN TO BUSH OR PLANT BOX WITH SPEED CONTROL AND SMOOTHNESS
-local function tweenpbs(range, fruitname)
-    if not root then task.wait(0.1); return end -- Early return if no root
-    -- Get the currently selected fruit from the dropdown inside the loop
-    local currentFruitName = Options.fruitdropdown.Value
-
-    -- First, look for harvestable bushes of the specified fruit
-    local bushes = getbushes(range, currentFruitName)
-    local closestBush = nil
-    local minDistBush = math.huge
-
-    for _, bush in ipairs(bushes) do
-        if bush.dist < minDistBush then
-            minDistBush = bush.dist
-            closestBush = bush
-        end
-    end
-
-    if closestBush then
-        -- Found a bush, move towards it
-        local targetCFrame = closestBush.model.PrimaryPart.CFrame + Vector3.new(0, 3, 0) -- Adjust offset as needed
-        local currentTween = tween(targetCFrame)
-
-        -- Optional: Attempt to harvest if close enough after waiting
-        -- Calculate distance again after waiting
-        local newDist = (closestBush.model.PrimaryPart.Position - root.Position).Magnitude
-        if newDist <= range then -- Check if still within range
-             -- Trigger pickup for the bush
-            if packets.Pickup and packets.Pickup.send then
-                packets.Pickup.send(closestBush.entityid)
-            end
-        end
-
-    else
-        -- No bushes found, look for empty plant boxes instead
+    while Options.tweentoplantbox.Value do
+        -- Get the list of available plant boxes within range that don't have seeds
         local plantboxes = getpbs(range)
         local closestEmptyBox = nil
-        local minDistBox = math.huge
+        local minDist = math.huge
 
         for _, box in ipairs(plantboxes) do
             if not box.deployable:FindFirstChild("Seed") then
-                if box.dist < minDistBox then
-                    minDistBox = box.dist
+                if box.dist < minDist then
+                    minDist = box.dist
                     closestEmptyBox = box
                 end
             end
         end
 
         if closestEmptyBox then
-            -- Found an empty plant box, move towards it
             local targetCFrame = closestEmptyBox.deployable.PrimaryPart.CFrame + Vector3.new(0, 3, 0) -- Adjust offset as needed
+            -- Call the updated tween function which cancels previous tweens
             local currentTween = tween(targetCFrame)
 
-             -- Optional: Attempt to plant if close enough after waiting and has seeds
-             -- Calculate distance again after waiting
-             local newDistToBox = (closestEmptyBox.deployable.PrimaryPart.Position - root.Position).Magnitude
-             if newDistToBox <= range then -- Check if still within range
-                 -- Check if player has the required seed in inventory (this part might need adjustment based on how inventory works)
-                 -- For now, just attempt to plant if close enough and it's an empty box
-                 -- A real check would involve verifying the player's inventory contains the specific fruit item ID
-                 local itemID = fruittoitemid[currentFruitName] or 94
-                 -- Simple attempt to plant (requires player to have the item)
-                 if packets.InteractStructure and packets.InteractStructure.send then
-                     pcall(function()
-                         packets.InteractStructure.send({
-                             entityID = closestEmptyBox.entityid,
-                             itemID = itemID
-                         })
-                     end)
-                     -- lastPlantTime = tick() -- Uncomment if you want a cooldown per plant action
-                 end
-             end
-
-
+            -- Wait briefly before the next scan, allowing the tween to progress
+            -- This loop runs every 0.05 seconds, continuously looking for the *new* closest target
+            task.wait(0.05)
+        else
+            -- No empty boxes found, wait briefly before scanning again
+            task.wait(0.05)
         end
+
+        -- Check if the toggle was turned off during the wait
+        if not Options.tweentoplantbox.Value then
+            break
+        end
+    end
+
+    -- Ensure any leftover tween is cancelled when the function exits
+    if tweening then
+        tweening:Cancel()
+        tweening = nil
     end
 end
 
--- Connect toggles with the improved functions (using Heartbeat for non-stop movement)
-local plantBoxConn = nil
+-- IMPROVED: TWEEN TO BUSH OR PLANT BOX WITH SPEED CONTROL AND SMOOTHNESS
+local function tweenpbs(range, fruitname)
+    -- Store the initial state to compare against
+    local wasEnabled = Options.tweentobush.Value
+
+    while Options.tweentobush.Value do
+        -- Get the currently selected fruit from the dropdown inside the loop
+        local currentFruitName = Options.fruitdropdown.Value
+
+        -- First, look for harvestable bushes of the specified fruit
+        local bushes = getbushes(range, currentFruitName)
+        local closestBush = nil
+        local minDistBush = math.huge
+
+        for _, bush in ipairs(bushes) do
+            if bush.dist < minDistBush then
+                minDistBush = bush.dist
+                closestBush = bush
+            end
+        end
+
+        if closestBush then
+            -- Found a bush, move towards it
+            local targetCFrame = closestBush.model.PrimaryPart.CFrame + Vector3.new(0, 3, 0) -- Adjust offset as needed
+            local currentTween = tween(targetCFrame)
+
+            -- Wait briefly for the tween to progress or until the next scan
+            task.wait(0.05)
+
+            -- Optional: Attempt to harvest if close enough after waiting
+            -- Calculate distance again after waiting
+            local newDist = (closestBush.model.PrimaryPart.Position - root.Position).Magnitude
+            if newDist <= range then -- Check if still within range
+                 -- Trigger pickup for the bush
+                if packets.Pickup and packets.Pickup.send then
+                    packets.Pickup.send(closestBush.entityid)
+                end
+            end
+
+        else
+            -- No bushes found, look for empty plant boxes instead
+            local plantboxes = getpbs(range)
+            local closestEmptyBox = nil
+            local minDistBox = math.huge
+
+            for _, box in ipairs(plantboxes) do
+                if not box.deployable:FindFirstChild("Seed") then
+                    if box.dist < minDistBox then
+                        minDistBox = box.dist
+                        closestEmptyBox = box
+                    end
+                end
+            end
+
+            if closestEmptyBox then
+                -- Found an empty plant box, move towards it
+                local targetCFrame = closestEmptyBox.deployable.PrimaryPart.CFrame + Vector3.new(0, 3, 0) -- Adjust offset as needed
+                local currentTween = tween(targetCFrame)
+
+                -- Wait briefly for the tween to progress or until the next scan
+                task.wait(0.05)
+
+                 -- Optional: Attempt to plant if close enough after waiting and has seeds
+                 -- Calculate distance again after waiting
+                 local newDistToBox = (closestEmptyBox.deployable.PrimaryPart.Position - root.Position).Magnitude
+                 if newDistToBox <= range then -- Check if still within range
+                     -- Check if player has the required seed in inventory (this part might need adjustment based on how inventory works)
+                     -- For now, just attempt to plant if close enough and it's an empty box
+                     -- A real check would involve verifying the player's inventory contains the specific fruit item ID
+                     local itemID = fruittoitemid[currentFruitName] or 94
+                     -- Simple attempt to plant (requires player to have the item)
+                     if packets.InteractStructure and packets.InteractStructure.send then
+                         pcall(function()
+                             packets.InteractStructure.send({
+                                 entityID = closestEmptyBox.entityid,
+                                 itemID = itemID
+                             })
+                         end)
+                         -- lastPlantTime = tick() -- Uncomment if you want a cooldown per plant action
+                     end
+                 end
+
+
+            else
+                -- Neither bushes nor empty boxes found, wait briefly
+                task.wait(0.05)
+            end
+        end
+
+        -- Check if the toggle was turned off during the wait
+        if not Options.tweentobush.Value then
+            break
+        end
+    end
+
+    -- Ensure any leftover tween is cancelled when the function exits
+    if tweening then
+        tweening:Cancel()
+        tweening = nil
+    end
+end
+
+-- Connect toggles with the improved functions
 Options.tweentoplantbox:OnChanged(function(value)
     if value then
-        if plantBoxConn then plantBoxConn:Disconnect() end
-        plantBoxConn = runs.Heartbeat:Connect(function()
+        task.spawn(function()
             local range = Options.tweenrange.Value
             tweenplantbox(range)
         end)
     else
-        if plantBoxConn then plantBoxConn:Disconnect() end
         -- Explicitly cancel tween when disabling
         if tweening then
             tweening:Cancel()
@@ -723,17 +593,14 @@ Options.tweentoplantbox:OnChanged(function(value)
     end
 end)
 
-local bushConn = nil
 Options.tweentobush:OnChanged(function(value)
     if value then
-        if bushConn then bushConn:Disconnect() end
-        bushConn = runs.Heartbeat:Connect(function()
+        task.spawn(function()
             local range = Options.tweenrange.Value
             -- Note: fruitname is now fetched dynamically inside the loop
             tweenpbs(range)
         end)
     else
-        if bushConn then bushConn:Disconnect() end
          -- Explicitly cancel tween when disabling
         if tweening then
             tweening:Cancel()
@@ -851,22 +718,22 @@ local function placeSingleSnappedBox()
 
     -- Determine rotation based on dropdown
     local selectedRotation = Options.rotationdropdown.Value
-    local rotationCFrame = CFrame.Angles(0, 0, 0) -- 0 degrees
+    local yRotValue = 0 -- Default to 0
     if selectedRotation == "45 degrees" then
-        rotationCFrame = CFrame.Angles(0, math.rad(45), 0) -- 45 degrees around Y
+        yRotValue = 45
     end
-    local finalCFrame = CFrame.new(finalPosition) * rotationCFrame
 
-    -- ✅ CRITICAL: Include 'cursor' field (required by ByteNet) and rotation via CFrame
+    -- ✅ CRITICAL: Include 'cursor' field (required by ByteNet) and rotation
     if packets.PlaceStructure and packets.PlaceStructure.send then
         packets.PlaceStructure.send({
             buildingName = "Plant Box",
-            cframe = finalCFrame, -- ✅ Rotation baked in
+            cframe = CFrame.new(finalPosition),
             vec = finalPosition,
+            yrot = yRotValue, -- Use chosen rotation
             isMobile = false,
             cursor = cursorPos  -- 👈 MUST be present and non-nil
         })
-        print("Placed plant box at:", finalPosition, "with rotation:", selectedRotation)
+        print("Placed plant box at:", finalPosition, "with rotation:", yRotValue)
     else
         warn("PlaceStructure packet not found or send method missing.")
     end
@@ -884,14 +751,12 @@ local function placeGridOfBoxes(gridSize)
     local torso = character.HumanoidRootPart
     local camera = workspace.CurrentCamera
     local cursorPos = camera and camera.CFrame.Position or torso.Position -- Fallback
-
     -- Determine rotation based on dropdown
     local selectedRotation = Options.rotationdropdown.Value
-    local rotationCFrame = CFrame.Angles(0, 0, 0)
+    local yRotValue = 0 -- Default to 0
     if selectedRotation == "45 degrees" then
-        rotationCFrame = CFrame.Angles(0, math.rad(45), 0)
+        yRotValue = 45
     end
-
     local startpos = torso.Position - Vector3.new(0, 3, 0) -- Offset down slightly from player
     local spacing = 6.05 -- Approximate spacing between plant boxes (matches snap grid)
 
@@ -921,18 +786,18 @@ local function placeGridOfBoxes(gridSize)
             local rayResult = workspace:Raycast(rayOrigin, rayDirection, rayParams)
 
             local finalPosition = rayResult and rayResult.Position or snappedGridPos
-            local finalCFrame = CFrame.new(finalPosition) * rotationCFrame -- ✅ Rotated CFrame
 
-            -- ✅ CRITICAL: Include 'cursor' field (required by ByteNet) and rotation via CFrame
+            -- ✅ CRITICAL: Include 'cursor' field (required by ByteNet) and rotation
             if packets.PlaceStructure and packets.PlaceStructure.send then
                 packets.PlaceStructure.send({
                     buildingName = "Plant Box",
-                    cframe = finalCFrame, -- ✅ Rotation baked in
+                    cframe = CFrame.new(finalPosition),
+                    yrot = yRotValue, -- Use chosen rotation
                     vec = finalPosition,
                     isMobile = false,
                     cursor = cursorPos -- 👈 MUST be present and non-nil
                 })
-                print("Placed plant box in grid at:", finalPosition, "with rotation:", selectedRotation)
+                print("Placed plant box in grid at:", finalPosition, "with rotation:", yRotValue)
             else
                  warn("PlaceStructure packet not found or send method missing during grid placement.")
                  break -- Stop if packet fails
