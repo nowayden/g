@@ -1,8 +1,8 @@
 print("Loading neverlose")
 print("-----------------------------------------")
-local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
-local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
-local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
+local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau  "))()
+local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau  "))()
+local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau  "))()
 
 local Window = Library:CreateWindow{
     Title = "neverlose",
@@ -56,7 +56,7 @@ local wstoggle = Tabs.Main:CreateToggle("wstoggle", { Title = "Walkspeed", Defau
 local wsslider = Tabs.Main:CreateSlider("wsslider", { Title = "Value", Min = 1, Max = 35, Rounding = 1, Default = 16 })
 local jptoggle = Tabs.Main:CreateToggle("jptoggle", { Title = "JumpPower", Default = false })
 local jpslider = Tabs.Main:CreateSlider("jpslider", { Title = "Value", Min = 1, Max = 65, Rounding = 1, Default = 50 })
-local msatoggle = Tabs.Main:CreateToggle("msatoggle", { Title = "No Mountain Slip", Default = false })
+local msatoggle = Tabs.Main:CreateToggle("msatatable", { Title = "No Mountain Slip", Default = false })
 
 local killauratoggle -- removed combat; placeholder to avoid nil indexing if referenced elsewhere
 
@@ -68,6 +68,12 @@ local critterauratoggle = Tabs.Map:CreateToggle("critterauratoggle", { Title = "
 local critterrangeslider = Tabs.Map:CreateSlider("critterrangeslider", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
 local crittertargetdropdown = Tabs.Map:CreateDropdown("crittertargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
 local crittercooldownslider = Tabs.Map:CreateSlider("crittercooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
+
+-- NEW: Deployable Aura
+local deployableauratoggle = Tabs.Map:CreateToggle("deployableauratoggle", { Title = "Deployable Aura", Default = false })
+local deployableaurarange = Tabs.Map:CreateSlider("deployableaurarange", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
+local deployabletargetdropdown = Tabs.Map:CreateDropdown("deployabletargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
+local deployablecooldownslider = Tabs.Map:CreateSlider("deployablecooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
 
 local autopickuptoggle = Tabs.Pickup:CreateToggle("autopickuptoggle", { Title = "Auto Pickup", Default = false })
 local chestpickuptoggle = Tabs.Pickup:CreateToggle("chestpickuptoggle", { Title = "Auto Pickup From Chests", Default = false })
@@ -270,6 +276,49 @@ task.spawn(function()
                 table.insert(selectedTargets, targets[i].eid)
             end
             swingtool(selectedTargets)
+        end
+        task.wait(cooldown)
+    end
+end)
+
+-- NEW: Deployable Aura Task Spawn
+task.spawn(function()
+    while true do
+        if not Options.deployableauratoggle.Value then
+            task.wait(0.1)
+            continue
+        end
+        local range = tonumber(Options.deployableaurarange.Value) or 20
+        local targetCount = tonumber(Options.deployabletargetdropdown.Value) or 1
+        local cooldown = tonumber(Options.deployablecooldownslider.Value) or 0.1
+        local targets = {}
+
+        -- Look for deployables with Rubble
+        for _, deployable in pairs(workspace.Deployables:GetChildren()) do
+            if deployable:IsA("Model") and deployable:GetAttribute("EntityID") then
+                local ruble = deployable:FindFirstChild("Rubble")
+                if ruble then -- Only consider deployables that have a Rubble model
+                    local eid = deployable:GetAttribute("EntityID")
+                    local ppart = deployable.PrimaryPart or deployable:FindFirstChildWhichIsA("BasePart")
+                    if ppart then
+                        local dist = (ppart.Position - root.Position).Magnitude
+                        if dist <= range then
+                            table.insert(targets, { eid = eid, dist = dist })
+                        end
+                    end
+                end
+            end
+        end
+
+        if #targets > 0 then
+            table.sort(targets, function(a, b)
+                return a.dist < b.dist
+            end)
+            local selectedTargets = {}
+            for i = 1, math.min(targetCount, #targets) do
+                table.insert(selectedTargets, targets[i].eid)
+            end
+            swingtool(selectedTargets) -- Use the same swingtool function
         end
         task.wait(cooldown)
     end
