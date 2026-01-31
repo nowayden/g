@@ -69,11 +69,13 @@ local critterrangeslider = Tabs.Map:CreateSlider("critterrangeslider", { Title =
 local crittertargetdropdown = Tabs.Map:CreateDropdown("crittertargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
 local crittercooldownslider = Tabs.Map:CreateSlider("crittercooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
 
--- NEW: Deployable Aura Section
+-- NEW: Deployable Aura Section (Updated)
 local deployableauratoggle = Tabs.Map:CreateToggle("deployableauratoggle", { Title = "Deployable Aura", Default = false })
 local deployablerangeslider = Tabs.Map:CreateSlider("deployablerangeslider", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
 local deployabletargetdropdown = Tabs.Map:CreateDropdown("deployabletargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
 local deployablecooldownslider = Tabs.Map:CreateSlider("deployablecooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
+-- NEW: Toggle to include Rubble in Deployable Aura
+local includeRubbleToggle = Tabs.Map:CreateToggle("includerubble", { Title = "Include Rubble", Default = false })
 
 local autopickuptoggle = Tabs.Pickup:CreateToggle("autopickuptoggle", { Title = "Auto Pickup", Default = false })
 local chestpickuptoggle = Tabs.Pickup:CreateToggle("chestpickuptoggle", { Title = "Auto Pickup From Chests", Default = false })
@@ -281,7 +283,7 @@ task.spawn(function()
     end
 end)
 
--- NEW: Deployable Aura Task
+-- NEW: Deployable & Rubble Aura Task (Updated)
 task.spawn(function()
     while true do
         if not Options.deployableauratoggle.Value then
@@ -292,6 +294,8 @@ task.spawn(function()
         local targetCount = tonumber(Options.deployabletargetdropdown.Value) or 1
         local cooldown = tonumber(Options.deployablecooldownslider.Value) or 0.1
         local targets = {}
+        
+        -- Collect Deployables
         for _, deployable in pairs(workspace.Deployables:GetChildren()) do
             if deployable:IsA("Model") and deployable:GetAttribute("EntityID") then
                 local eid = deployable:GetAttribute("EntityID")
@@ -299,24 +303,59 @@ task.spawn(function()
                 if ppart then
                     local dist = (ppart.Position - root.Position).Magnitude
                     if dist <= range then
-                        table.insert(targets, { eid = eid, dist = dist })
+                        table.insert(targets, { eid = eid, dist = dist, type = "deployable" })
                     end
                 end
             end
         end
+        
+        -- Collect Rubble if toggle is enabled
+        if Options.includeRubbleToggle.Value then
+            for _, rubble in pairs(workspace.Rubble:GetChildren()) do
+                if rubble:IsA("Model") and rubble:GetAttribute("EntityID") then
+                    local eid = rubble:GetAttribute("EntityID")
+                    local ppart = rubble.PrimaryPart or rubble:FindFirstChildWhichIsA("BasePart")
+                    if ppart then
+                        local dist = (ppart.Position - root.Position).Magnitude
+                        if dist <= range then
+                            table.insert(targets, { eid = eid, dist = dist, type = "rubble" })
+                        end
+                    end
+                end
+            end
+        end
+
         if #targets > 0 then
             table.sort(targets, function(a, b)
                 return a.dist < b.dist
             end)
             local selectedTargets = {}
+            local selectedDeployables = {} -- For SwingTool
+            local selectedRubbles = {}     -- For Pickup
+            
             for i = 1, math.min(targetCount, #targets) do
-                table.insert(selectedTargets, targets[i].eid)
+                local target = targets[i]
+                if target.type == "deployable" then
+                    table.insert(selectedDeployables, target.eid)
+                elseif target.type == "rubble" then
+                    table.insert(selectedRubbles, target.eid)
+                end
             end
-            swingtool(selectedTargets)
+            
+            -- Send packets based on type
+            if #selectedDeployables > 0 then
+                swingtool(selectedDeployables) -- Use SwingTool for deployables
+            end
+            if #selectedRubbles > 0 then
+                for _, entityId in pairs(selectedRubbles) do
+                    pickup(entityId) -- Use Pickup for rubble
+                end
+            end
         end
         task.wait(cooldown)
     end
 end)
+
 
 task.spawn(function()
     while true do
