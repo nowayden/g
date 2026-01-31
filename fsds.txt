@@ -27,25 +27,17 @@ local Tabs = {
 local rs = game:GetService("ReplicatedStorage")
 local packets = require(rs.Modules.Packets)
 local plr = game.Players.LocalPlayer
-local char, root, hum -- Declare variables here
-
-local function updateCharacter()
-    char = plr.Character
-    if not char then return end
-    root = char:WaitForChild("HumanoidRootPart", 5) -- Wait max 5 seconds
-    hum = char:WaitForChild("Humanoid", 5)
-end
-
-updateCharacter()
-plr.CharacterAdded:Connect(updateCharacter)
-
+-- Initialize char, root, hum initially
+local char = plr.Character or plr.CharacterAdded:Wait()
+local root = char:WaitForChild("HumanoidRootPart")
+local hum = char:WaitForChild("Humanoid")
 local runs = game:GetService("RunService")
 local httpservice = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local localiservice = game:GetService("LocalizationService")
 local marketservice = game:GetService("MarketplaceService")
 local rbxservice = game:GetService("RbxAnalyticsService")
-local placestructure -- Declare placestructure function
+local placestructure
 local tspmo = game:GetService("TweenService")
 local itemslist = {
 "Adurite", "Berry", "Bloodfruit", "Bluefruit", "Coin", "Essence", "Hide", "Ice Cube", "Iron", "Jelly", "Leaves", "Log", "Steel", "Stone", "Wood", "Gold", "Raw Gold", "Crystal Chunk", "Raw Emerald", "Pink Diamond", "Raw Adurite", "Raw Iron", "Coal"}
@@ -100,6 +92,9 @@ local tweenrangeslider = Tabs.Farming:AddSlider("tweenrange", { Title = "Range",
 -- NEW: Continuous Plant Box Placer Toggle
 local placeplantboxestoggle = Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Continuously", Default = false })
 
+-- NEW: Plant Box Rotation Dropdown
+local rotationdropdown = Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees", "45 degrees"}, Default = "0 degrees"})
+
 -- Button to trigger single placement (optional, can be removed if only using toggle)
 Tabs.Farming:CreateButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placestructure(1) end }) 
 
@@ -137,7 +132,15 @@ local function updmsa()
     end
 end
 
--- Note: Character update is handled by updateCharacter function connected earlier
+-- Function to update character and root references
+local function onplradded(newChar)
+    char = newChar
+    root = char:WaitForChild("HumanoidRootPart")
+    hum = char:WaitForChild("Humanoid")
+    updws()
+end
+
+plr.CharacterAdded:Connect(onplradded)
 Options.wstoggle:OnChanged(updws)
 Options.jptoggle:OnChanged(updws)
 
@@ -367,7 +370,8 @@ local function getpbs(range)
         if deployable:IsA("Model") and deployable.Name == "Plant Box" then
             local entityid = deployable:GetAttribute("EntityID")
             local ppart = deployable.PrimaryPart or deployable:FindFirstChildWhichIsA("BasePart")
-            if entityid and ppart and root then -- Check if root exists before calculating distance
+            -- Only add if root exists to prevent 'Position' error
+            if entityid and ppart and root then 
                 local dist = (ppart.Position - root.Position).Magnitude
                 if dist <= range then
                     table.insert(plantboxes, { entityid = entityid, deployable = deployable, dist = dist })
@@ -383,7 +387,8 @@ local function getbushes(range, fruitname)
     for _, model in ipairs(workspace:GetChildren()) do
         if model:IsA("Model") and model.Name:find(fruitname) then
             local ppart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-            if ppart and root then -- Check if root exists before calculating distance
+            -- Only add if root exists to prevent 'Position' error
+            if ppart and root then 
                 local dist = (ppart.Position - root.Position).Magnitude
                 if dist <= range then
                     local entityid = model:GetAttribute("EntityID")
@@ -401,11 +406,13 @@ end
 local tweening = nil
 local lastPlantTime = 0
 local function tween(target)
-    if not root then return end -- Check if root exists before tweening
     if tweening then 
         tweening:Cancel()
         tweening = nil
     end
+    
+    -- Check if root exists before tweening
+    if not root then return end
     
     local distance = (root.Position - target.Position).Magnitude
     -- USE SPEED SLIDER: Higher value = Faster movement
@@ -424,7 +431,6 @@ end
 
 -- IMPROVED: TWEEN TO PLANT BOX WITH SPEED CONTROL AND SMOOTHNESS
 local function tweenplantbox(range)
-    if not root then task.wait(0.1); return end -- Early return if no root
     -- Store the initial state to compare against
     local wasEnabled = Options.tweentoplantbox.Value
 
@@ -471,7 +477,6 @@ end
 
 -- IMPROVED: TWEEN TO BUSH OR PLANT BOX WITH SPEED CONTROL AND SMOOTHNESS
 local function tweenpbs(range, fruitname)
-    if not root then task.wait(0.1); return end -- Early return if no root
     -- Store the initial state to compare against
     local wasEnabled = Options.tweentobush.Value
 
@@ -678,7 +683,7 @@ task.spawn(function()
     end
 end)
 
--- IMPROVED: Place Structure (Uses Snapping Logic, Handles Single and Grid Placement, Includes Continuous Option, Adds Cursor)
+-- IMPROVED: Place Structure (Uses Snapping Logic, Handles Single and Grid Placement, Includes Continuous Option, Adds Cursor, Adds Rotation Choice)
 local placementConnection = nil
 local function placeSingleSnappedBox()
     local player = game.Players.LocalPlayer
@@ -711,23 +716,30 @@ local function placeSingleSnappedBox()
 
     local finalPosition = rayResult and rayResult.Position or snappedPosition
 
-    -- ✅ CRITICAL: Include 'cursor' field (required by ByteNet)
+    -- Determine rotation based on dropdown
+    local selectedRotation = Options.rotationdropdown.Value
+    local yRotValue = 0 -- Default to 0
+    if selectedRotation == "45 degrees" then
+        yRotValue = 45
+    end
+
+    -- ✅ CRITICAL: Include 'cursor' field (required by ByteNet) and rotation
     if packets.PlaceStructure and packets.PlaceStructure.send then
         packets.PlaceStructure.send({
             buildingName = "Plant Box",
             cframe = CFrame.new(finalPosition),
             vec = finalPosition,
-            yrot = 0,
+            yrot = yRotValue, -- Use chosen rotation
             isMobile = false,
             cursor = cursorPos  -- 👈 MUST be present and non-nil
         })
-        print("Placed plant box at:", finalPosition)
+        print("Placed plant box at:", finalPosition, "with rotation:", yRotValue)
     else
         warn("PlaceStructure packet not found or send method missing.")
     end
 end
 
--- Grid placement function (keeps original grid logic but uses snapped positions and adds cursor)
+-- Grid placement function (keeps original grid logic but uses snapped positions, adds cursor, adds rotation choice)
 local function placeGridOfBoxes(gridSize)
     local player = game.Players.LocalPlayer
     local character = player.Character
@@ -739,6 +751,12 @@ local function placeGridOfBoxes(gridSize)
     local torso = character.HumanoidRootPart
     local camera = workspace.CurrentCamera
     local cursorPos = camera and camera.CFrame.Position or torso.Position -- Fallback
+    -- Determine rotation based on dropdown
+    local selectedRotation = Options.rotationdropdown.Value
+    local yRotValue = 0 -- Default to 0
+    if selectedRotation == "45 degrees" then
+        yRotValue = 45
+    end
     local startpos = torso.Position - Vector3.new(0, 3, 0) -- Offset down slightly from player
     local spacing = 6.05 -- Approximate spacing between plant boxes (matches snap grid)
 
@@ -769,17 +787,17 @@ local function placeGridOfBoxes(gridSize)
 
             local finalPosition = rayResult and rayResult.Position or snappedGridPos
 
-            -- ✅ CRITICAL: Include 'cursor' field (required by ByteNet)
+            -- ✅ CRITICAL: Include 'cursor' field (required by ByteNet) and rotation
             if packets.PlaceStructure and packets.PlaceStructure.send then
                 packets.PlaceStructure.send({
                     buildingName = "Plant Box",
                     cframe = CFrame.new(finalPosition),
-                    yrot = 0,
+                    yrot = yRotValue, -- Use chosen rotation
                     vec = finalPosition,
                     isMobile = false,
                     cursor = cursorPos -- 👈 MUST be present and non-nil
                 })
-                print("Placed plant box in grid at:", finalPosition)
+                print("Placed plant box in grid at:", finalPosition, "with rotation:", yRotValue)
             else
                  warn("PlaceStructure packet not found or send method missing during grid placement.")
                  break -- Stop if packet fails
