@@ -565,27 +565,8 @@ local function tweenpbs(range, fruitname)
             local targetCFrame = closestEmptyBox.deployable.PrimaryPart.CFrame + Vector3.new(0, 3, 0) -- Adjust offset as needed
             local currentTween = tween(targetCFrame)
 
-             -- Optional: Attempt to plant if close enough after waiting and has seeds
-             -- Calculate distance again after waiting
-             local newDistToBox = (closestEmptyBox.deployable.PrimaryPart.Position - root.Position).Magnitude
-             if newDistToBox <= range then -- Check if still within range
-                 -- Check if player has the required seed in inventory (this part might need adjustment based on how inventory works)
-                 -- For now, just attempt to plant if close enough and it's an empty box
-                 -- A real check would involve verifying the player's inventory contains the specific fruit item ID
-                 local itemID = fruittoitemid[currentFruitName] or 94
-                 -- Simple attempt to plant (requires player to have the item)
-                 if packets.InteractStructure and packets.InteractStructure.send then
-                     pcall(function()
-                         packets.InteractStructure.send({
-                             entityID = closestEmptyBox.entityid,
-                             itemID = itemID
-                         })
-                     end)
-                     -- lastPlantTime = tick() -- Uncomment if you want a cooldown per plant action
-                 end
-             end
-
-
+             -- NOTE: We're NOT planting here anymore - leave planting to the Auto Plant toggle
+             -- This function is only for moving to locations, not for planting
         end
     end
 end
