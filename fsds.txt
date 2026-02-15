@@ -357,7 +357,7 @@ local fruittoitemid = {
     Barley = 247,
     Cloudberry = 101,
     Carrot = 147,
-    Blossom = 16596 -- Added Blossom with EntityID 16596
+    Blossom = 958 -- Added Blossom with EntityID 16596
 }
 
 local function plant(entityid, itemID)
