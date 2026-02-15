@@ -1,8 +1,8 @@
 print("Loading neverlose")
 print("-----------------------------------------")
-local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau  "))()
-local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau  "))()
-local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau  "))()
+local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau    "))()
+local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau    "))()
+local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau    "))()
 
 local Window = Library:CreateWindow{
     Title = "neverlose",
@@ -78,8 +78,7 @@ local dropdropdown = Tabs.Pickup:AddDropdown("dropdropdown", {Title = "Select It
 local droptogglemanual = Tabs.Pickup:AddToggle("droptogglemanual", { Title = "Auto Drop Custom", Default = false })
 local droptextbox = Tabs.Pickup:AddInput("droptextbox", { Title = "Custom Item", Default = "Bloodfruit", Numeric = false, Finished = false })
 
--- Updated Fruit Dropdown with "Blossom"
-local fruitdropdown = Tabs.Farming:CreateDropdown("fruitdropdown", {Title = "Select Fruit",Values = {"Bloodfruit", "Bluefruit", "Lemon", "Coconut", "Jelly", "Banana", "Orange", "Oddberry", "Berry", "Strangefruit", "Strawberry", "Sunjfruit", "Pumpkin", "Prickly Pear", "Apple",  "Barley", "Cloudberry", "Carrot", "Blossom"}, Default = "Bloodfruit"})
+local fruitdropdown = Tabs.Farming:CreateDropdown("fruitdropdown", {Title = "Select Fruit",Values = {"Bloodfruit", "Bluefruit", "Lemon", "Coconut", "Jelly", "Banana", "Orange", "Oddberry", "Berry", "Strangefruit", "Strawberry", "Sunjfruit", "Pumpkin", "Prickly Pear", "Apple",  "Barley", "Cloudberry", "Carrot", "Blossom"}, Default = "Bloodfruit"}) -- ✅ ADDED "Blossom"
 local planttoggle = Tabs.Farming:CreateToggle("planttoggle", { Title = "Auto Plant", Default = false })
 local plantrangeslider = Tabs.Farming:CreateSlider("plantrange", { Title = "Plant Range", Min = 1, Max = 100, Rounding = 1, Default = 30 }) -- Increased Max to 100
 local plantdelayslider = Tabs.Farming:CreateSlider("plantdelay", { Title = "Plant Delay (s)", Min = 0.01, Max = 1, Rounding = 2, Default = 0.1 }) -- Decreased Min to 0.01
@@ -337,7 +336,7 @@ runs.Heartbeat:Connect(function()
     end
 end)
 
--- Updated fruittoitemid table with "Blossom"
+local plantedboxes = {}
 local fruittoitemid = {
     Bloodfruit = 94,
     Bluefruit = 377,
@@ -357,7 +356,7 @@ local fruittoitemid = {
     Barley = 247,
     Cloudberry = 101,
     Carrot = 147,
-    Blossom = 958 -- Added Blossom with EntityID 16596
+    Blossom = 958 -- ✅ ADDED "Blossom = 958"
 }
 
 local function plant(entityid, itemID)
@@ -570,6 +569,7 @@ Options.tweentobush:OnChanged(function(value)
     end
 end)
 
+-- Update when speed slider changes (restarts active tweens)
 Options.tweenspeed:OnChanged(function(value)
     if Options.tweentoplantbox.Value then
         Options.tweentoplantbox.Value = false
