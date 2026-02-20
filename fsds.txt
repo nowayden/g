@@ -540,6 +540,8 @@ local function tweenpbs(range, fruitname)
                      -- lastPlantTime = tick() -- Uncomment if you want a cooldown per plant action
                  end
              end
+
+
         end
     end
 end
@@ -574,7 +576,7 @@ Options.tweentobush:OnChanged(function(value)
         end)
     else
         if bushConn then bushConn:Disconnect() end
-        -- Explicitly cancel tween when disabling
+         -- Explicitly cancel tween when disabling
         if tweening then
             tweening:Cancel()
             tweening = nil
@@ -608,28 +610,44 @@ Options.tweenrange:OnChanged(function(value)
     end
 end)
 
--- IMPROVED: Auto Plant (Faster, Higher Range)
+
+-- MODIFIED: Auto Plant - MAXIMUM SPEED (as fast as possible while keeping logic)
 local plantConnection = nil
 Options.planttoggle:OnChanged(function(value)
     if value then
         if plantConnection then
             plantConnection:Disconnect()
         end
+        local range = tonumber(Options.plantrange.Value) or 30
+        local selectedfruit = Options.fruitdropdown.Value
+        local itemID = fruittoitemid[selectedfruit] or 94
         
-        plantConnection = runs.Heartbeat:Connect(function() -- Use Heartbeat for maximum speed
-            local range = tonumber(Options.plantrange.Value) or 30
-            local selectedfruit = Options.fruitdropdown.Value
-            local itemID = fruittoitemid[selectedfruit] or 94
-            local plantboxes = getpbs(range)
+        -- Use RenderStepped for absolute maximum speed (every frame)
+        plantConnection = runs.RenderStepped:Connect(function()
+            -- Only proceed if root exists
+            if not root then return end
             
-            for _, box in ipairs(plantboxes) do
-                -- Prevent blocking the main thread and avoid endless looping on the exact same box ID
-                if not box.deployable:FindFirstChild("Seed") and not plantedboxes[box.entityid] then
-                    task.spawn(function()
-                        plant(box.entityid, itemID)
-                    end)
-                    plantedboxes[box.entityid] = true
+            -- Get plant boxes within range
+            local plantboxes = {}
+            for _, deployable in ipairs(workspace.Deployables:GetChildren()) do
+                if deployable:IsA("Model") and deployable.Name == "Plant Box" then
+                    local entityid = deployable:GetAttribute("EntityID")
+                    local ppart = deployable.PrimaryPart or deployable:FindFirstChildWhichIsA("BasePart")
+                    if entityid and ppart and root then
+                        local dist = (ppart.Position - root.Position).Magnitude
+                        if dist <= range then
+                            -- Check if box has no seed AND we haven't already planted in it this session
+                            if not deployable:FindFirstChild("Seed") and not plantedboxes[entityid] then
+                                table.insert(plantboxes, { entityid = entityid, deployable = deployable })
+                            end
+                        end
+                    end
                 end
+            end
+            
+            -- Plant in all available boxes immediately
+            for _, box in ipairs(plantboxes) do
+                plant(box.entityid, itemID)
             end
         end)
     else
@@ -637,9 +655,9 @@ Options.planttoggle:OnChanged(function(value)
             plantConnection:Disconnect()
             plantConnection = nil
         end
-        table.clear(plantedboxes) -- Clear table to reset box tracking for the next run
     end
 end)
+
 
 task.spawn(function()
     while true do
