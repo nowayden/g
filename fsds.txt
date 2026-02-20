@@ -540,8 +540,6 @@ local function tweenpbs(range, fruitname)
                      -- lastPlantTime = tick() -- Uncomment if you want a cooldown per plant action
                  end
              end
-
-
         end
     end
 end
@@ -576,7 +574,7 @@ Options.tweentobush:OnChanged(function(value)
         end)
     else
         if bushConn then bushConn:Disconnect() end
-         -- Explicitly cancel tween when disabling
+        -- Explicitly cancel tween when disabling
         if tweening then
             tweening:Cancel()
             tweening = nil
@@ -610,7 +608,6 @@ Options.tweenrange:OnChanged(function(value)
     end
 end)
 
-
 -- IMPROVED: Auto Plant (Faster, Higher Range)
 local plantConnection = nil
 Options.planttoggle:OnChanged(function(value)
@@ -618,28 +615,31 @@ Options.planttoggle:OnChanged(function(value)
         if plantConnection then
             plantConnection:Disconnect()
         end
-        local range = tonumber(Options.plantrange.Value) or 30
-        local selectedfruit = Options.fruitdropdown.Value
-        local itemID = fruittoitemid[selectedfruit] or 94
-        plantConnection = runs.Heartbeat:Connect(function() -- Use Heartbeat for speed
+        
+        plantConnection = runs.Heartbeat:Connect(function() -- Use Heartbeat for maximum speed
+            local range = tonumber(Options.plantrange.Value) or 30
+            local selectedfruit = Options.fruitdropdown.Value
+            local itemID = fruittoitemid[selectedfruit] or 94
             local plantboxes = getpbs(range)
+            
             for _, box in ipairs(plantboxes) do
-                if not box.deployable:FindFirstChild("Seed") then
-                    plant(box.entityid, itemID)
+                -- Prevent blocking the main thread and avoid endless looping on the exact same box ID
+                if not box.deployable:FindFirstChild("Seed") and not plantedboxes[box.entityid] then
+                    task.spawn(function()
+                        plant(box.entityid, itemID)
+                    end)
                     plantedboxes[box.entityid] = true
                 end
             end
-            -- Plant delay is effectively handled by Heartbeat frequency if needed,
-            -- otherwise remove the delay entirely for max speed here.
         end)
     else
         if plantConnection then
             plantConnection:Disconnect()
             plantConnection = nil
         end
+        table.clear(plantedboxes) -- Clear table to reset box tracking for the next run
     end
 end)
-
 
 task.spawn(function()
     while true do
