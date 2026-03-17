@@ -378,7 +378,7 @@ local function getpbs(range)
             if entityid and ppart and root then 
                 local dist = (ppart.Position - root.Position).Magnitude
                 if dist <= range then
-                    table.insert(plantboxes, { entityid = entityid, deployable = deployable, dist = dist })
+                    table.insert(plantboxes, { entityid = entityid, deployable = deployable, ppart = ppart, dist = dist })
                 end
             end
         end
@@ -396,7 +396,7 @@ local function getbushes(range, fruitname)
                 if dist <= range then
                     local entityid = model:GetAttribute("EntityID")
                     if entityid then
-                        table.insert(bushes, { entityid = entityid, model = model, dist = dist })
+                        table.insert(bushes, { entityid = entityid, model = model, ppart = ppart, dist = dist })
                     end
                 end
             end
@@ -405,12 +405,17 @@ local function getbushes(range, fruitname)
     return bushes
 end
 
--- TWEENING SYSTEM - MOVEMENT ONLY, NO PLANTING/HARVESTING
+-- IMPROVED TWEENING SYSTEM - Only moves, no planting/harvesting
 local tweening = nil
-local lastTarget = nil
-local function tween(targetCFrame)
-    if not root then return end
-    if tweening then 
+local currentTarget = nil
+local targetUpdateRate = 2 -- Update target every 2 seconds
+local lastTargetUpdate = 0
+
+local function tweenToTarget(targetCFrame)
+    if not root or not targetCFrame then return end
+    
+    -- Cancel existing tween
+    if tweening then
         tweening:Cancel()
         tweening = nil
     end
@@ -423,41 +428,62 @@ local function tween(targetCFrame)
     
     local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
     local tween = tspmo:Create(root, tweenInfo, { CFrame = targetCFrame })
+    
     tween:Play()
     tweening = tween
-    return tween
+    
+    -- Wait for tween to complete or be cancelled
+    tween.Completed:Connect(function()
+        if tweening == tween then
+            tweening = nil
+            currentTarget = nil
+        end
+    end)
 end
 
--- TWEEN TO PLANT BOX - MOVEMENT ONLY, TARGETS PLANT BOXES
+-- TWEEN TO PLANT BOX - Only moves to plant boxes
 local plantBoxConn = nil
 Options.tweentoplantbox:OnChanged(function(value)
     if value then
-        -- Disable the other tween if it's active
+        -- Disable the other tween
         if Options.tweentobush.Value then
             Options.tweentobush.Value = false
         end
         
         if plantBoxConn then plantBoxConn:Disconnect() end
+        
+        -- Reset state
+        currentTarget = nil
+        if tweening then
+            tweening:Cancel()
+            tweening = nil
+        end
+        
         plantBoxConn = runs.Heartbeat:Connect(function()
             if not root then return end
-            local range = Options.tweenrange.Value
-            local plantboxes = getpbs(range)
             
-            -- Find closest plant box
-            local closestBox = nil
-            local minDist = math.huge
-            
-            for _, box in ipairs(plantboxes) do
-                if box.dist < minDist then
-                    minDist = box.dist
-                    closestBox = box
+            -- Only find new target if we don't have one or tween is finished
+            if not tweening or not currentTarget then
+                local range = Options.tweenrange.Value
+                local plantboxes = getpbs(range)
+                
+                -- Find closest plant box
+                local closestBox = nil
+                local minDist = math.huge
+                
+                for _, box in ipairs(plantboxes) do
+                    if box.dist < minDist then
+                        minDist = box.dist
+                        closestBox = box
+                    end
                 end
-            end
-            
-            if closestBox then
-                -- MOVEMENT ONLY - NO PLANTING
-                local targetCFrame = closestBox.deployable.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
-                tween(targetCFrame)
+                
+                if closestBox then
+                    -- Target found, move to it
+                    local targetCFrame = closestBox.ppart.CFrame + Vector3.new(0, 3, 0)
+                    currentTarget = targetCFrame
+                    tweenToTarget(targetCFrame)
+                end
             end
         end)
     else
@@ -469,57 +495,72 @@ Options.tweentoplantbox:OnChanged(function(value)
             tweening:Cancel()
             tweening = nil
         end
+        currentTarget = nil
     end
 end)
 
--- TWEEN TO BUSH + PLANT BOX - MOVEMENT ONLY, NO PLANTING/HARVESTING
+-- TWEEN TO BUSH + PLANT BOX - Only moves, prioritizes bushes then plant boxes
 local bushConn = nil
 Options.tweentobush:OnChanged(function(value)
     if value then
-        -- Disable the other tween if it's active
+        -- Disable the other tween
         if Options.tweentoplantbox.Value then
             Options.tweentoplantbox.Value = false
         end
         
         if bushConn then bushConn:Disconnect() end
+        
+        -- Reset state
+        currentTarget = nil
+        if tweening then
+            tweening:Cancel()
+            tweening = nil
+        end
+        
         bushConn = runs.Heartbeat:Connect(function()
             if not root then return end
-            local range = Options.tweenrange.Value
-            local currentFruitName = Options.fruitdropdown.Value
             
-            -- Look for bushes first
-            local bushes = getbushes(range, currentFruitName)
-            local closestBush = nil
-            local minDistBush = math.huge
-
-            for _, bush in ipairs(bushes) do
-                if bush.dist < minDistBush then
-                    minDistBush = bush.dist
-                    closestBush = bush
-                end
-            end
-
-            if closestBush then
-                -- MOVEMENT ONLY - TOWARDS BUSH, NO HARVESTING
-                local targetCFrame = closestBush.model.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
-                tween(targetCFrame)
-            else
-                -- If no bushes, look for plant boxes
-                local plantboxes = getpbs(range)
-                local closestBox = nil
-                local minDistBox = math.huge
-
-                for _, box in ipairs(plantboxes) do
-                    if box.dist < minDistBox then
-                        minDistBox = box.dist
-                        closestBox = box
+            -- Only find new target if we don't have one or tween is finished
+            if not tweening or not currentTarget then
+                local range = Options.tweenrange.Value
+                local currentFruitName = Options.fruitdropdown.Value
+                
+                -- First try to find bushes
+                local bushes = getbushes(range, currentFruitName)
+                local closestBush = nil
+                local minDistBush = math.huge
+                
+                for _, bush in ipairs(bushes) do
+                    if bush.dist < minDistBush then
+                        minDistBush = bush.dist
+                        closestBush = bush
                     end
                 end
-
-                if closestBox then
-                    -- MOVEMENT ONLY - TOWARDS PLANT BOX, NO PLANTING
-                    local targetCFrame = closestBox.deployable.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
-                    tween(targetCFrame)
+                
+                if closestBush then
+                    -- Move to bush
+                    local targetCFrame = closestBush.ppart.CFrame + Vector3.new(0, 3, 0)
+                    currentTarget = targetCFrame
+                    tweenToTarget(targetCFrame)
+                else
+                    -- No bushes found, look for plant boxes
+                    local plantboxes = getpbs(range)
+                    local closestBox = nil
+                    local minDistBox = math.huge
+                    
+                    for _, box in ipairs(plantboxes) do
+                        if box.dist < minDistBox then
+                            minDistBox = box.dist
+                            closestBox = box
+                        end
+                    end
+                    
+                    if closestBox then
+                        -- Move to plant box
+                        local targetCFrame = closestBox.ppart.CFrame + Vector3.new(0, 3, 0)
+                        currentTarget = targetCFrame
+                        tweenToTarget(targetCFrame)
+                    end
                 end
             end
         end)
@@ -532,24 +573,23 @@ Options.tweentobush:OnChanged(function(value)
             tweening:Cancel()
             tweening = nil
         end
+        currentTarget = nil
     end
 end)
 
--- Update when speed slider changes (restart active tween)
+-- Update when speed slider changes
 Options.tweenspeed:OnChanged(function(value)
-    -- Simple restart by toggling off/on
-    if Options.tweentoplantbox.Value then
-        Options.tweentoplantbox.Value = false
-        task.wait(0.05)
-        Options.tweentoplantbox.Value = true
-    elseif Options.tweentobush.Value then
-        Options.tweentobush.Value = false
-        task.wait(0.05)
-        Options.tweentobush.Value = true
+    -- Restart current tween with new speed
+    if currentTarget and (Options.tweentoplantbox.Value or Options.tweentobush.Value) then
+        if tweening then
+            tweening:Cancel()
+            tweening = nil
+        end
+        tweenToTarget(currentTarget)
     end
 end)
 
--- AUTO PLANT - SEPARATE FUNCTIONALITY
+-- AUTO PLANT - Separate functionality
 local plantConnection = nil
 Options.planttoggle:OnChanged(function(value)
     if value then
@@ -578,7 +618,7 @@ Options.planttoggle:OnChanged(function(value)
     end
 end)
 
--- AUTO HARVEST - SEPARATE FUNCTIONALITY
+-- AUTO HARVEST - Separate functionality
 task.spawn(function()
     while true do
         if not Options.harvesttoggle.Value then
