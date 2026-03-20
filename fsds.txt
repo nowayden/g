@@ -73,7 +73,6 @@ local autopickuptoggle = Tabs.Pickup:CreateToggle("autopickuptoggle", { Title = 
 local chestpickuptoggle = Tabs.Pickup:CreateToggle("chestpickuptoggle", { Title = "Auto Pickup From Chests", Default = false })
 local pickuprangeslider = Tabs.Pickup:CreateSlider("pickuprange", { Title = "Pickup Range", Min = 1, Max = 35, Rounding = 1, Default = 20 })
 
--- UPDATED: Added "Bread", "Cooked Egg", "Grain Mush" to the Values list
 local itemdropdown = Tabs.Pickup:CreateDropdown("itemdropdown", {
     Title = "Items", 
     Values = {
@@ -82,7 +81,7 @@ local itemdropdown = Tabs.Pickup:CreateDropdown("itemdropdown", {
         "Raw Emerald", "Pink Diamond", "Raw Pink Diamond", "Void Shard","Jelly", 
         "Magnetite", "Raw Magnetite", "Adurite", "Raw Adurite", "Ice Cube", "Stone", 
         "Iron", "Raw Iron", "Steel", "Hide", "Leaves", "Log", "Wood", "Pie", 
-        "Bread", "Cooked Egg", "Grain Mush" -- NEW ITEMS ADDED HERE
+        "Bread", "Cooked Egg", "Grain Mush" 
     }, 
     Multi = true, 
     Default = { Leaves = true, Log = true }
@@ -100,7 +99,6 @@ local plantdelayslider = Tabs.Farming:CreateSlider("plantdelay", { Title = "Plan
 local harvesttoggle = Tabs.Farming:CreateToggle("harvesttoggle", { Title = "Auto Harvest", Default = false })
 local harvestrangeslider = Tabs.Farming:CreateSlider("harvestrange", { Title = "Harvest Range", Min = 1, Max = 30, Rounding = 1, Default = 30 })
 
--- NEW: Tween Speed Slider
 local tweenspeedslider = Tabs.Farming:AddSlider("tweenspeed", { 
     Title = "Tween Speed (Higher = Faster)", 
     Min = 10, 
@@ -113,15 +111,11 @@ local tweenplantboxtoggle = Tabs.Farming:AddToggle("tweentoplantbox", { Title = 
 local tweenbushtoggle = Tabs.Farming:AddToggle("tweentobush", { Title = "Tween to Bush + Plant Box", Default = false })
 local tweenrangeslider = Tabs.Farming:AddSlider("tweenrange", { Title = "Range", Min = 1, Max = 250, Rounding = 1, Default = 250 })
 
--- NEW: Continuous Plant Box Placer Toggle
 local placeplantboxestoggle = Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Continuously", Default = false })
 
--- NEW: Plant Box Rotation Dropdown
 local rotationdropdown = Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees", "45 degrees"}, Default = "0 degrees"})
 
--- Button to trigger single placement (optional, can be removed if only using toggle)
 Tabs.Farming:CreateButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placestructure(1) end }) 
-
 Tabs.Farming:CreateButton({Title = "Place 16x16 Plantboxes (256)", Callback = function() placestructure(16) end })
 Tabs.Farming:CreateButton({Title = "Place 15x15 Plantboxes (225)", Callback = function() placestructure(15) end })
 Tabs.Farming:CreateButton({Title = "Place 10x10 Plantboxes (100)", Callback = function() placestructure(10) end })
@@ -156,10 +150,8 @@ local function updmsa()
     end
 end
 
--- Note: Character update is handled by updateCharacter function connected earlier
 Options.wstoggle:OnChanged(updws)
 Options.jptoggle:OnChanged(updws)
-
 Options.msatoggle:OnChanged(updmsa)
 
 local function getlayout(itemname)
@@ -175,22 +167,13 @@ local function getlayout(itemname)
     return nil
 end
 
--- DEBUG: Let's inspect the packets module to see what's available
-print("=== Packets Module Debug ===")
-print("packets type:", type(packets))
-if packets then
-    for k, v in pairs(packets) do
-        print("packets." .. tostring(k), "type:", type(v))
-    end
-end
-print("=== End Debug ===\n")
-
--- FIXED: swingtool function - let's try to find the correct way to swing
+-- ==========================================
+-- FIXED: Strict payload definition for ByteNet
+-- Prevents the 'index nil with cursor' spam
+-- ==========================================
 local function swingtool(targetEntityIds)
-    -- First, let's see if SwingTool exists in different possible locations
     local swingMethod = nil
     
-    -- Try different possible paths
     if packets.SwingTool and packets.SwingTool.send then
         swingMethod = packets.SwingTool.send
     elseif packets.SwingTool then
@@ -202,7 +185,6 @@ local function swingtool(targetEntityIds)
     end
     
     if swingMethod then
-        -- Get cursor position
         local cursorPos = Vector3.new(0, 0, 0)
         local mouse = plr:GetMouse()
         if mouse and mouse.Hit then
@@ -214,29 +196,22 @@ local function swingtool(targetEntityIds)
             end
         end
         
-        -- Try different argument formats
-        local success, err = pcall(function()
-            -- Try format 1: { targetEntityIds = ids, cursor = cursor }
+        -- Always enforce strict Dictionary structure to prevent ByteNet serialization errors.
+        pcall(function()
             swingMethod({
                 targetEntityIds = targetEntityIds,
+                entities = targetEntityIds, -- Safeties to ensure ByteNet receives valid Array property
                 cursor = cursorPos
             })
         end)
-        
-        if not success then
-            -- Try format 2: just send the IDs array
-            pcall(function()
-                swingMethod(targetEntityIds)
-            end)
-        end
     else
-        -- If SwingTool doesn't exist, try direct remote
         local remote = rs:FindFirstChild("SwingTool")
         if remote then
             remote:FireServer(targetEntityIds)
         end
     end
 end
+-- ==========================================
 
 local function pickup(entityid)
     if packets.Pickup and packets.Pickup.send then
@@ -270,14 +245,12 @@ itemdropdown:OnChanged(function(Value)
     end
 end)
 
--- Resource Aura with better error handling
 task.spawn(function()
     while true do
         if not Options.resourceauratoggle.Value then
             task.wait(0.1)
             continue
         end
-        -- Wait for root to exist
         if not root then
             task.wait(0.1)
             continue
@@ -289,7 +262,6 @@ task.spawn(function()
         local targets = {}
         local allresources = {}
         
-        -- Safely check if workspace.Resources exists
         local resourcesFolder = workspace:FindFirstChild("Resources")
         if resourcesFolder then
             for _, r in pairs(resourcesFolder:GetChildren()) do
@@ -297,7 +269,6 @@ task.spawn(function()
             end
         end
         
-        -- Also check for Gold Nodes in workspace
         for _, r in pairs(workspace:GetChildren()) do
             if r:IsA("Model") and r.Name == "Gold Node" then
                 table.insert(allresources, r)
@@ -306,7 +277,7 @@ task.spawn(function()
         
         for _, res in pairs(allresources) do
             if res:IsA("Model") then
-                local eid = res:GetAttribute("EntityID")
+                 local eid = res:GetAttribute("EntityID")
                 if eid then
                     local ppart = res.PrimaryPart or res:FindFirstChildWhichIsA("BasePart")
                     if ppart and root and ppart.Position and root.Position then
@@ -327,7 +298,6 @@ task.spawn(function()
             for i = 1, math.min(targetCount, #targets) do
                 table.insert(selectedTargets, targets[i].eid)
             end
-            -- Add a small pcall for safety
             pcall(function()
                 swingtool(selectedTargets)
             end)
@@ -342,7 +312,6 @@ task.spawn(function()
             task.wait(0.1)
             continue
         end
-        -- Wait for root to exist
         if not root then
             task.wait(0.1)
             continue
@@ -353,7 +322,6 @@ task.spawn(function()
         local cooldown = tonumber(Options.crittercooldownslider.Value) or 0.1
         local targets = {}
         
-        -- Safely check if workspace.Critters exists
         local crittersFolder = workspace:FindFirstChild("Critters")
         if crittersFolder then
             for _, critter in pairs(crittersFolder:GetChildren()) do
@@ -392,7 +360,6 @@ task.spawn(function()
     while true do
         local range = tonumber(Options.pickuprange.Value) or 35
         if Options.autopickuptoggle.Value then
-            -- Safely check if workspace.Items exists
             local itemsFolder = workspace:FindFirstChild("Items")
             if itemsFolder and root then
                 for _, item in ipairs(itemsFolder:GetChildren()) do
@@ -410,7 +377,6 @@ task.spawn(function()
             end
         end
         if Options.chestpickuptoggle.Value then
-            -- Safely check if workspace.Deployables exists
             local deployablesFolder = workspace:FindFirstChild("Deployables")
             if deployablesFolder and root then
                 for _, chest in ipairs(deployablesFolder:GetChildren()) do
@@ -497,7 +463,6 @@ local function getpbs(range)
     local plantboxes = {}
     if not root then return plantboxes end
     
-    -- Safely check if workspace.Deployables exists
     local deployablesFolder = workspace:FindFirstChild("Deployables")
     if deployablesFolder then
         for _, deployable in ipairs(deployablesFolder:GetChildren()) do
@@ -537,22 +502,19 @@ local function getbushes(range, fruitname)
     return bushes
 end
 
--- TWEENING SYSTEM WITH SPEED CONTROL
 local tweening = nil
 local lastPlantTime = 0
 local function tween(target)
-    if not root then return nil end -- Check if root exists before tweening
+    if not root then return nil end
     if tweening then 
         tweening:Cancel()
         tweening = nil
     end
     
     local distance = (root.Position - target.Position).Magnitude
-    -- USE SPEED SLIDER: Higher value = Faster movement
     local tweenSpeed = Options.tweenspeed.Value
-    local duration = distance / tweenSpeed  -- Speed controlled by slider
+    local duration = distance / tweenSpeed 
     
-    -- Safety: Minimum duration to prevent instant teleport at very high speeds
     if duration < 0.1 then duration = 0.1 end
     
     local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
@@ -562,10 +524,8 @@ local function tween(target)
     return tween
 end
 
--- IMPROVED: TWEEN TO PLANT BOX WITH SPEED CONTROL AND SMOOTHNESS
 local function tweenplantbox(range)
-    if not root then return end -- Early return if no root
-    -- Get the list of available plant boxes within range that don't have seeds
+    if not root then return end 
     local plantboxes = getpbs(range)
     local closestEmptyBox = nil
     local minDist = math.huge
@@ -580,19 +540,15 @@ local function tweenplantbox(range)
     end
 
     if closestEmptyBox then
-        local targetCFrame = closestEmptyBox.deployable.PrimaryPart.CFrame + Vector3.new(0, 3, 0) -- Adjust offset as needed
-        -- Call the updated tween function which cancels previous tweens
+        local targetCFrame = closestEmptyBox.deployable.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
         local currentTween = tween(targetCFrame)
     end
 end
 
--- IMPROVED: TWEEN TO BUSH OR PLANT BOX WITH SPEED CONTROL AND SMOOTHNESS
 local function tweenpbs(range, fruitname)
-    if not root then return end -- Early return if no root
-    -- Get the currently selected fruit from the dropdown inside the loop
+    if not root then return end 
     local currentFruitName = Options.fruitdropdown.Value
 
-    -- First, look for harvestable bushes of the specified fruit
     local bushes = getbushes(range, currentFruitName)
     local closestBush = nil
     local minDistBush = math.huge
@@ -605,15 +561,11 @@ local function tweenpbs(range, fruitname)
     end
 
     if closestBush then
-        -- Found a bush, move towards it
-        local targetCFrame = closestBush.model.PrimaryPart.CFrame + Vector3.new(0, 3, 0) -- Adjust offset as needed
+        local targetCFrame = closestBush.model.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
         local currentTween = tween(targetCFrame)
 
-        -- Optional: Attempt to harvest if close enough after waiting
-        -- Calculate distance again after waiting
         local newDist = (closestBush.model.PrimaryPart.Position - root.Position).Magnitude
-        if newDist <= range then -- Check if still within range
-             -- Trigger pickup for the bush
+        if newDist <= range then
             pcall(function()
                 if packets.Pickup and packets.Pickup.send then
                     packets.Pickup.send(closestBush.entityid)
@@ -624,7 +576,6 @@ local function tweenpbs(range, fruitname)
         end
 
     else
-        -- No bushes found, look for empty plant boxes instead
         local plantboxes = getpbs(range)
         local closestEmptyBox = nil
         local minDistBox = math.huge
@@ -634,28 +585,21 @@ local function tweenpbs(range, fruitname)
                 if box.dist < minDistBox then
                     minDistBox = box.dist
                     closestEmptyBox = box
-                end
+                 end
             end
         end
 
         if closestEmptyBox then
-            -- Found an empty plant box, move towards it
-            local targetCFrame = closestEmptyBox.deployable.PrimaryPart.CFrame + Vector3.new(0, 3, 0) -- Adjust offset as needed
+            local targetCFrame = closestEmptyBox.deployable.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
             local currentTween = tween(targetCFrame)
 
-             -- Optional: Attempt to plant if close enough after waiting and has seeds
-             -- Calculate distance again after waiting
              local newDistToBox = (closestEmptyBox.deployable.PrimaryPart.Position - root.Position).Magnitude
-             if newDistToBox <= range then -- Check if still within range
-                 -- Check if player has the required seed in inventory (this part might need adjustment based on how inventory works)
-                 -- For now, just attempt to plant if close enough and it's an empty box
-                 -- A real check would involve verifying the player's inventory contains the specific fruit item ID
+             if newDistToBox <= range then 
                  local itemID = fruittoitemid[currentFruitName] or 94
-                 -- Simple attempt to plant (requires player to have the item)
                  pcall(function()
                      if packets.InteractStructure and packets.InteractStructure.send then
                          packets.InteractStructure.send({
-                             entityID = closestEmptyBox.entityid,
+                              entityID = closestEmptyBox.entityid,
                              itemID = itemID
                          })
                      elseif packets.InteractStructure then
@@ -665,15 +609,11 @@ local function tweenpbs(range, fruitname)
                          })
                      end
                  end)
-                 -- lastPlantTime = tick() -- Uncomment if you want a cooldown per plant action
              end
-
-
         end
     end
 end
 
--- Connect toggles with the improved functions (using Heartbeat for non-stop movement)
 local plantBoxConn = nil
 Options.tweentoplantbox:OnChanged(function(value)
     if value then
@@ -684,7 +624,6 @@ Options.tweentoplantbox:OnChanged(function(value)
         end)
     else
         if plantBoxConn then plantBoxConn:Disconnect() end
-        -- Explicitly cancel tween when disabling
         if tweening then
             tweening:Cancel()
             tweening = nil
@@ -698,20 +637,17 @@ Options.tweentobush:OnChanged(function(value)
         if bushConn then bushConn:Disconnect() end
         bushConn = runs.Heartbeat:Connect(function()
             local range = Options.tweenrange.Value
-            -- Note: fruitname is now fetched dynamically inside the loop
             tweenpbs(range)
         end)
     else
         if bushConn then bushConn:Disconnect() end
-         -- Explicitly cancel tween when disabling
         if tweening then
-            tweening:Cancel()
+             tweening:Cancel()
             tweening = nil
         end
     end
 end)
 
--- Update when speed slider changes (restarts active tweens)
 Options.tweenspeed:OnChanged(function(value)
     if Options.tweentoplantbox.Value then
         Options.tweentoplantbox.Value = false
@@ -725,7 +661,6 @@ Options.tweenspeed:OnChanged(function(value)
 end)
 
 Options.tweenrange:OnChanged(function(value)
-    -- Could restart tweens here too if desired
     if Options.tweentoplantbox.Value then
         Options.tweentoplantbox.Value = false
         task.wait(0.05)
@@ -737,8 +672,6 @@ Options.tweenrange:OnChanged(function(value)
     end
 end)
 
-
--- IMPROVED: Auto Plant (Faster, Higher Range)
 local plantConnection = nil
 Options.planttoggle:OnChanged(function(value)
     if value then
@@ -748,7 +681,7 @@ Options.planttoggle:OnChanged(function(value)
         local range = tonumber(Options.plantrange.Value) or 30
         local selectedfruit = Options.fruitdropdown.Value
         local itemID = fruittoitemid[selectedfruit] or 94
-        plantConnection = runs.Heartbeat:Connect(function() -- Use Heartbeat for speed
+        plantConnection = runs.Heartbeat:Connect(function() 
             local plantboxes = getpbs(range)
             for _, box in ipairs(plantboxes) do
                 if not box.deployable:FindFirstChild("Seed") then
@@ -756,8 +689,6 @@ Options.planttoggle:OnChanged(function(value)
                     plantedboxes[box.entityid] = true
                 end
             end
-            -- Plant delay is effectively handled by Heartbeat frequency if needed,
-            -- otherwise remove the delay entirely for max speed here.
         end)
     else
         if plantConnection then
@@ -767,13 +698,12 @@ Options.planttoggle:OnChanged(function(value)
     end
 end)
 
-
 task.spawn(function()
     while true do
         if not Options.harvesttoggle.Value then
             task.wait(0.1)
             continue
-        end
+         end
         local harvestrange = tonumber(Options.harvestrange.Value) or 30
         local selectedfruit = Options.fruitdropdown.Value
         local bushes = getbushes(harvestrange, selectedfruit)
@@ -785,7 +715,6 @@ task.spawn(function()
     end
 end)
 
--- IMPROVED: Place Structure (Uses Snapping Logic, Handles Single and Grid Placement, Includes Continuous Option, Adds Cursor, Adds Rotation Choice)
 local placementConnection = nil
 local function placeSingleSnappedBox()
     local player = game.Players.LocalPlayer
@@ -798,15 +727,13 @@ local function placeSingleSnappedBox()
     local rootPart = character.HumanoidRootPart
     local currentPosition = rootPart.Position
     local camera = workspace.CurrentCamera
-    local cursorPos = camera and camera.CFrame.Position or currentPosition -- Fallback to root pos if camera fails
+    local cursorPos = camera and camera.CFrame.Position or currentPosition
 
-    -- Snap to grid
     local gridSize = 6.05
     local snappedX = math.round(currentPosition.X / gridSize) * gridSize
     local snappedZ = math.round(currentPosition.Z / gridSize) * gridSize
     local snappedPosition = Vector3.new(snappedX, currentPosition.Y, snappedZ)
 
-    -- Raycast down
     local rayParams = RaycastParams.new()
     rayParams.FilterType = Enum.RaycastFilterType.Blacklist
     rayParams.FilterDescendantsInstances = {character}
@@ -818,22 +745,20 @@ local function placeSingleSnappedBox()
 
     local finalPosition = rayResult and rayResult.Position or snappedPosition
 
-    -- Determine rotation based on dropdown
     local selectedRotation = Options.rotationdropdown.Value
-    local rotationCFrame = CFrame.Angles(0, 0, 0) -- 0 degrees
+    local rotationCFrame = CFrame.Angles(0, 0, 0)
     if selectedRotation == "45 degrees" then
-        rotationCFrame = CFrame.Angles(0, math.rad(45), 0) -- 45 degrees around Y
+        rotationCFrame = CFrame.Angles(0, math.rad(45), 0)
     end
     local finalCFrame = CFrame.new(finalPosition) * rotationCFrame
 
-    -- ✅ CRITICAL: Include 'cursor' field (required by ByteNet) and rotation via CFrame
     if packets.PlaceStructure and packets.PlaceStructure.send then
         packets.PlaceStructure.send({
             buildingName = "Plant Box",
-            cframe = finalCFrame, -- ✅ Rotation baked in
+            cframe = finalCFrame,
             vec = finalPosition,
             isMobile = false,
-            cursor = cursorPos  -- 👈 MUST be present and non-nil
+            cursor = cursorPos
         })
         print("Placed plant box at:", finalPosition, "with rotation:", selectedRotation)
     elseif packets.PlaceStructure then
@@ -849,7 +774,6 @@ local function placeSingleSnappedBox()
     end
 end
 
--- Grid placement function (keeps original grid logic but uses snapped positions, adds cursor, adds rotation choice)
 local function placeGridOfBoxes(gridSize)
     local player = game.Players.LocalPlayer
     local character = player.Character
@@ -860,33 +784,29 @@ local function placeGridOfBoxes(gridSize)
 
     local torso = character.HumanoidRootPart
     local camera = workspace.CurrentCamera
-    local cursorPos = camera and camera.CFrame.Position or torso.Position -- Fallback
+    local cursorPos = camera and camera.CFrame.Position or torso.Position
 
-    -- Determine rotation based on dropdown
     local selectedRotation = Options.rotationdropdown.Value
     local rotationCFrame = CFrame.Angles(0, 0, 0)
     if selectedRotation == "45 degrees" then
         rotationCFrame = CFrame.Angles(0, math.rad(45), 0)
     end
 
-    local startpos = torso.Position - Vector3.new(0, 3, 0) -- Offset down slightly from player
-    local spacing = 6.05 -- Approximate spacing between plant boxes (matches snap grid)
+    local startpos = torso.Position - Vector3.new(0, 3, 0)
+    local spacing = 6.05
 
     for x = 0, gridSize - 1 do
         for z = 0, gridSize - 1 do
-            task.wait(0.3) -- Add a small delay between placement attempts
+            task.wait(0.3)
 
-            -- Calculate grid position
             local gridX = startpos.X + (x * spacing)
             local gridZ = startpos.Z + (z * spacing)
             local gridPos = Vector3.new(gridX, startpos.Y, gridZ)
 
-             -- Snap grid position to the same grid system
             local snappedX = math.round(gridPos.X / spacing) * spacing
             local snappedZ = math.round(gridPos.Z / spacing) * spacing
             local snappedGridPos = Vector3.new(snappedX, gridPos.Y, snappedZ)
 
-            -- Raycast down from the snapped grid position
             local rayParams = RaycastParams.new()
             rayParams.FilterType = Enum.RaycastFilterType.Blacklist
             rayParams.FilterDescendantsInstances = {character}
@@ -898,16 +818,15 @@ local function placeGridOfBoxes(gridSize)
             local rayResult = workspace:Raycast(rayOrigin, rayDirection, rayParams)
 
             local finalPosition = rayResult and rayResult.Position or snappedGridPos
-            local finalCFrame = CFrame.new(finalPosition) * rotationCFrame -- ✅ Rotated CFrame
+            local finalCFrame = CFrame.new(finalPosition) * rotationCFrame
 
-            -- ✅ CRITICAL: Include 'cursor' field (required by ByteNet) and rotation via CFrame
             if packets.PlaceStructure and packets.PlaceStructure.send then
                 packets.PlaceStructure.send({
                     buildingName = "Plant Box",
-                    cframe = finalCFrame, -- ✅ Rotation baked in
+                    cframe = finalCFrame,
                     vec = finalPosition,
                     isMobile = false,
-                    cursor = cursorPos -- 👈 MUST be present and non-nil
+                    cursor = cursorPos
                 })
                 print("Placed plant box in grid at:", finalPosition, "with rotation:", selectedRotation)
             elseif packets.PlaceStructure then
@@ -920,36 +839,30 @@ local function placeGridOfBoxes(gridSize)
                 })
             else
                  warn("PlaceStructure packet not found or send method missing during grid placement.")
-                 break -- Stop if packet fails
+                 break
             end
         end
     end
 end
 
--- Update the placestructure function to handle both grid and single snapped placement
 placestructure = function(gridsize)
     if gridsize == 1 then
-        -- If gridsize is 1, treat it as a single snapped placement
         placeSingleSnappedBox()
     else
-        -- Otherwise, treat it as a grid placement
         placeGridOfBoxes(gridsize)
     end
 end
 
--- Handle the continuous placement toggle
 Options.placeplantboxestoggle:OnChanged(function(value)
     if value then
-        -- Enable continuous placement
         if placementConnection then
-            placementConnection:Disconnect() -- Disconnect any existing connection
+            placementConnection:Disconnect()
         end
         placementConnection = runs.Heartbeat:Connect(function()
-            placeSingleSnappedBox() -- Place a box every heartbeat frame
-            task.wait(0.1) -- Add a small delay to prevent spamming too quickly
+            placeSingleSnappedBox()
+            task.wait(0.1)
         end)
     else
-        -- Disable continuous placement
         if placementConnection then
             placementConnection:Disconnect()
             placementConnection = nil
