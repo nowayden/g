@@ -27,13 +27,12 @@ local Tabs = {
 local rs = game:GetService("ReplicatedStorage")
 local packets = require(rs.Modules.Packets)
 local plr = game.Players.LocalPlayer
--- Initialize char, root, hum initially
 local char, root, hum
 
 local function updateCharacter()
     char = plr.Character
     if not char then return end
-    root = char:WaitForChild("HumanoidRootPart", 5) -- Wait max 5 seconds
+    root = char:WaitForChild("HumanoidRootPart", 5)
     hum = char:WaitForChild("Humanoid", 5)
 end
 
@@ -58,6 +57,8 @@ local jptoggle = Tabs.Main:CreateToggle("jptoggle", { Title = "JumpPower", Defau
 local jpslider = Tabs.Main:CreateSlider("jpslider", { Title = "Value", Min = 1, Max = 65, Rounding = 1, Default = 50 })
 local msatoggle = Tabs.Main:CreateToggle("msatoggle", { Title = "No Mountain Slip", Default = false })
 
+local killauratoggle 
+
 local resourceauratoggle = Tabs.Map:CreateToggle("resourceauratoggle", { Title = "Resource Aura", Default = false })
 local resourceaurarange = Tabs.Map:CreateSlider("resourceaurarange", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
 local resourcetargetdropdown = Tabs.Map:CreateDropdown("resourcetargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
@@ -79,7 +80,7 @@ local itemdropdown = Tabs.Pickup:CreateDropdown("itemdropdown", {
         "Raw Emerald", "Pink Diamond", "Raw Pink Diamond", "Void Shard","Jelly", 
         "Magnetite", "Raw Magnetite", "Adurite", "Raw Adurite", "Ice Cube", "Stone", 
         "Iron", "Raw Iron", "Steel", "Hide", "Leaves", "Log", "Wood", "Pie", 
-        "Bread", "Cooked Egg", "Grain Mush"
+        "Bread", "Cooked Egg", "Grain Mush" 
     }, 
     Multi = true, 
     Default = { Leaves = true, Log = true }
@@ -152,95 +153,72 @@ Options.wstoggle:OnChanged(updws)
 Options.jptoggle:OnChanged(updws)
 Options.msatoggle:OnChanged(updmsa)
 
--- DEBUG: Find the actual swing remote
-local function findSwingRemote()
-    print("Searching for swing remote...")
-    
-    -- Check ReplicatedStorage
-    for _, child in ipairs(rs:GetChildren()) do
-        if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
-            if string.lower(child.Name):find("swing") or string.lower(child.Name):find("attack") or string.lower(child.Name):find("tool") then
-                print("Found in ReplicatedStorage:", child.Name)
-                return child
-            end
-        end
-    end
-    
-    -- Check workspace
-    for _, child in ipairs(workspace:GetChildren()) do
-        if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
-            if string.lower(child.Name):find("swing") or string.lower(child.Name):find("attack") or string.lower(child.Name):find("tool") then
-                print("Found in workspace:", child.Name)
-                return child
-            end
-        end
-    end
-    
-    -- Check player
-    for _, child in ipairs(plr.PlayerGui:GetChildren()) do
-        if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
-            if string.lower(child.Name):find("swing") or string.lower(child.Name):find("attack") or string.lower(child.Name):find("tool") then
-                print("Found in PlayerGui:", child.Name)
-                return child
-            end
-        end
-    end
-    
-    print("No swing remote found, using generic attack")
-    return nil
-end
-
-local swingRemote = findSwingRemote()
-
--- FIXED: swingtool function using actual remote
+-- ==========================================
+-- FIXED: ByteNet Strict Serialization Bypass
+-- We supply an omnibus dictionary layout to 
+-- ensure nested structs don't evaluate to nil
+-- ==========================================
 local function swingtool(targetEntityIds)
-    if swingRemote then
-        -- Get cursor position
-        local cursorPos = Vector3.new(0, 0, 0)
+    local swingMethod = nil
+    
+    if packets.SwingTool and packets.SwingTool.send then
+        swingMethod = packets.SwingTool.send
+    elseif packets.SwingTool then
+        swingMethod = packets.SwingTool
+    elseif packets.send and packets.send.SwingTool then
+        swingMethod = packets.send.SwingTool
+    elseif packets.Remote and packets.Remote.SwingTool then
+        swingMethod = packets.Remote.SwingTool
+    end
+    
+    if swingMethod then
+        local cursorPos = Vector3.zero
         local mouse = plr:GetMouse()
         if mouse and mouse.Hit then
             cursorPos = mouse.Hit.Position
         else
             local camera = workspace.CurrentCamera
-            if camera then
-                cursorPos = camera.CFrame.Position
-            end
+            if camera then cursorPos = camera.CFrame.Position end
         end
+        local cframePos = CFrame.new(cursorPos)
         
-        -- Try different argument formats
-        pcall(function()
-            -- Format 1: with cursor and targets
-            swingRemote:FireServer({
-                targetEntityIds = targetEntityIds,
-                cursor = cursorPos
-            })
-        end)
-    else
-        -- If no swing remote found, try to use packets again but with proper error handling
-        if packets and packets.SwingTool and packets.SwingTool.send then
+        -- ByteNet ignores unknown keys. By passing everything it might look for, 
+        -- we guarantee it won't crash when digging for a nested "cursor".
+        for _, entityId in ipairs(targetEntityIds) do
+            local payload = {
+                cursor = cursorPos,
+                cframe = cframePos,
+                entity = entityId,
+                entityID = entityId,
+                entityId = entityId,
+                entities = { entityId },
+                hits = {
+                    { cursor = cursorPos, entity = entityId, entityID = entityId, cframe = cframePos }
+                },
+                hitInfo = { cursor = cursorPos, entity = entityId, entityID = entityId, cframe = cframePos },
+                hitData = { cursor = cursorPos, entity = entityId, entityID = entityId, cframe = cframePos },
+                data = { cursor = cursorPos, entity = entityId, entityID = entityId, cframe = cframePos }
+            }
+            
             pcall(function()
-                local cursorPos = Vector3.new(0, 0, 0)
-                local mouse = plr:GetMouse()
-                if mouse and mouse.Hit then
-                    cursorPos = mouse.Hit.Position
-                end
-                packets.SwingTool.send({
-                    targetEntityIds = targetEntityIds,
-                    cursor = cursorPos
-                })
+                swingMethod(payload)
             end)
+        end
+    else
+        local remote = rs:FindFirstChild("SwingTool")
+        if remote then
+            remote:FireServer(targetEntityIds)
         end
     end
 end
+-- ==========================================
 
 local function pickup(entityid)
-    pcall(function()
-        if packets.Pickup and packets.Pickup.send then
-            packets.Pickup.send(entityid)
-        elseif packets.Pickup then
-            packets.Pickup(entityid)
-        end
-    end)
+    if packets.Pickup and packets.Pickup.send then
+        packets.Pickup.send(entityid)
+    elseif packets.Pickup then
+        packets.Pickup(entityid)
+    end
 end
 
 local function drop(itemname)
@@ -248,13 +226,11 @@ local function drop(itemname)
     if not inventory then return end
     for _, child in ipairs(inventory:GetChildren()) do
         if child:IsA("ImageLabel") and child.Name == itemname then
-            pcall(function()
-                if packets and packets.DropBagItem and packets.DropBagItem.send then
-                    packets.DropBagItem.send(child.LayoutOrder)
-                elseif packets and packets.DropBagItem then
-                    packets.DropBagItem(child.LayoutOrder)
-                end
-            end)
+            if packets and packets.DropBagItem and packets.DropBagItem.send then
+                packets.DropBagItem.send(child.LayoutOrder)
+            elseif packets and packets.DropBagItem then
+                packets.DropBagItem(child.LayoutOrder)
+            end
         end
     end
 end
@@ -263,129 +239,148 @@ local selecteditems = {}
 itemdropdown:OnChanged(function(Value)
     selecteditems = {} 
     for item, State in pairs(Value) do
-        if State then
-            table.insert(selecteditems, item)
-        end
-    end
-end)
-
--- Resource Aura with safe execution
-task.spawn(function()
-    while true do
-        if Options.resourceauratoggle.Value and root then
-            local range = tonumber(Options.resourceaurarange.Value) or 20
-            local targetCount = tonumber(Options.resourcetargetdropdown.Value) or 1
-            local cooldown = tonumber(Options.resourcecooldownslider.Value) or 0.1
-            local targets = {}
-            
-            -- Find resources
-            local resourcesFolder = workspace:FindFirstChild("Resources")
-            if resourcesFolder then
-                for _, res in pairs(resourcesFolder:GetChildren()) do
-                    if res:IsA("Model") then
-                        local eid = res:GetAttribute("EntityID")
-                        if eid then
-                            local ppart = res.PrimaryPart or res:FindFirstChildWhichIsA("BasePart")
-                            if ppart and root and ppart.Position then
-                                local dist = (ppart.Position - root.Position).Magnitude
-                                if dist <= range then
-                                    table.insert(targets, { eid = eid, dist = dist })
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-            
-            if #targets > 0 then
-                table.sort(targets, function(a, b) return a.dist < b.dist end)
-                local selectedTargets = {}
-                for i = 1, math.min(targetCount, #targets) do
-                    table.insert(selectedTargets, targets[i].eid)
-                end
-                swingtool(selectedTargets)
-            end
-            task.wait(cooldown)
-        else
-            task.wait(0.1)
-        end
+        if State then table.insert(selecteditems, item) end
     end
 end)
 
 task.spawn(function()
     while true do
-        if Options.critterauratoggle.Value and root then
-            local range = tonumber(Options.critterrangeslider.Value) or 20
-            local targetCount = tonumber(Options.crittertargetdropdown.Value) or 1
-            local cooldown = tonumber(Options.crittercooldownslider.Value) or 0.1
-            local targets = {}
-            
-            local crittersFolder = workspace:FindFirstChild("Critters")
-            if crittersFolder then
-                for _, critter in pairs(crittersFolder:GetChildren()) do
-                    if critter:IsA("Model") then
-                        local eid = critter:GetAttribute("EntityID")
-                        if eid then
-                            local ppart = critter.PrimaryPart or critter:FindFirstChildWhichIsA("BasePart")
-                            if ppart and root and ppart.Position then
-                                local dist = (ppart.Position - root.Position).Magnitude
-                                if dist <= range then
-                                    table.insert(targets, { eid = eid, dist = dist })
-                                end
+        if not Options.resourceauratoggle.Value then
+            task.wait(0.1)
+            continue
+        end
+        if not root then
+            task.wait(0.1)
+            continue
+        end
+        
+        local range = tonumber(Options.resourceaurarange.Value) or 20
+        local targetCount = tonumber(Options.resourcetargetdropdown.Value) or 1
+        local cooldown = tonumber(Options.resourcecooldownslider.Value) or 0.1
+        local targets = {}
+        local allresources = {}
+        
+        local resourcesFolder = workspace:FindFirstChild("Resources")
+        if resourcesFolder then
+            for _, r in pairs(resourcesFolder:GetChildren()) do
+                table.insert(allresources, r)
+            end
+        end
+        
+        for _, r in pairs(workspace:GetChildren()) do
+            if r:IsA("Model") and r.Name == "Gold Node" then
+                table.insert(allresources, r)
+            end
+        end
+        
+        for _, res in pairs(allresources) do
+            if res:IsA("Model") then
+                 local eid = res:GetAttribute("EntityID")
+                if eid then
+                    local ppart = res.PrimaryPart or res:FindFirstChildWhichIsA("BasePart")
+                    if ppart and root and ppart.Position and root.Position then
+                        local dist = (ppart.Position - root.Position).Magnitude
+                        if dist <= range then
+                            table.insert(targets, { eid = eid, dist = dist })
+                        end
+                    end
+                end
+            end
+        end
+        
+        if #targets > 0 then
+            table.sort(targets, function(a, b) return a.dist < b.dist end)
+            local selectedTargets = {}
+            for i = 1, math.min(targetCount, #targets) do
+                table.insert(selectedTargets, targets[i].eid)
+            end
+            pcall(function() swingtool(selectedTargets) end)
+        end
+        task.wait(cooldown)
+    end
+end)
+
+task.spawn(function()
+    while true do
+        if not Options.critterauratoggle.Value then
+            task.wait(0.1)
+            continue
+        end
+        if not root then
+            task.wait(0.1)
+            continue
+        end
+        
+        local range = tonumber(Options.critterrangeslider.Value) or 20
+        local targetCount = tonumber(Options.crittertargetdropdown.Value) or 1
+        local cooldown = tonumber(Options.crittercooldownslider.Value) or 0.1
+        local targets = {}
+        
+        local crittersFolder = workspace:FindFirstChild("Critters")
+        if crittersFolder then
+            for _, critter in pairs(crittersFolder:GetChildren()) do
+                if critter:IsA("Model") then
+                    local eid = critter:GetAttribute("EntityID")
+                    if eid then
+                        local ppart = critter.PrimaryPart or critter:FindFirstChildWhichIsA("BasePart")
+                        if ppart and root and ppart.Position and root.Position then
+                            local dist = (ppart.Position - root.Position).Magnitude
+                            if dist <= range then
+                                table.insert(targets, { eid = eid, dist = dist })
                             end
                         end
                     end
                 end
             end
-            
-            if #targets > 0 then
-                table.sort(targets, function(a, b) return a.dist < b.dist end)
-                local selectedTargets = {}
-                for i = 1, math.min(targetCount, #targets) do
-                    table.insert(selectedTargets, targets[i].eid)
-                end
-                swingtool(selectedTargets)
-            end
-            task.wait(cooldown)
-        else
-            task.wait(0.1)
         end
+        
+        if #targets > 0 then
+            table.sort(targets, function(a, b) return a.dist < b.dist end)
+            local selectedTargets = {}
+            for i = 1, math.min(targetCount, #targets) do
+                table.insert(selectedTargets, targets[i].eid)
+            end
+            pcall(function() swingtool(selectedTargets) end)
+        end
+        task.wait(cooldown)
     end
 end)
 
 task.spawn(function()
     while true do
         local range = tonumber(Options.pickuprange.Value) or 35
-        if Options.autopickuptoggle.Value and root then
+        if Options.autopickuptoggle.Value then
             local itemsFolder = workspace:FindFirstChild("Items")
-            if itemsFolder then
+            if itemsFolder and root then
                 for _, item in ipairs(itemsFolder:GetChildren()) do
-                    if (item:IsA("BasePart") or item:IsA("MeshPart")) and item.Position then
+                    if item:IsA("BasePart") or item:IsA("MeshPart") then
+                        local selecteditem = item.Name
                         local entityid = item:GetAttribute("EntityID")
-                        if entityid and table.find(selecteditems, item.Name) then
+                        if entityid and root and item.Position and root.Position then
                             local dist = (item.Position - root.Position).Magnitude
-                            if dist <= range then
-                                pickup(entityid)
+                            if dist <= range and table.find(selecteditems, selecteditem) then
+                                pcall(function() pickup(entityid) end)
                             end
                         end
                     end
                 end
             end
         end
-        if Options.chestpickuptoggle.Value and root then
+        if Options.chestpickuptoggle.Value then
             local deployablesFolder = workspace:FindFirstChild("Deployables")
-            if deployablesFolder then
+            if deployablesFolder and root then
                 for _, chest in ipairs(deployablesFolder:GetChildren()) do
                     if chest:IsA("Model") and chest:FindFirstChild("Contents") then
                         local chestPart = chest.PrimaryPart or chest:FindFirstChildWhichIsA("BasePart")
-                        if chestPart and chestPart.Position then
+                        if chestPart and chestPart.Position and root.Position then
                             for _, item in ipairs(chest.Contents:GetChildren()) do
-                                if (item:IsA("BasePart") or item:IsA("MeshPart")) then
+                                if item:IsA("BasePart") or item:IsA("MeshPart") then
+                                    local selecteditem = item.Name
                                     local entityid = item:GetAttribute("EntityID")
-                                    if entityid and table.find(selecteditems, item.Name) then
+                                    if entityid and table.find(selecteditems, selecteditem) then
                                         local dist = (chestPart.Position - root.Position).Magnitude
                                         if dist <= range then
-                                            pickup(entityid)
+                                            pcall(function() pickup(entityid) end)
                                         end
                                     end
                                 end
@@ -404,16 +399,15 @@ local cd = 0
 runs.Heartbeat:Connect(function()
     if Options.droptoggle.Value then
         if tick() - debounce >= cd then
-            drop(Options.dropdropdown.Value)
+            local selectedItem = Options.dropdropdown.Value
+            drop(selectedItem)
             debounce = tick()
         end
     end
-end)
-
-runs.Heartbeat:Connect(function()
     if Options.droptogglemanual.Value then
         if tick() - debounce >= cd then
-            drop(Options.droptextbox.Value)
+            local itemname = Options.droptextbox.Value
+            drop(itemname)
             debounce = tick()
         end
     end
@@ -421,37 +415,20 @@ end)
 
 local plantedboxes = {}
 local fruittoitemid = {
-    Bloodfruit = 94,
-    Bluefruit = 377,
-    Lemon = 99,
-    Coconut = 1,
-    Jelly = 604,
-    Banana = 606,
-    Orange = 602,
-    Oddberry = 32,
-    Berry = 35,
-    Strangefruit = 302,
-    Strawberry = 282,
-    Sunfruit = 128,
-    Pumpkin = 80,
-    ["Prickly Pear"] = 378,
-    Apple = 243,
-    Barley = 247,
-    Cloudberry = 101,
-    Carrot = 147,
-    Blossom = 958 
+    Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, 
+    Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, 
+    Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, 
+    Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958 
 }
 
 local function plant(entityid, itemID)
-    pcall(function()
-        if packets.InteractStructure and packets.InteractStructure.send then
-            packets.InteractStructure.send({ entityID = entityid, itemID = itemID })
-            plantedboxes[entityid] = true
-        elseif packets.InteractStructure then
-            packets.InteractStructure({ entityID = entityid, itemID = itemID })
-            plantedboxes[entityid] = true
-        end
-    end)
+    if packets.InteractStructure and packets.InteractStructure.send then
+        packets.InteractStructure.send({ entityID = entityid, itemID = itemID })
+        plantedboxes[entityid] = true
+    elseif packets.InteractStructure then
+        packets.InteractStructure({ entityID = entityid, itemID = itemID })
+        plantedboxes[entityid] = true
+    end
 end
 
 local function getpbs(range)
@@ -464,7 +441,7 @@ local function getpbs(range)
             if deployable:IsA("Model") and deployable.Name == "Plant Box" then
                 local entityid = deployable:GetAttribute("EntityID")
                 local ppart = deployable.PrimaryPart or deployable:FindFirstChildWhichIsA("BasePart")
-                if entityid and ppart and root and ppart.Position then 
+                if entityid and ppart and root and ppart.Position and root.Position then 
                     local dist = (ppart.Position - root.Position).Magnitude
                     if dist <= range then
                         table.insert(plantboxes, { entityid = entityid, deployable = deployable, dist = dist })
@@ -481,9 +458,9 @@ local function getbushes(range, fruitname)
     if not root then return bushes end
     
     for _, model in ipairs(workspace:GetChildren()) do
-        if model:IsA("Model") and model.Name and string.find(model.Name, fruitname) then
+        if model:IsA("Model") and model.Name and model.Name:find(fruitname) then
             local ppart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-            if ppart and root and ppart.Position then 
+            if ppart and root and ppart.Position and root.Position then 
                 local dist = (ppart.Position - root.Position).Magnitude
                 if dist <= range then
                     local entityid = model:GetAttribute("EntityID")
@@ -497,8 +474,8 @@ local function getbushes(range, fruitname)
     return bushes
 end
 
--- TWEENING SYSTEM
 local tweening = nil
+local lastPlantTime = 0
 local function tween(target)
     if not root then return nil end
     if tweening then 
@@ -508,7 +485,9 @@ local function tween(target)
     
     local distance = (root.Position - target.Position).Magnitude
     local tweenSpeed = Options.tweenspeed.Value
-    local duration = math.max(distance / tweenSpeed, 0.1)
+    local duration = distance / tweenSpeed 
+    
+    if duration < 0.1 then duration = 0.1 end
     
     local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
     local tween = tspmo:Create(root, tweenInfo, { CFrame = target })
@@ -518,7 +497,7 @@ local function tween(target)
 end
 
 local function tweenplantbox(range)
-    if not root then return end
+    if not root then return end 
     local plantboxes = getpbs(range)
     local closestEmptyBox = nil
     local minDist = math.huge
@@ -534,13 +513,14 @@ local function tweenplantbox(range)
 
     if closestEmptyBox then
         local targetCFrame = closestEmptyBox.deployable.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
-        tween(targetCFrame)
+        local currentTween = tween(targetCFrame)
     end
 end
 
-local function tweenpbs(range)
-    if not root then return end
+local function tweenpbs(range, fruitname)
+    if not root then return end 
     local currentFruitName = Options.fruitdropdown.Value
+
     local bushes = getbushes(range, currentFruitName)
     local closestBush = nil
     local minDistBush = math.huge
@@ -554,10 +534,17 @@ local function tweenpbs(range)
 
     if closestBush then
         local targetCFrame = closestBush.model.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
-        tween(targetCFrame)
+        local currentTween = tween(targetCFrame)
+
         local newDist = (closestBush.model.PrimaryPart.Position - root.Position).Magnitude
         if newDist <= range then
-            pickup(closestBush.entityid)
+            pcall(function()
+                if packets.Pickup and packets.Pickup.send then
+                    packets.Pickup.send(closestBush.entityid)
+                elseif packets.Pickup then
+                    packets.Pickup(closestBush.entityid)
+                end
+            end)
         end
     else
         local plantboxes = getpbs(range)
@@ -569,18 +556,25 @@ local function tweenpbs(range)
                 if box.dist < minDistBox then
                     minDistBox = box.dist
                     closestEmptyBox = box
-                end
+                 end
             end
         end
 
         if closestEmptyBox then
             local targetCFrame = closestEmptyBox.deployable.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
-            tween(targetCFrame)
-            local newDistToBox = (closestEmptyBox.deployable.PrimaryPart.Position - root.Position).Magnitude
-            if newDistToBox <= range then
-                local itemID = fruittoitemid[currentFruitName] or 94
-                plant(closestEmptyBox.entityid, itemID)
-            end
+            local currentTween = tween(targetCFrame)
+
+             local newDistToBox = (closestEmptyBox.deployable.PrimaryPart.Position - root.Position).Magnitude
+             if newDistToBox <= range then 
+                 local itemID = fruittoitemid[currentFruitName] or 94
+                 pcall(function()
+                     if packets.InteractStructure and packets.InteractStructure.send then
+                         packets.InteractStructure.send({ entityID = closestEmptyBox.entityid, itemID = itemID })
+                     elseif packets.InteractStructure then
+                         packets.InteractStructure({ entityID = closestEmptyBox.entityid, itemID = itemID })
+                     end
+                 end)
+             end
         end
     end
 end
@@ -590,7 +584,8 @@ Options.tweentoplantbox:OnChanged(function(value)
     if value then
         if plantBoxConn then plantBoxConn:Disconnect() end
         plantBoxConn = runs.Heartbeat:Connect(function()
-            tweenplantbox(Options.tweenrange.Value)
+            local range = Options.tweenrange.Value
+            tweenplantbox(range)
         end)
     else
         if plantBoxConn then plantBoxConn:Disconnect() end
@@ -606,18 +601,31 @@ Options.tweentobush:OnChanged(function(value)
     if value then
         if bushConn then bushConn:Disconnect() end
         bushConn = runs.Heartbeat:Connect(function()
-            tweenpbs(Options.tweenrange.Value)
+            local range = Options.tweenrange.Value
+            tweenpbs(range)
         end)
     else
         if bushConn then bushConn:Disconnect() end
         if tweening then
-            tweening:Cancel()
+             tweening:Cancel()
             tweening = nil
         end
     end
 end)
 
 Options.tweenspeed:OnChanged(function(value)
+    if Options.tweentoplantbox.Value then
+        Options.tweentoplantbox.Value = false
+        task.wait(0.05)
+        Options.tweentoplantbox.Value = true
+    elseif Options.tweentobush.Value then
+        Options.tweentobush.Value = false
+        task.wait(0.05)
+        Options.tweentobush.Value = true
+    end
+end)
+
+Options.tweenrange:OnChanged(function(value)
     if Options.tweentoplantbox.Value then
         Options.tweentoplantbox.Value = false
         task.wait(0.05)
@@ -636,11 +644,12 @@ Options.planttoggle:OnChanged(function(value)
         local range = tonumber(Options.plantrange.Value) or 30
         local selectedfruit = Options.fruitdropdown.Value
         local itemID = fruittoitemid[selectedfruit] or 94
-        plantConnection = runs.Heartbeat:Connect(function()
+        plantConnection = runs.Heartbeat:Connect(function() 
             local plantboxes = getpbs(range)
             for _, box in ipairs(plantboxes) do
                 if not box.deployable:FindFirstChild("Seed") then
                     plant(box.entityid, itemID)
+                    plantedboxes[box.entityid] = true
                 end
             end
         end)
@@ -654,14 +663,16 @@ end)
 
 task.spawn(function()
     while true do
-        if Options.harvesttoggle.Value and root then
-            local harvestrange = tonumber(Options.harvestrange.Value) or 30
-            local selectedfruit = Options.fruitdropdown.Value
-            local bushes = getbushes(harvestrange, selectedfruit)
-            table.sort(bushes, function(a, b) return a.dist < b.dist end)
-            for _, bush in ipairs(bushes) do
-                pickup(bush.entityid)
-            end
+        if not Options.harvesttoggle.Value then
+            task.wait(0.1)
+            continue
+         end
+        local harvestrange = tonumber(Options.harvestrange.Value) or 30
+        local selectedfruit = Options.fruitdropdown.Value
+        local bushes = getbushes(harvestrange, selectedfruit)
+        table.sort(bushes, function(a, b) return a.dist < b.dist end)
+        for _, bush in ipairs(bushes) do
+            pcall(function() pickup(bush.entityid) end)
         end
         task.wait(0.1)
     end
@@ -669,10 +680,9 @@ end)
 
 local placementConnection = nil
 local function placeSingleSnappedBox()
-    local character = plr.Character
-    if not character or not character:FindFirstChild("HumanoidRootPart") then
-        return
-    end
+    local player = game.Players.LocalPlayer
+    local character = player.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
 
     local rootPart = character.HumanoidRootPart
     local currentPosition = rootPart.Position
@@ -697,37 +707,20 @@ local function placeSingleSnappedBox()
 
     local selectedRotation = Options.rotationdropdown.Value
     local rotationCFrame = CFrame.Angles(0, 0, 0)
-    if selectedRotation == "45 degrees" then
-        rotationCFrame = CFrame.Angles(0, math.rad(45), 0)
-    end
+    if selectedRotation == "45 degrees" then rotationCFrame = CFrame.Angles(0, math.rad(45), 0) end
     local finalCFrame = CFrame.new(finalPosition) * rotationCFrame
 
-    pcall(function()
-        if packets.PlaceStructure and packets.PlaceStructure.send then
-            packets.PlaceStructure.send({
-                buildingName = "Plant Box",
-                cframe = finalCFrame,
-                vec = finalPosition,
-                isMobile = false,
-                cursor = cursorPos
-            })
-        elseif packets.PlaceStructure then
-            packets.PlaceStructure({
-                buildingName = "Plant Box",
-                cframe = finalCFrame,
-                vec = finalPosition,
-                isMobile = false,
-                cursor = cursorPos
-            })
-        end
-    end)
+    if packets.PlaceStructure and packets.PlaceStructure.send then
+        packets.PlaceStructure.send({ buildingName = "Plant Box", cframe = finalCFrame, vec = finalPosition, isMobile = false, cursor = cursorPos })
+    elseif packets.PlaceStructure then
+        packets.PlaceStructure({ buildingName = "Plant Box", cframe = finalCFrame, vec = finalPosition, isMobile = false, cursor = cursorPos })
+    end
 end
 
 local function placeGridOfBoxes(gridSize)
-    local character = plr.Character
-    if not character or not character:FindFirstChild("HumanoidRootPart") then
-        return
-    end
+    local player = game.Players.LocalPlayer
+    local character = player.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
 
     local torso = character.HumanoidRootPart
     local camera = workspace.CurrentCamera
@@ -735,9 +728,7 @@ local function placeGridOfBoxes(gridSize)
 
     local selectedRotation = Options.rotationdropdown.Value
     local rotationCFrame = CFrame.Angles(0, 0, 0)
-    if selectedRotation == "45 degrees" then
-        rotationCFrame = CFrame.Angles(0, math.rad(45), 0)
-    end
+    if selectedRotation == "45 degrees" then rotationCFrame = CFrame.Angles(0, math.rad(45), 0) end
 
     local startpos = torso.Position - Vector3.new(0, 3, 0)
     local spacing = 6.05
@@ -765,35 +756,19 @@ local function placeGridOfBoxes(gridSize)
             local finalPosition = rayResult and rayResult.Position or snappedGridPos
             local finalCFrame = CFrame.new(finalPosition) * rotationCFrame
 
-            pcall(function()
-                if packets.PlaceStructure and packets.PlaceStructure.send then
-                    packets.PlaceStructure.send({
-                        buildingName = "Plant Box",
-                        cframe = finalCFrame,
-                        vec = finalPosition,
-                        isMobile = false,
-                        cursor = cursorPos
-                    })
-                elseif packets.PlaceStructure then
-                    packets.PlaceStructure({
-                        buildingName = "Plant Box",
-                        cframe = finalCFrame,
-                        vec = finalPosition,
-                        isMobile = false,
-                        cursor = cursorPos
-                    })
-                end
-            end)
+            if packets.PlaceStructure and packets.PlaceStructure.send then
+                packets.PlaceStructure.send({ buildingName = "Plant Box", cframe = finalCFrame, vec = finalPosition, isMobile = false, cursor = cursorPos })
+            elseif packets.PlaceStructure then
+                packets.PlaceStructure({ buildingName = "Plant Box", cframe = finalCFrame, vec = finalPosition, isMobile = false, cursor = cursorPos })
+            else
+                 break
+            end
         end
     end
 end
 
 placestructure = function(gridsize)
-    if gridsize == 1 then
-        placeSingleSnappedBox()
-    else
-        placeGridOfBoxes(gridsize)
-    end
+    if gridsize == 1 then placeSingleSnappedBox() else placeGridOfBoxes(gridsize) end
 end
 
 Options.placeplantboxestoggle:OnChanged(function(value)
@@ -820,10 +795,6 @@ SaveManager:SetFolder("FluentScriptHub/specific-game")
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 Window:SelectTab(1)
-Library:Notify{
-    Title = "neverlose",
-    Content = "holy sigma gang",
-    Duration = 8
-}
+Library:Notify{ Title = "neverlose", Content = "holy sigma gang", Duration = 8 }
 SaveManager:LoadAutoloadConfig()
 print("Done! Enjoy neverlose!")
