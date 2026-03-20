@@ -44,78 +44,45 @@ local runs = game:GetService("RunService")
 local tspmo = game:GetService("TweenService")
 local Options = Library.Options
 
--- CORRECT SWING FUNCTION using the actual swing packet
--- From the toolbar script, we can see they use packets like:
--- EquipTool.send, ToolSwap.send, etc.
--- We need to find the actual swing/attack packet
-
--- Let's check what swing-related packets exist
+-- Find all available packets with send method
 local swingPacket = nil
-local possibleSwingPackets = {"Swing", "Attack", "UseTool", "ToolSwing", "Hit", "Damage", "Mine", "Chop"}
+local availablePackets = {}
 
-for _, name in ipairs(possibleSwingPackets) do
-    if packets[name] and packets[name].send then
-        swingPacket = packets[name]
-        print("Found swing packet: " .. name)
-        break
-    end
-end
-
--- If we still don't have one, try to find any packet that might be used for swinging
-if not swingPacket then
-    print("Looking for any packet with send method...")
-    for name, packet in pairs(packets) do
-        if type(packet) == "table" and packet.send and not string.find(name, "Pickup") and not string.find(name, "Drop") then
-            print("Found potential packet: " .. name)
-            if not swingPacket then
-                swingPacket = packet
-            end
+print("Scanning for packets...")
+for name, packet in pairs(packets) do
+    if type(packet) == "table" and packet.send then
+        table.insert(availablePackets, name)
+        print("Found: " .. name)
+        -- Look for swing-related packets
+        local lowerName = string.lower(name)
+        if lowerName:find("swing") or lowerName:find("attack") or lowerName:find("hit") or lowerName:find("use") then
+            swingPacket = packet
+            print("Selected: " .. name)
         end
     end
 end
 
--- Create the swing function
-local function swingTool(targetEntityIds)
-    if swingPacket and swingPacket.send then
-        -- Get cursor position
-        local cursorPos = Vector3.new(0, 0, 0)
-        local mouse = plr:GetMouse()
-        if mouse and mouse.Hit then
-            cursorPos = mouse.Hit.Position
-        else
-            local camera = workspace.CurrentCamera
-            if camera then
-                cursorPos = camera.CFrame.Position
-            end
-        end
-        
-        -- Try to send with different formats
+-- If no swing packet found, use the first packet with send (might be the wrong one but better than nothing)
+if not swingPacket and #availablePackets > 0 then
+    swingPacket = packets[availablePackets[1]]
+    print("No swing packet found, using: " .. availablePackets[1])
+end
+
+-- Simple swing function that tries the most basic format
+local function swingTool(targetEntityId)
+    if not swingPacket then return end
+    
+    -- Try different formats
+    local success, err = pcall(function()
+        -- Format 1: Just the ID
+        swingPacket.send(targetEntityId)
+    end)
+    
+    if not success then
         pcall(function()
-            -- Format 1: just the entity IDs
-            swingPacket.send(targetEntityIds)
+            -- Format 2: Table with entityID
+            swingPacket.send({ entityID = targetEntityId })
         end)
-        
-        pcall(function()
-            -- Format 2: with cursor
-            swingPacket.send({
-                targetEntityIds = targetEntityIds,
-                cursor = cursorPos
-            })
-        end)
-        
-        pcall(function()
-            -- Format 3: as an array
-            swingPacket.send({ targetEntityIds = targetEntityIds })
-        end)
-    else
-        -- If no packet found, try to use the old SwingTool packet as fallback
-        if packets.SwingTool and packets.SwingTool.send then
-            pcall(function()
-                packets.SwingTool.send({
-                    targetEntityIds = targetEntityIds
-                })
-            end)
-        end
     end
 end
 
@@ -235,13 +202,11 @@ itemdropdown:OnChanged(function(Value)
     end
 end)
 
--- Resource Aura
+-- Resource Aura - Simplified to target one at a time
 task.spawn(function()
     while true do
         if Options.resourceauratoggle.Value and root then
             local range = Options.resourceaurarange.Value
-            local targetCount = tonumber(Options.resourcetargetdropdown.Value)
-            local cooldown = Options.resourcecooldownslider.Value
             local targets = {}
             
             local resourcesFolder = workspace:FindFirstChild("Resources")
@@ -263,27 +228,23 @@ task.spawn(function()
             end
             
             if #targets > 0 then
+                -- Sort by distance
                 table.sort(targets, function(a, b) return a.dist < b.dist end)
-                local selectedTargets = {}
-                for i = 1, math.min(targetCount, #targets) do
-                    table.insert(selectedTargets, targets[i].eid)
-                end
-                swingTool(selectedTargets)
+                -- Swing at the closest target
+                swingTool(targets[1].eid)
             end
-            task.wait(cooldown)
+            task.wait(Options.resourcecooldownslider.Value)
         else
             task.wait(0.1)
         end
     end
 end)
 
--- Critter Aura
+-- Critter Aura - Simplified to target one at a time
 task.spawn(function()
     while true do
         if Options.critterauratoggle.Value and root then
             local range = Options.critterrangeslider.Value
-            local targetCount = tonumber(Options.crittertargetdropdown.Value)
-            local cooldown = Options.crittercooldownslider.Value
             local targets = {}
             
             local crittersFolder = workspace:FindFirstChild("Critters")
@@ -305,14 +266,12 @@ task.spawn(function()
             end
             
             if #targets > 0 then
+                -- Sort by distance
                 table.sort(targets, function(a, b) return a.dist < b.dist end)
-                local selectedTargets = {}
-                for i = 1, math.min(targetCount, #targets) do
-                    table.insert(selectedTargets, targets[i].eid)
-                end
-                swingTool(selectedTargets)
+                -- Swing at the closest target
+                swingTool(targets[1].eid)
             end
-            task.wait(cooldown)
+            task.wait(Options.crittercooldownslider.Value)
         else
             task.wait(0.1)
         end
@@ -383,7 +342,7 @@ runs.Heartbeat:Connect(function()
     end
 end)
 
--- Plant/Farming functions (same as before)
+-- Plant/Farming functions
 local fruittoitemid = {
     Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604,
     Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302,
