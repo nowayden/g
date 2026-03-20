@@ -175,9 +175,26 @@ local function getlayout(itemname)
     return nil
 end
 
-local function swingtool(tspmogngicl)
+-- FIXED: swingtool function with proper cursor field
+local function swingtool(targetEntityIds)
     if packets.SwingTool and packets.SwingTool.send then
-        packets.SwingTool.send(tspmogngicl)
+        -- Get cursor position from mouse or camera
+        local cursorPos = Vector3.new(0, 0, 0)
+        local mouse = game.Players.LocalPlayer:GetMouse()
+        if mouse and mouse.Hit then
+            cursorPos = mouse.Hit.Position
+        else
+            local camera = workspace.CurrentCamera
+            if camera then
+                cursorPos = camera.CFrame.Position
+            end
+        end
+        
+        -- Send with required cursor field
+        packets.SwingTool.send({
+            targetEntityIds = targetEntityIds,
+            cursor = cursorPos
+        })
     end
 end
 
@@ -215,24 +232,36 @@ task.spawn(function()
             task.wait(0.1)
             continue
         end
+        -- Wait for root to exist
+        if not root then
+            task.wait(0.1)
+            continue
+        end
+        
         local range = tonumber(Options.resourceaurarange.Value) or 20
         local targetCount = tonumber(Options.resourcetargetdropdown.Value) or 1
         local cooldown = tonumber(Options.resourcecooldownslider.Value) or 0.1
         local targets = {}
         local allresources = {}
-        for _, r in pairs(workspace.Resources:GetChildren()) do
-            table.insert(allresources, r)
+        
+        -- Safely check if workspace.Resources exists
+        if workspace:FindFirstChild("Resources") then
+            for _, r in pairs(workspace.Resources:GetChildren()) do
+                table.insert(allresources, r)
+            end
         end
+        
         for _, r in pairs(workspace:GetChildren()) do
             if r:IsA("Model") and r.Name == "Gold Node" then
                 table.insert(allresources, r)
             end
         end
+        
         for _, res in pairs(allresources) do
             if res:IsA("Model") and res:GetAttribute("EntityID") then
                 local eid = res:GetAttribute("EntityID")
                 local ppart = res.PrimaryPart or res:FindFirstChildWhichIsA("BasePart")
-                if ppart then
+                if ppart and root then
                     local dist = (ppart.Position - root.Position).Magnitude
                     if dist <= range then
                         table.insert(targets, { eid = eid, dist = dist })
@@ -240,6 +269,7 @@ task.spawn(function()
                 end
             end
         end
+        
         if #targets > 0 then
             table.sort(targets, function(a, b)
                 return a.dist < b.dist
@@ -260,22 +290,33 @@ task.spawn(function()
             task.wait(0.1)
             continue
         end
+        -- Wait for root to exist
+        if not root then
+            task.wait(0.1)
+            continue
+        end
+        
         local range = tonumber(Options.critterrangeslider.Value) or 20
         local targetCount = tonumber(Options.crittertargetdropdown.Value) or 1
         local cooldown = tonumber(Options.crittercooldownslider.Value) or 0.1
         local targets = {}
-        for _, critter in pairs(workspace.Critters:GetChildren()) do
-            if critter:IsA("Model") and critter:GetAttribute("EntityID") then
-                local eid = critter:GetAttribute("EntityID")
-                local ppart = critter.PrimaryPart or critter:FindFirstChildWhichIsA("BasePart")
-                if ppart then
-                    local dist = (ppart.Position - root.Position).Magnitude
-                    if dist <= range then
-                        table.insert(targets, { eid = eid, dist = dist })
+        
+        -- Safely check if workspace.Critters exists
+        if workspace:FindFirstChild("Critters") then
+            for _, critter in pairs(workspace.Critters:GetChildren()) do
+                if critter:IsA("Model") and critter:GetAttribute("EntityID") then
+                    local eid = critter:GetAttribute("EntityID")
+                    local ppart = critter.PrimaryPart or critter:FindFirstChildWhichIsA("BasePart")
+                    if ppart and root then
+                        local dist = (ppart.Position - root.Position).Magnitude
+                        if dist <= range then
+                            table.insert(targets, { eid = eid, dist = dist })
+                        end
                     end
                 end
             end
         end
+        
         if #targets > 0 then
             table.sort(targets, function(a, b)
                 return a.dist < b.dist
@@ -294,30 +335,39 @@ task.spawn(function()
     while true do
         local range = tonumber(Options.pickuprange.Value) or 35
         if Options.autopickuptoggle.Value then
-            for _, item in ipairs(workspace.Items:GetChildren()) do
-                if item:IsA("BasePart") or item:IsA("MeshPart") then
-                    local selecteditem = item.Name
-                    local entityid = item:GetAttribute("EntityID")
-                    if entityid and table.find(selecteditems, selecteditem) then
-                        local dist = (item.Position - root.Position).Magnitude
-                        if dist <= range then
-                            pickup(entityid)
+            -- Safely check if workspace.Items exists
+            if workspace:FindFirstChild("Items") then
+                for _, item in ipairs(workspace.Items:GetChildren()) do
+                    if item:IsA("BasePart") or item:IsA("MeshPart") then
+                        local selecteditem = item.Name
+                        local entityid = item:GetAttribute("EntityID")
+                        if entityid and root and table.find(selecteditems, selecteditem) then
+                            local dist = (item.Position - root.Position).Magnitude
+                            if dist <= range then
+                                pickup(entityid)
+                            end
                         end
                     end
                 end
             end
         end
         if Options.chestpickuptoggle.Value then
-            for _, chest in ipairs(workspace.Deployables:GetChildren()) do
-                if chest:IsA("Model") and chest:FindFirstChild("Contents") then
-                    for _, item in ipairs(chest.Contents:GetChildren()) do
-                        if item:IsA("BasePart") or item:IsA("MeshPart") then
-                            local selecteditem = item.Name
-                            local entityid = item:GetAttribute("EntityID")
-                            if entityid and table.find(selecteditems, selecteditem) then
-                                local dist = (chest.PrimaryPart.Position - root.Position).Magnitude
-                                if dist <= range then
-                                    pickup(entityid)
+            -- Safely check if workspace.Deployables exists
+            if workspace:FindFirstChild("Deployables") then
+                for _, chest in ipairs(workspace.Deployables:GetChildren()) do
+                    if chest:IsA("Model") and chest:FindFirstChild("Contents") then
+                        local chestPart = chest.PrimaryPart or chest:FindFirstChildWhichIsA("BasePart")
+                        if chestPart and root then
+                            for _, item in ipairs(chest.Contents:GetChildren()) do
+                                if item:IsA("BasePart") or item:IsA("MeshPart") then
+                                    local selecteditem = item.Name
+                                    local entityid = item:GetAttribute("EntityID")
+                                    if entityid and table.find(selecteditems, selecteditem) then
+                                        local dist = (chestPart.Position - root.Position).Magnitude
+                                        if dist <= range then
+                                            pickup(entityid)
+                                        end
+                                    end
                                 end
                             end
                         end
@@ -383,15 +433,19 @@ end
 
 local function getpbs(range)
     local plantboxes = {}
-    for _, deployable in ipairs(workspace.Deployables:GetChildren()) do
-        if deployable:IsA("Model") and deployable.Name == "Plant Box" then
-            local entityid = deployable:GetAttribute("EntityID")
-            local ppart = deployable.PrimaryPart or deployable:FindFirstChildWhichIsA("BasePart")
-            -- Only add if root exists to prevent 'Position' error
-            if entityid and ppart and root then 
-                local dist = (ppart.Position - root.Position).Magnitude
-                if dist <= range then
-                    table.insert(plantboxes, { entityid = entityid, deployable = deployable, dist = dist })
+    if not root then return plantboxes end
+    
+    -- Safely check if workspace.Deployables exists
+    if workspace:FindFirstChild("Deployables") then
+        for _, deployable in ipairs(workspace.Deployables:GetChildren()) do
+            if deployable:IsA("Model") and deployable.Name == "Plant Box" then
+                local entityid = deployable:GetAttribute("EntityID")
+                local ppart = deployable.PrimaryPart or deployable:FindFirstChildWhichIsA("BasePart")
+                if entityid and ppart and root then 
+                    local dist = (ppart.Position - root.Position).Magnitude
+                    if dist <= range then
+                        table.insert(plantboxes, { entityid = entityid, deployable = deployable, dist = dist })
+                    end
                 end
             end
         end
@@ -401,10 +455,11 @@ end
 
 local function getbushes(range, fruitname)
     local bushes = {}
+    if not root then return bushes end
+    
     for _, model in ipairs(workspace:GetChildren()) do
         if model:IsA("Model") and model.Name:find(fruitname) then
             local ppart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-            -- Only add if root exists to prevent 'Position' error
             if ppart and root then 
                 local dist = (ppart.Position - root.Position).Magnitude
                 if dist <= range then
@@ -423,7 +478,7 @@ end
 local tweening = nil
 local lastPlantTime = 0
 local function tween(target)
-    if not root then return end -- Check if root exists before tweening
+    if not root then return nil end -- Check if root exists before tweening
     if tweening then 
         tweening:Cancel()
         tweening = nil
@@ -446,7 +501,7 @@ end
 
 -- IMPROVED: TWEEN TO PLANT BOX WITH SPEED CONTROL AND SMOOTHNESS
 local function tweenplantbox(range)
-    if not root then task.wait(0.1); return end -- Early return if no root
+    if not root then return end -- Early return if no root
     -- Get the list of available plant boxes within range that don't have seeds
     local plantboxes = getpbs(range)
     local closestEmptyBox = nil
@@ -470,7 +525,7 @@ end
 
 -- IMPROVED: TWEEN TO BUSH OR PLANT BOX WITH SPEED CONTROL AND SMOOTHNESS
 local function tweenpbs(range, fruitname)
-    if not root then task.wait(0.1); return end -- Early return if no root
+    if not root then return end -- Early return if no root
     -- Get the currently selected fruit from the dropdown inside the loop
     local currentFruitName = Options.fruitdropdown.Value
 
