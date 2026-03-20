@@ -175,9 +175,26 @@ local function getlayout(itemname)
     return nil
 end
 
-local function swingtool(tspmogngicl)
+-- FIXED: SwingTool now uses correct packet structure
+local function swingtool(entityIds)
     if packets.SwingTool and packets.SwingTool.send then
-        packets.SwingTool.send(tspmogngicl)
+        -- Build entityIDs array with correct structure
+        local entityIDsArray = {}
+        for _, eid in ipairs(entityIds) do
+            table.insert(entityIDsArray, {
+                entityID = eid,
+                buffer = nil  -- optional field
+            })
+        end
+        
+        -- Send SwingTool packet with correct structure
+        pcall(function()
+            packets.SwingTool.send({
+                entityIDs = entityIDsArray,
+                cframe = root.CFrame,
+                timestamp = tick()
+            })
+        end)
     end
 end
 
@@ -212,6 +229,10 @@ end)
 task.spawn(function()
     while true do
         if not Options.resourceauratoggle.Value then
+            task.wait(0.1)
+            continue
+        end
+        if not root then
             task.wait(0.1)
             continue
         end
@@ -257,6 +278,10 @@ end)
 task.spawn(function()
     while true do
         if not Options.critterauratoggle.Value then
+            task.wait(0.1)
+            continue
+        end
+        if not root then
             task.wait(0.1)
             continue
         end
@@ -644,6 +669,10 @@ end)
 task.spawn(function()
     while true do
         if not Options.harvesttoggle.Value then
+            task.wait(0.1)
+            continue
+        end
+        if not root then
             task.wait(0.1)
             continue
         end
