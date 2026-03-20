@@ -44,44 +44,78 @@ local runs = game:GetService("RunService")
 local tspmo = game:GetService("TweenService")
 local Options = Library.Options
 
--- FIXED: Use ClientSwing or RodSwing instead of SwingTool
-local function swingTool(targetEntityIds)
-    -- Get cursor position
-    local cursorPos = Vector3.new(0, 0, 0)
-    local mouse = plr:GetMouse()
-    if mouse and mouse.Hit then
-        cursorPos = mouse.Hit.Position
-    else
-        local camera = workspace.CurrentCamera
-        if camera then
-            cursorPos = camera.CFrame.Position
+-- CORRECT SWING FUNCTION using the actual swing packet
+-- From the toolbar script, we can see they use packets like:
+-- EquipTool.send, ToolSwap.send, etc.
+-- We need to find the actual swing/attack packet
+
+-- Let's check what swing-related packets exist
+local swingPacket = nil
+local possibleSwingPackets = {"Swing", "Attack", "UseTool", "ToolSwing", "Hit", "Damage", "Mine", "Chop"}
+
+for _, name in ipairs(possibleSwingPackets) do
+    if packets[name] and packets[name].send then
+        swingPacket = packets[name]
+        print("Found swing packet: " .. name)
+        break
+    end
+end
+
+-- If we still don't have one, try to find any packet that might be used for swinging
+if not swingPacket then
+    print("Looking for any packet with send method...")
+    for name, packet in pairs(packets) do
+        if type(packet) == "table" and packet.send and not string.find(name, "Pickup") and not string.find(name, "Drop") then
+            print("Found potential packet: " .. name)
+            if not swingPacket then
+                swingPacket = packet
+            end
         end
     end
-    
-    -- Try ClientSwing first (seems more appropriate for client-side)
-    if packets.ClientSwing and packets.ClientSwing.send then
+end
+
+-- Create the swing function
+local function swingTool(targetEntityIds)
+    if swingPacket and swingPacket.send then
+        -- Get cursor position
+        local cursorPos = Vector3.new(0, 0, 0)
+        local mouse = plr:GetMouse()
+        if mouse and mouse.Hit then
+            cursorPos = mouse.Hit.Position
+        else
+            local camera = workspace.CurrentCamera
+            if camera then
+                cursorPos = camera.CFrame.Position
+            end
+        end
+        
+        -- Try to send with different formats
         pcall(function()
-            packets.ClientSwing.send({
+            -- Format 1: just the entity IDs
+            swingPacket.send(targetEntityIds)
+        end)
+        
+        pcall(function()
+            -- Format 2: with cursor
+            swingPacket.send({
                 targetEntityIds = targetEntityIds,
                 cursor = cursorPos
             })
         end)
-    -- Try RodSwing next
-    elseif packets.RodSwing and packets.RodSwing.send then
+        
         pcall(function()
-            packets.RodSwing.send({
-                targetEntityIds = targetEntityIds,
-                cursor = cursorPos
-            })
+            -- Format 3: as an array
+            swingPacket.send({ targetEntityIds = targetEntityIds })
         end)
-    -- Fallback to SwingTool
-    elseif packets.SwingTool and packets.SwingTool.send then
-        pcall(function()
-            packets.SwingTool.send({
-                targetEntityIds = targetEntityIds,
-                cursor = cursorPos
-            })
-        end)
+    else
+        -- If no packet found, try to use the old SwingTool packet as fallback
+        if packets.SwingTool and packets.SwingTool.send then
+            pcall(function()
+                packets.SwingTool.send({
+                    targetEntityIds = targetEntityIds
+                })
+            end)
+        end
     end
 end
 
@@ -127,7 +161,6 @@ local droptextbox = Tabs.Pickup:AddInput("droptextbox", { Title = "Custom Item",
 local fruitdropdown = Tabs.Farming:CreateDropdown("fruitdropdown", {Title = "Select Fruit",Values = {"Bloodfruit", "Bluefruit", "Lemon", "Coconut", "Jelly", "Banana", "Orange", "Oddberry", "Berry", "Strangefruit", "Strawberry", "Sunjfruit", "Pumpkin", "Prickly Pear", "Apple",  "Barley", "Cloudberry", "Carrot", "Blossom"}, Default = "Bloodfruit"}) 
 local planttoggle = Tabs.Farming:CreateToggle("planttoggle", { Title = "Auto Plant", Default = false })
 local plantrangeslider = Tabs.Farming:CreateSlider("plantrange", { Title = "Plant Range", Min = 1, Max = 100, Rounding = 1, Default = 30 }) 
-local plantdelayslider = Tabs.Farming:CreateSlider("plantdelay", { Title = "Plant Delay (s)", Min = 0.01, Max = 1, Rounding = 2, Default = 0.1 }) 
 local harvesttoggle = Tabs.Farming:CreateToggle("harvesttoggle", { Title = "Auto Harvest", Default = false })
 local harvestrangeslider = Tabs.Farming:CreateSlider("harvestrange", { Title = "Harvest Range", Min = 1, Max = 30, Rounding = 1, Default = 30 })
 
@@ -144,7 +177,7 @@ Tabs.Farming:CreateButton({Title = "Place 15x15 Plantboxes (225)", Callback = fu
 Tabs.Farming:CreateButton({Title = "Place 10x10 Plantboxes (100)", Callback = function() placestructure(10) end })
 Tabs.Farming:CreateButton({Title = "Place 5x5 Plantboxes (25)", Callback = function() placestructure(5) end })
 
--- Walkspeed/JumpPower
+-- Movement functions
 local wscon
 local function updws()
     if wscon then wscon:Disconnect() end
@@ -350,7 +383,7 @@ runs.Heartbeat:Connect(function()
     end
 end)
 
--- Plant/Farming functions
+-- Plant/Farming functions (same as before)
 local fruittoitemid = {
     Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604,
     Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302,
