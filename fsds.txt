@@ -27,6 +27,8 @@ local Tabs = {
 local rs = game:GetService("ReplicatedStorage")
 local packets = require(rs.Modules.Packets)
 local plr = game.Players.LocalPlayer
+local GameUtil = require(rs.Modules.GameUtil)
+local clock = require(rs.Modules.Clock)
 -- Initialize char, root, hum initially
 local char, root, hum
 
@@ -60,10 +62,13 @@ local msatoggle = Tabs.Main:CreateToggle("msatoggle", { Title = "No Mountain Sli
 
 local killauratoggle -- removed combat; placeholder to avoid nil indexing if referenced elsewhere
 
+-- FIXED: Resource Aura with proper connections and GameUtil check
 local resourceauratoggle = Tabs.Map:CreateToggle("resourceauratoggle", { Title = "Resource Aura", Default = false })
 local resourceaurarange = Tabs.Map:CreateSlider("resourceaurarange", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
 local resourcetargetdropdown = Tabs.Map:CreateDropdown("resourcetargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
 local resourcecooldownslider = Tabs.Map:CreateSlider("resourcecooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
+
+-- FIXED: Critter Aura with proper connections and GameUtil check
 local critterauratoggle = Tabs.Map:CreateToggle("critterauratoggle", { Title = "Critter Aura", Default = false })
 local critterrangeslider = Tabs.Map:CreateSlider("critterrangeslider", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
 local crittertargetdropdown = Tabs.Map:CreateDropdown("crittertargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
@@ -175,7 +180,7 @@ local function getlayout(itemname)
     return nil
 end
 
--- FIXED: SwingTool now uses correct packet structure
+-- FIXED: SwingTool now uses correct packet structure with GameUtil and clock
 local function swingtool(entityIds)
     if packets.SwingTool and packets.SwingTool.send then
         -- Build entityIDs array with correct structure
@@ -183,16 +188,16 @@ local function swingtool(entityIds)
         for _, eid in ipairs(entityIds) do
             table.insert(entityIDsArray, {
                 entityID = eid,
-                buffer = nil  -- optional field
+                buffer = 0
             })
         end
         
-        -- Send SwingTool packet with correct structure
+        -- Send SwingTool packet with correct structure using clock.getServerTime
         pcall(function()
             packets.SwingTool.send({
                 entityIDs = entityIDsArray,
-                cframe = root.CFrame,
-                timestamp = tick()
+                cframe = root and root.CFrame or CFrame.new(),
+                timestamp = clock.getServerTime(true)
             })
         end)
     end
@@ -226,21 +231,40 @@ itemdropdown:OnChanged(function(Value)
     end
 end)
 
-task.spawn(function()
-    while true do
-        if not Options.resourceauratoggle.Value then
-            task.wait(0.1)
-            continue
+-- FIXED: Resource Aura with proper GameUtil.Data.equipped check
+local resourceAuraActive = false
+local resourceAuraConnection = nil
+local lastResourceSwingTime = 0
+
+local function StartResourceAura()
+    if resourceAuraActive then return end
+    resourceAuraActive = true
+    
+    resourceAuraConnection = runs.Heartbeat:Connect(function()
+        if not resourceauratoggle.Value then
+            if resourceAuraConnection then
+                resourceAuraConnection:Disconnect()
+                resourceAuraConnection = nil
+            end
+            resourceAuraActive = false
+            return
         end
-        if not root then
-            task.wait(0.1)
-            continue
-        end
+        
+        if not root then return end
+        
+        -- Check if player has a tool equipped
+        if not GameUtil.Data.equipped then return end
+        
+        local currentTime = tick()
+        local cooldown = tonumber(Options.resourcecooldownslider.Value) or 0.1
+        if currentTime - lastResourceSwingTime < cooldown then return end
+        
         local range = tonumber(Options.resourceaurarange.Value) or 20
         local targetCount = tonumber(Options.resourcetargetdropdown.Value) or 1
-        local cooldown = tonumber(Options.resourcecooldownslider.Value) or 0.1
+        
         local targets = {}
         local allresources = {}
+        
         for _, r in pairs(workspace.Resources:GetChildren()) do
             table.insert(allresources, r)
         end
@@ -249,6 +273,7 @@ task.spawn(function()
                 table.insert(allresources, r)
             end
         end
+        
         for _, res in pairs(allresources) do
             if res:IsA("Model") and res:GetAttribute("EntityID") then
                 local eid = res:GetAttribute("EntityID")
@@ -261,6 +286,7 @@ task.spawn(function()
                 end
             end
         end
+        
         if #targets > 0 then
             table.sort(targets, function(a, b)
                 return a.dist < b.dist
@@ -270,37 +296,78 @@ task.spawn(function()
                 table.insert(selectedTargets, targets[i].eid)
             end
             swingtool(selectedTargets)
+            lastResourceSwingTime = currentTime
         end
-        task.wait(cooldown)
+    end)
+end
+
+local function StopResourceAura()
+    resourceAuraActive = false
+    if resourceAuraConnection then
+        resourceAuraConnection:Disconnect()
+        resourceAuraConnection = nil
+    end
+end
+
+-- Connect the toggle to the fixed functions
+resourceauratoggle:OnChanged(function(state)
+    if state then
+        StartResourceAura()
+    else
+        StopResourceAura()
     end
 end)
 
-task.spawn(function()
-    while true do
-        if not Options.critterauratoggle.Value then
-            task.wait(0.1)
-            continue
+-- FIXED: Critter Aura with proper GameUtil.Data.equipped check
+local critterAuraActive = false
+local critterAuraConnection = nil
+local lastCritterSwingTime = 0
+
+local function StartCritterAura()
+    if critterAuraActive then return end
+    critterAuraActive = true
+    
+    critterAuraConnection = runs.Heartbeat:Connect(function()
+        if not critterauratoggle.Value then
+            if critterAuraConnection then
+                critterAuraConnection:Disconnect()
+                critterAuraConnection = nil
+            end
+            critterAuraActive = false
+            return
         end
-        if not root then
-            task.wait(0.1)
-            continue
-        end
+        
+        if not root then return end
+        
+        -- Check if player has a tool equipped
+        if not GameUtil.Data.equipped then return end
+        
+        local currentTime = tick()
+        local cooldown = tonumber(Options.crittercooldownslider.Value) or 0.1
+        if currentTime - lastCritterSwingTime < cooldown then return end
+        
         local range = tonumber(Options.critterrangeslider.Value) or 20
         local targetCount = tonumber(Options.crittertargetdropdown.Value) or 1
-        local cooldown = tonumber(Options.crittercooldownslider.Value) or 0.1
+        
         local targets = {}
-        for _, critter in pairs(workspace.Critters:GetChildren()) do
-            if critter:IsA("Model") and critter:GetAttribute("EntityID") then
-                local eid = critter:GetAttribute("EntityID")
-                local ppart = critter.PrimaryPart or critter:FindFirstChildWhichIsA("BasePart")
-                if ppart then
-                    local dist = (ppart.Position - root.Position).Magnitude
-                    if dist <= range then
-                        table.insert(targets, { eid = eid, dist = dist })
+        
+        -- Check if workspace.Critters exists
+        local crittersFolder = workspace:FindFirstChild("Critters")
+        if crittersFolder then
+            for _, critter in pairs(crittersFolder:GetChildren()) do
+                if critter:IsA("Model") and critter:GetAttribute("EntityID") then
+                    local eid = critter:GetAttribute("EntityID")
+                    local ppart = critter.PrimaryPart or critter:FindFirstChildWhichIsA("BasePart")
+                    if ppart then
+                        local dist = (ppart.Position - root.Position).Magnitude
+                        if dist <= range then
+                            table.insert(targets, { eid = eid, dist = dist })
+                        end
                     end
                 end
             end
         end
+        
         if #targets > 0 then
             table.sort(targets, function(a, b)
                 return a.dist < b.dist
@@ -310,11 +377,29 @@ task.spawn(function()
                 table.insert(selectedTargets, targets[i].eid)
             end
             swingtool(selectedTargets)
+            lastCritterSwingTime = currentTime
         end
-        task.wait(cooldown)
+    end)
+end
+
+local function StopCritterAura()
+    critterAuraActive = false
+    if critterAuraConnection then
+        critterAuraConnection:Disconnect()
+        critterAuraConnection = nil
+    end
+end
+
+-- Connect the toggle to the fixed functions
+critterauratoggle:OnChanged(function(state)
+    if state then
+        StartCritterAura()
+    else
+        StopCritterAura()
     end
 end)
 
+-- Keep the original pickup loop but remove the old aura loops that were replaced
 task.spawn(function()
     while true do
         local range = tonumber(Options.pickuprange.Value) or 35
