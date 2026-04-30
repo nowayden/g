@@ -975,21 +975,16 @@ local function pressBedButton()
     return false
 end
 
--- REBIRTH FUNCTION USING CORRECT PACKET
+-- REBIRTH FUNCTION
 local function doRebirth()
-    print("🎉 Level 100 reached! Triggering Rebirth via packets.Rebirth.send()")
+    print("🎉 Level 100 reached → Triggering Rebirth")
     
-    -- Use the correct Rebirth packet (value = ByteNet.nothing, so no arguments needed)
-    if packets.Rebirth and packets.Rebirth.send then
-        local success = pcall(function()
-            packets.Rebirth.send()
-            print("✅ Rebirth packet sent successfully!")
+    local success, packetsLocal = pcall(function() return require(rs.Modules.Packets) end)
+    if success and packetsLocal.Rebirth then
+        pcall(function()
+            packetsLocal.Rebirth.send()
+            print("✅ Sent Rebirth packet")
         end)
-        if not success then
-            print("❌ Failed to send Rebirth packet")
-        end
-    else
-        print("❌ Rebirth packet not found!")
     end
     
     task.wait(2)
@@ -1053,21 +1048,19 @@ end
 -- AUTO REBIRTH LOOP
 local function AutoRebirthLoop()
     print("🚀 Auto Rebirth System Started")
-    print("📊 Will check level every 5 seconds and rebirth at level 100")
     equippedThisSession = false
 
     while autoRebirthRunning do
-        -- Get current level
-        local currentLevel = getPlayerLevel()
-        
-        -- Level 100 check - REBIRTH IMMEDIATELY
-        if currentLevel >= 100 then
-            print("🎉🎉🎉 LEVEL 100 DETECTED! Current Level: " .. currentLevel)
-            doRebirth()
-            break
+        task.wait(0.7)
+
+        -- Spawn Screen
+        local spawnGui = plr.PlayerGui:FindFirstChild("SpawnGui")
+        if spawnGui and spawnGui.Enabled then
+            pressBedButton()
+            continue
         end
-        
-        -- Buy/Craft/Equip routine
+
+        -- Buy, Craft, Equip
         if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
             if not hasEnoughItem("Crystal Chunk", 3) then buyItem("Crystal Chunk", 3) end
             if not hasEnoughItem("Gold", 13) then buyItem("Gold", 13) end
@@ -1076,12 +1069,21 @@ local function AutoRebirthLoop()
             task.wait(0.6)
             equipSlot2()
         end
+
+        -- LEVEL CHECK - Rebirth at 100 regardless of tree
+        local currentLevel = getPlayerLevel()
+        
+        if currentLevel >= 100 then
+            print("🎉🎉🎉 LEVEL 100 DETECTED! Current Level: " .. currentLevel)
+            doRebirth()
+            break
+        end
         
         -- Print level every cycle
         print("📊 Current Level: " .. currentLevel .. " (Need 100 for rebirth)")
         
-        -- Wait before checking again
-        task.wait(5)
+        -- Small wait between checks
+        task.wait(2)
     end
 end
 
@@ -1089,7 +1091,6 @@ local function StartAutoRebirth()
     if autoRebirthRunning then return end
     autoRebirthRunning = true
     print("✅ AUTO REBIRTH ENABLED")
-    print("⚠️ Will automatically rebirth at level 100 via packets.Rebirth.send()")
     task.spawn(AutoRebirthLoop)
 end
 
@@ -1101,7 +1102,7 @@ end
 -- Add Auto Rebirth UI to Event Tab
 Tabs.Event:AddSection("Auto Rebirth")
 Tabs.Event:AddToggle("AutoRebirthToggle", {
-    Title = "Auto Rebirth (Level 100)",
+    Title = "Auto Rebirth",
     Default = false,
     Callback = function(state)
         if state then
@@ -1128,4 +1129,3 @@ Library:Notify{
 }
 SaveManager:LoadAutoloadConfig()
 print("Done! Enjoy neverlose!")
-print("✅ Auto Rebirth System - Uses packets.Rebirth.send() for reliable rebirth")
