@@ -961,6 +961,31 @@ local function getPlayerLevel()
     return plr:GetAttribute("Level") or 0
 end
 
+-- ANCIENT TREE DETECTION
+local function isAncientTreePresent()
+    local resources = workspace:FindFirstChild("Resources")
+    if not resources then
+        print("⚠️ Resources folder not found")
+        return false
+    end
+
+    -- Direct check + descendant check
+    if resources:FindFirstChild("Ancient Tree") then
+        print("🌳 Ancient Tree FOUND (Direct)")
+        return true
+    end
+
+    for _, obj in ipairs(resources:GetDescendants()) do
+        if obj.Name == "Ancient Tree" or obj.Name:find("Ancient Tree") or obj.Name:find("AncientTree") then
+            print("🌳 Ancient Tree FOUND (Descendant):", obj:GetFullName())
+            return true
+        end
+    end
+
+    print("🌳 NO Ancient Tree Found - Triggering Rejoin")
+    return false
+end
+
 -- BED BUTTON PRESS
 local function pressBedButton()
     for _, gui in ipairs(plr.PlayerGui:GetChildren()) do
@@ -1045,9 +1070,11 @@ local function equipSlot2()
     end
 end
 
--- AUTO REBIRTH LOOP
+-- AUTO REBIRTH LOOP WITH BOTH TREE CHECK AND LEVEL CHECK
 local function AutoRebirthLoop()
     print("🚀 Auto Rebirth System Started")
+    print("🌳 Will check for Ancient Tree and rejoin if broken")
+    print("📊 Will also check level and rebirth at 100")
     equippedThisSession = false
 
     while autoRebirthRunning do
@@ -1070,7 +1097,7 @@ local function AutoRebirthLoop()
             equipSlot2()
         end
 
-        -- LEVEL CHECK - Rebirth at 100 regardless of tree
+        -- LEVEL CHECK FIRST - Rebirth at 100 regardless of tree
         local currentLevel = getPlayerLevel()
         
         if currentLevel >= 100 then
@@ -1079,11 +1106,20 @@ local function AutoRebirthLoop()
             break
         end
         
-        -- Print level every cycle
-        print("📊 Current Level: " .. currentLevel .. " (Need 100 for rebirth)")
+        -- TREE CHECK - If tree is gone and level < 100, rejoin
+        local treePresent = isAncientTreePresent()
+
+        if not treePresent then
+            print("🌳 TREE GONE CONFIRMED | Level: " .. currentLevel)
+            rejoinServer("Ancient Tree Broken")
+            break
+        end
         
-        -- Small wait between checks
-        task.wait(2)
+        -- Print status every cycle
+        print("📊 Level: " .. currentLevel .. " | 🌳 Tree: " .. (treePresent and "Present" or "Missing"))
+        
+        -- Small wait between cycles
+        task.wait(1)
     end
 end
 
@@ -1102,7 +1138,7 @@ end
 -- Add Auto Rebirth UI to Event Tab
 Tabs.Event:AddSection("Auto Rebirth")
 Tabs.Event:AddToggle("AutoRebirthToggle", {
-    Title = "Auto Rebirth",
+    Title = "Auto Rebirth + Tree Detection",
     Default = false,
     Callback = function(state)
         if state then
@@ -1129,3 +1165,4 @@ Library:Notify{
 }
 SaveManager:LoadAutoloadConfig()
 print("Done! Enjoy neverlose!")
+print("✅ Auto Rebirth System - Checks both Ancient Tree AND Level 100")
