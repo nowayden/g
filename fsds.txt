@@ -21,6 +21,7 @@ local Tabs = {
     Map = Window:AddTab({ Title = "Map", Icon = "trees" }),
     Pickup = Window:AddTab({ Title = "Pickup", Icon = "backpack" }),
     Farming = Window:AddTab({ Title = "Farming", Icon = "sprout" }),
+    Event = Window:AddTab({ Title = "Event", Icon = "zap" }),
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
 }
 
@@ -928,6 +929,214 @@ Options.placeplantboxestoggle:OnChanged(function(value)
     end
 end)
 
+-- ==================== AUTO REBIRTH SYSTEM ====================
+local TS = game:GetService("TeleportService")
+local PLACE_ID = game.PlaceId
+local PRIVATE_SERVER_CODE = "5031d22683fd2446b995b52491d09fae"
+local autoRebirthRunning = false
+local equippedThisSession = false
+
+-- KICK AND REJOIN FUNCTION
+local function rejoinServer(reason)
+    print("🔄 " .. reason .. " → Rejoining VIP server in 5 seconds...")
+    task.wait(5)
+    print("👢 Kicking player...")
+    plr:Kick("Rejoining: " .. reason)
+    task.wait(2)
+    print("🌐 Teleporting to VIP server...")
+    local success = pcall(function()
+        TS:TeleportToPrivateServer(PLACE_ID, PRIVATE_SERVER_CODE, {plr})
+    end)
+    if not success then
+        TS:Teleport(PLACE_ID)
+    end
+end
+
+-- LEVEL CHECK
+local function getPlayerLevel()
+    local success, GameUtilLocal = pcall(function() return require(rs.Modules.GameUtil) end)
+    if success and GameUtilLocal.Data and GameUtilLocal.Data.level then
+        return GameUtilLocal.Data.level
+    end
+    return plr:GetAttribute("Level") or 0
+end
+
+-- ANCIENT TREE DETECTION
+local function isAncientTreePresent()
+    local resources = workspace:FindFirstChild("Resources")
+    if not resources then
+        print("⚠️ Resources folder not found")
+        return false
+    end
+
+    if resources:FindFirstChild("Ancient Tree") then
+        print("🌳 Ancient Tree FOUND (Direct)")
+        return true
+    end
+
+    for _, obj in ipairs(resources:GetDescendants()) do
+        if obj.Name == "Ancient Tree" or obj.Name:find("Ancient Tree") or obj.Name:find("AncientTree") then
+            print("🌳 Ancient Tree FOUND (Descendant):", obj:GetFullName())
+            return true
+        end
+    end
+
+    print("🌳 NO Ancient Tree Found - Triggering Rejoin")
+    return false
+end
+
+-- BED BUTTON PRESS
+local function pressBedButton()
+    print("🛏️ Pressing BedButton...")
+
+    for _, gui in ipairs(plr.PlayerGui:GetChildren()) do
+        local bedButton = gui:FindFirstChild("BedButton", true)
+        if bedButton then
+            pcall(function() bedButton.Activated:Fire() end)
+            pcall(function() firesignal(bedButton.Activated) end)
+            return true
+        end
+    end
+
+    pcall(function() rs.Events.SpawnFirst:InvokeServer(true) end)
+    return false
+end
+
+-- REBIRTH FUNCTION
+local function doRebirth()
+    print("🎉 Level 100 reached → Triggering Rebirth")
+    
+    local success, packetsLocal = pcall(function() return require(rs.Modules.Packets) end)
+    if success and packetsLocal.Rebirth then
+        pcall(function()
+            packetsLocal.Rebirth.send()
+            print("✅ Sent Rebirth packet")
+        end)
+    end
+    
+    task.wait(2)
+    pressBedButton()
+    task.wait(1)
+    
+    rejoinServer("Rebirth Completed")
+end
+
+-- BUY / CRAFT / EQUIP
+local function hasEnoughItem(itemName, required)
+    local success, GameUtilLocal = pcall(function() return require(rs.Modules.GameUtil) end)
+    if not success then return false end
+    local inv = GameUtilLocal.Data and GameUtilLocal.Data.inventory or {}
+    for _, slot in pairs(inv) do
+        if slot.name == itemName and (slot.quantity or 0) >= required then
+            return true
+        end
+    end
+    return false
+end
+
+local function buyItem(itemName, amount)
+    local success1, itemIDS = pcall(function() return require(rs.Modules.ItemIDS) end)
+    local success2, packetsLocal = pcall(function() return require(rs.Modules.Packets) end)
+    if not (success1 and success2) then return end
+
+    local id = itemIDS[itemName]
+    if not id then return end
+
+    print("🛒 Buying " .. amount .. "x " .. itemName)
+    for i = 1, amount do
+        pcall(function() packetsLocal.PurchaseFromShop.send(id) end)
+        task.wait(0.06)
+    end
+end
+
+local function craftGodAxe()
+    local success1, itemIDS = pcall(function() return require(rs.Modules.ItemIDS) end)
+    local success2, packetsLocal = pcall(function() return require(rs.Modules.Packets) end)
+    if not (success1 and success2) then return end
+
+    local godAxeID = itemIDS["God Axe"]
+    if godAxeID then
+        print("⚒️ Crafting God Axe...")
+        pcall(function() packetsLocal.CraftItem.send(godAxeID) end)
+    end
+end
+
+local function equipSlot2()
+    if equippedThisSession then return end
+    local success, packetsLocal = pcall(function() return require(rs.Modules.Packets) end)
+    if success then
+        print("🛠️ Equipping Slot 2")
+        pcall(function() packetsLocal.EquipTool.send(2) end)
+        equippedThisSession = true
+    end
+end
+
+-- AUTO REBIRTH LOOP
+local function AutoRebirthLoop()
+    print("🚀 Auto Rebirth System Started")
+    equippedThisSession = false
+
+    while autoRebirthRunning do
+        task.wait(0.7)
+
+        local spawnGui = plr.PlayerGui:FindFirstChild("SpawnGui")
+        if spawnGui and spawnGui.Enabled then
+            pressBedButton()
+            continue
+        end
+
+        if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            if not hasEnoughItem("Crystal Chunk", 3) then buyItem("Crystal Chunk", 3) end
+            if not hasEnoughItem("Gold", 13) then buyItem("Gold", 13) end
+
+            craftGodAxe()
+            task.wait(0.6)
+            equipSlot2()
+        end
+
+        local treePresent = isAncientTreePresent()
+
+        if not treePresent then
+            local currentLevel = getPlayerLevel()
+            print("🌳 TREE GONE CONFIRMED | Level:", currentLevel)
+
+            if currentLevel >= 100 then
+                doRebirth()
+                break
+            else
+                rejoinServer("Ancient Tree Broken")
+                break
+            end
+        end
+    end
+end
+
+local function StartAutoRebirth()
+    if autoRebirthRunning then return end
+    autoRebirthRunning = true
+    print("✅ AUTO REBIRTH ENABLED")
+    task.spawn(AutoRebirthLoop)
+end
+
+local function StopAutoRebirth()
+    autoRebirthRunning = false
+    print("⛔ AUTO REBIRTH DISABLED")
+end
+
+-- Add Auto Rebirth UI to Event Tab
+Tabs.Event:AddSection("Auto Rebirth")
+Tabs.Event:AddToggle("AutoRebirthToggle", {
+    Title = "Auto Rebirth",
+    Default = false,
+    Callback = function(state)
+        if state then
+            StartAutoRebirth()
+        else
+            StopAutoRebirth()
+        end
+    end
+})
+
 SaveManager:SetLibrary(Library)
 InterfaceManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
@@ -944,3 +1153,4 @@ Library:Notify{
 }
 SaveManager:LoadAutoloadConfig()
 print("Done! Enjoy neverlose!")
+print("✅ Auto Rebirth System Loaded - Working Kick & Rejoin")
