@@ -935,6 +935,7 @@ local PLACE_ID = game.PlaceId
 local PRIVATE_SERVER_CODE = "5031d22683fd2446b995b52491d09fae"
 local autoRebirthRunning = false
 local equippedThisSession = false
+local lastLevel = 0
 
 -- KICK AND REJOIN FUNCTION
 local function rejoinServer(reason)
@@ -965,30 +966,24 @@ end
 local function isAncientTreePresent()
     local resources = workspace:FindFirstChild("Resources")
     if not resources then
-        print("⚠️ Resources folder not found")
         return false
     end
 
     if resources:FindFirstChild("Ancient Tree") then
-        print("🌳 Ancient Tree FOUND (Direct)")
         return true
     end
 
     for _, obj in ipairs(resources:GetDescendants()) do
         if obj.Name == "Ancient Tree" or obj.Name:find("Ancient Tree") or obj.Name:find("AncientTree") then
-            print("🌳 Ancient Tree FOUND (Descendant):", obj:GetFullName())
             return true
         end
     end
 
-    print("🌳 NO Ancient Tree Found - Triggering Rejoin")
     return false
 end
 
 -- BED BUTTON PRESS
 local function pressBedButton()
-    print("🛏️ Pressing BedButton...")
-
     for _, gui in ipairs(plr.PlayerGui:GetChildren()) do
         local bedButton = gui:FindFirstChild("BedButton", true)
         if bedButton then
@@ -997,15 +992,24 @@ local function pressBedButton()
             return true
         end
     end
-
     pcall(function() rs.Events.SpawnFirst:InvokeServer(true) end)
     return false
 end
 
--- REBIRTH FUNCTION
+-- DIRECT REBIRTH FUNCTION (USES THE Rebirth EVENT FROM YOUR SCREENSHOT)
 local function doRebirth()
-    print("🎉 Level 100 reached → Triggering Rebirth")
+    print("🎉 Level 100 reached! Triggering Rebirth via ReplicatedStorage.Events.Rebirth")
     
+    -- Try to fire the Rebirth event directly
+    local rebirthEvent = rs:FindFirstChild("Events") and rs.Events:FindFirstChild("Rebirth")
+    if rebirthEvent then
+        pcall(function()
+            rebirthEvent:FireServer()
+            print("✅ Fired Rebirth event")
+        end)
+    end
+    
+    -- Also try the packet method as backup
     local success, packetsLocal = pcall(function() return require(rs.Modules.Packets) end)
     if success and packetsLocal.Rebirth then
         pcall(function()
@@ -1018,6 +1022,7 @@ local function doRebirth()
     pressBedButton()
     task.wait(1)
     
+    -- Rejoin after rebirth
     rejoinServer("Rebirth Completed")
 end
 
@@ -1071,20 +1076,24 @@ local function equipSlot2()
     end
 end
 
--- AUTO REBIRTH LOOP
+-- AUTO REBIRTH LOOP - NOW CHECKS LEVEL CONSTANTLY
 local function AutoRebirthLoop()
     print("🚀 Auto Rebirth System Started")
+    print("📊 Will check level every 5 seconds and rebirth at level 100")
     equippedThisSession = false
 
     while autoRebirthRunning do
-        task.wait(0.7)
-
-        local spawnGui = plr.PlayerGui:FindFirstChild("SpawnGui")
-        if spawnGui and spawnGui.Enabled then
-            pressBedButton()
-            continue
+        -- Get current level
+        local currentLevel = getPlayerLevel()
+        
+        -- Level 100 check - REBIRTH IMMEDIATELY
+        if currentLevel >= 100 then
+            print("🎉🎉🎉 LEVEL 100 DETECTED! Current Level: " .. currentLevel)
+            doRebirth()
+            break
         end
-
+        
+        -- Buy/Craft/Equip routine
         if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
             if not hasEnoughItem("Crystal Chunk", 3) then buyItem("Crystal Chunk", 3) end
             if not hasEnoughItem("Gold", 13) then buyItem("Gold", 13) end
@@ -1093,21 +1102,12 @@ local function AutoRebirthLoop()
             task.wait(0.6)
             equipSlot2()
         end
-
-        local treePresent = isAncientTreePresent()
-
-        if not treePresent then
-            local currentLevel = getPlayerLevel()
-            print("🌳 TREE GONE CONFIRMED | Level:", currentLevel)
-
-            if currentLevel >= 100 then
-                doRebirth()
-                break
-            else
-                rejoinServer("Ancient Tree Broken")
-                break
-            end
-        end
+        
+        -- Print level every cycle
+        print("📊 Current Level: " .. currentLevel .. " (Need 100 for rebirth)")
+        
+        -- Wait before checking again
+        task.wait(5)
     end
 end
 
@@ -1115,6 +1115,7 @@ local function StartAutoRebirth()
     if autoRebirthRunning then return end
     autoRebirthRunning = true
     print("✅ AUTO REBIRTH ENABLED")
+    print("⚠️ Will automatically rebirth at level 100 and rejoin server")
     task.spawn(AutoRebirthLoop)
 end
 
@@ -1126,7 +1127,7 @@ end
 -- Add Auto Rebirth UI to Event Tab
 Tabs.Event:AddSection("Auto Rebirth")
 Tabs.Event:AddToggle("AutoRebirthToggle", {
-    Title = "Auto Rebirth",
+    Title = "Auto Rebirth (Level 100)",
     Default = false,
     Callback = function(state)
         if state then
@@ -1153,4 +1154,4 @@ Library:Notify{
 }
 SaveManager:LoadAutoloadConfig()
 print("Done! Enjoy neverlose!")
-print("✅ Auto Rebirth System Loaded - Working Kick & Rejoin")
+print("✅ Auto Rebirth System - Will Rebirth at Level 100 via ReplicatedStorage.Events.Rebirth")
