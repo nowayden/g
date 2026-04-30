@@ -935,7 +935,6 @@ local PLACE_ID = game.PlaceId
 local PRIVATE_SERVER_CODE = "5031d22683fd2446b995b52491d09fae"
 local autoRebirthRunning = false
 local equippedThisSession = false
-local lastLevel = 0
 
 -- KICK AND REJOIN FUNCTION
 local function rejoinServer(reason)
@@ -962,26 +961,6 @@ local function getPlayerLevel()
     return plr:GetAttribute("Level") or 0
 end
 
--- ANCIENT TREE DETECTION
-local function isAncientTreePresent()
-    local resources = workspace:FindFirstChild("Resources")
-    if not resources then
-        return false
-    end
-
-    if resources:FindFirstChild("Ancient Tree") then
-        return true
-    end
-
-    for _, obj in ipairs(resources:GetDescendants()) do
-        if obj.Name == "Ancient Tree" or obj.Name:find("Ancient Tree") or obj.Name:find("AncientTree") then
-            return true
-        end
-    end
-
-    return false
-end
-
 -- BED BUTTON PRESS
 local function pressBedButton()
     for _, gui in ipairs(plr.PlayerGui:GetChildren()) do
@@ -996,26 +975,21 @@ local function pressBedButton()
     return false
 end
 
--- DIRECT REBIRTH FUNCTION (USES THE Rebirth EVENT FROM YOUR SCREENSHOT)
+-- REBIRTH FUNCTION USING CORRECT PACKET
 local function doRebirth()
-    print("🎉 Level 100 reached! Triggering Rebirth via ReplicatedStorage.Events.Rebirth")
+    print("🎉 Level 100 reached! Triggering Rebirth via packets.Rebirth.send()")
     
-    -- Try to fire the Rebirth event directly
-    local rebirthEvent = rs:FindFirstChild("Events") and rs.Events:FindFirstChild("Rebirth")
-    if rebirthEvent then
-        pcall(function()
-            rebirthEvent:FireServer()
-            print("✅ Fired Rebirth event")
+    -- Use the correct Rebirth packet (value = ByteNet.nothing, so no arguments needed)
+    if packets.Rebirth and packets.Rebirth.send then
+        local success = pcall(function()
+            packets.Rebirth.send()
+            print("✅ Rebirth packet sent successfully!")
         end)
-    end
-    
-    -- Also try the packet method as backup
-    local success, packetsLocal = pcall(function() return require(rs.Modules.Packets) end)
-    if success and packetsLocal.Rebirth then
-        pcall(function()
-            packetsLocal.Rebirth.send()
-            print("✅ Sent Rebirth packet")
-        end)
+        if not success then
+            print("❌ Failed to send Rebirth packet")
+        end
+    else
+        print("❌ Rebirth packet not found!")
     end
     
     task.wait(2)
@@ -1076,7 +1050,7 @@ local function equipSlot2()
     end
 end
 
--- AUTO REBIRTH LOOP - NOW CHECKS LEVEL CONSTANTLY
+-- AUTO REBIRTH LOOP
 local function AutoRebirthLoop()
     print("🚀 Auto Rebirth System Started")
     print("📊 Will check level every 5 seconds and rebirth at level 100")
@@ -1115,7 +1089,7 @@ local function StartAutoRebirth()
     if autoRebirthRunning then return end
     autoRebirthRunning = true
     print("✅ AUTO REBIRTH ENABLED")
-    print("⚠️ Will automatically rebirth at level 100 and rejoin server")
+    print("⚠️ Will automatically rebirth at level 100 via packets.Rebirth.send()")
     task.spawn(AutoRebirthLoop)
 end
 
@@ -1154,4 +1128,4 @@ Library:Notify{
 }
 SaveManager:LoadAutoloadConfig()
 print("Done! Enjoy neverlose!")
-print("✅ Auto Rebirth System - Will Rebirth at Level 100 via ReplicatedStorage.Events.Rebirth")
+print("✅ Auto Rebirth System - Uses packets.Rebirth.send() for reliable rebirth")
