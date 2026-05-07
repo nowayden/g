@@ -929,30 +929,34 @@ Options.placeplantboxestoggle:OnChanged(function(value)
     end
 end)
 
--- ==================== STREAMLINED AUTO REBIRTH ====================
+-- ==================== AUTO REBIRTH SYSTEM (Simplified) ====================
+local TS = game:GetService("TeleportService")
 local Players = game:GetService("Players")
-local rs = game:GetService("ReplicatedStorage")
 local plr = Players.LocalPlayer
+local rs = game:GetService("ReplicatedStorage")
+
+local PLACE_ID = game.PlaceId
+local PRIVATE_SERVER_CODE = "5031d22683fd2446b995b52491d09fae"
+
 local autoRebirthRunning = false
 
--- 1. SPAWN / BED BUTTON LOGIC
+-- ====================== HELPER FUNCTIONS ======================
+
 local function pressBedButton()
-    -- Attempt to find and click the UI button
+    -- Spam bed button / spawn
     for _, gui in ipairs(plr.PlayerGui:GetChildren()) do
         local bedButton = gui:FindFirstChild("BedButton", true)
-        if bedButton and bedButton.Visible then
-            pcall(function() 
-                -- Standard click signals
-                bedButton.Activated:Fire() 
-                if firesignal then firesignal(bedButton.Activated) end
-            end)
+        if bedButton then
+            pcall(function() bedButton.Activated:Fire() end)
+            pcall(function() firesignal(bedButton.Activated) end)
         end
     end
-    -- Fallback: Remote call to spawn
-    pcall(function() rs.Events.SpawnFirst:InvokeServer(true) end)
+    
+    pcall(function()
+        rs.Events.SpawnFirst:InvokeServer(true)
+    end)
 end
 
--- 2. LEVEL CHECK
 local function getPlayerLevel()
     local success, GameUtilLocal = pcall(function() return require(rs.Modules.GameUtil) end)
     if success and GameUtilLocal.Data and GameUtilLocal.Data.level then
@@ -961,63 +965,85 @@ local function getPlayerLevel()
     return plr:GetAttribute("Level") or 0
 end
 
--- 3. REBIRTH & RESET
-local function doRebirthAndReset()
-    print("🎉 Level 100! Rebirthing and Resetting...")
+local function doRebirth()
+    print("🎉 Level 100 reached → Triggering Rebirth")
     
-    -- Send Rebirth Packet
     local success, packetsLocal = pcall(function() return require(rs.Modules.Packets) end)
     if success and packetsLocal.Rebirth then
-        pcall(function() packetsLocal.Rebirth.send() end)
+        pcall(function()
+            packetsLocal.Rebirth.send()
+            print("✅ Rebirth packet sent")
+        end)
     end
     
-    task.wait(0.5)
-    
-    -- Character Reset (Health = 0)
-    if plr.Character and plr.Character:FindFirstChild("Humanoid") then
-        plr.Character.Humanoid.Health = 0
-    end
-    
-    print("✅ Cycle complete. Waiting for respawn...")
-    task.wait(2) -- Wait for death animation/reloading
+    task.wait(2)
+    pressBedButton()
 end
 
--- MAIN LOOP
+local function resetCharacter()
+    local char = plr.Character
+    if char and char:FindFirstChild("Humanoid") then
+        print("💀 Resetting character...")
+        char.Humanoid.Health = 0
+    end
+end
+
+-- ====================== MAIN LOOP ======================
+
 local function AutoRebirthLoop()
-    print("🚀 Auto Rebirth + Bed Spam Active")
+    print("🚀 Auto Rebirth System Started (Level 100 → Rebirth → Reset)")
     
     while autoRebirthRunning do
-        -- CONSTANT STEP 1: Spam Bed Button if SpawnGui is visible or character is missing
+        task.wait(0.5)
+        
+        -- Constantly spam bed/spawn when needed
         local spawnGui = plr.PlayerGui:FindFirstChild("SpawnGui")
-        if (spawnGui and spawnGui.Enabled) or not plr.Character or not plr.Character:FindFirstChild("HumanoidRootPart") then
+        if spawnGui and spawnGui.Enabled then
             pressBedButton()
         end
-
-        -- STEP 2: Check Level
+        
         local currentLevel = getPlayerLevel()
         
+        -- LEVEL 100 CHECK
         if currentLevel >= 100 then
-            doRebirthAndReset()
+            print("🎉 LEVEL 100 DETECTED! Current Level: " .. currentLevel)
+            
+            doRebirth()
+            task.wait(3)           -- Wait for rebirth to process
+            resetCharacter()       -- Reset character as requested
+            task.wait(4)           -- Wait after reset
+            
+            print("🔄 Cycle completed. Starting next run...")
+        else
+            -- Optional status print (can be removed for less spam)
+            if math.random(1, 8) == 1 then
+                print("📊 Current Level: " .. currentLevel .. " | Waiting to reach 100...")
+            end
         end
-
-        task.wait(0.5) -- Faster polling for the "Spam" feel
+        
+        task.wait(0.8)
     end
 end
 
--- UI INTEGRATION
+-- ====================== START / STOP ======================
+
 local function StartAutoRebirth()
     if autoRebirthRunning then return end
     autoRebirthRunning = true
+    print("✅ AUTO REBIRTH ENABLED")
     task.spawn(AutoRebirthLoop)
 end
 
 local function StopAutoRebirth()
     autoRebirthRunning = false
+    print("⛔ AUTO REBIRTH DISABLED")
 end
 
--- Update your existing Toggle to point to these new functions
+-- ====================== UI ======================
+
+Tabs.Event:AddSection("Auto Rebirth")
 Tabs.Event:AddToggle("AutoRebirthToggle", {
-    Title = "Auto Rebirth (Bed Spam + Reset)",
+    Title = "Auto Rebirth (Level 100 → Rebirth + Reset)",
     Default = false,
     Callback = function(state)
         if state then
@@ -1027,6 +1053,8 @@ Tabs.Event:AddToggle("AutoRebirthToggle", {
         end
     end
 })
+
+print("Auto Rebirth script loaded! Toggle it in the Event tab.")
 
 SaveManager:SetLibrary(Library)
 InterfaceManager:SetLibrary(Library)
