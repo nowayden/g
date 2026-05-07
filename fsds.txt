@@ -929,30 +929,30 @@ Options.placeplantboxestoggle:OnChanged(function(value)
     end
 end)
 
--- ==================== AUTO REBIRTH SYSTEM ====================
-local TS = game:GetService("TeleportService")
-local PLACE_ID = game.PlaceId
-local PRIVATE_SERVER_CODE = "5031d22683fd2446b995b52491d09fae"
+-- ==================== STREAMLINED AUTO REBIRTH ====================
+local Players = game:GetService("Players")
+local rs = game:GetService("ReplicatedStorage")
+local plr = Players.LocalPlayer
 local autoRebirthRunning = false
-local equippedThisSession = false
 
--- KICK AND REJOIN FUNCTION
-local function rejoinServer(reason)
-    print("🔄 " .. reason .. " → Rejoining VIP server in 5 seconds...")
-    task.wait(5)
-    print("👢 Kicking player...")
-    plr:Kick("Rejoining: " .. reason)
-    task.wait(2)
-    print("🌐 Teleporting to VIP server...")
-    local success = pcall(function()
-        TS:TeleportToPrivateServer(PLACE_ID, PRIVATE_SERVER_CODE, {plr})
-    end)
-    if not success then
-        TS:Teleport(PLACE_ID)
+-- 1. SPAWN / BED BUTTON LOGIC
+local function pressBedButton()
+    -- Attempt to find and click the UI button
+    for _, gui in ipairs(plr.PlayerGui:GetChildren()) do
+        local bedButton = gui:FindFirstChild("BedButton", true)
+        if bedButton and bedButton.Visible then
+            pcall(function() 
+                -- Standard click signals
+                bedButton.Activated:Fire() 
+                if firesignal then firesignal(bedButton.Activated) end
+            end)
+        end
     end
+    -- Fallback: Remote call to spawn
+    pcall(function() rs.Events.SpawnFirst:InvokeServer(true) end)
 end
 
--- LEVEL CHECK
+-- 2. LEVEL CHECK
 local function getPlayerLevel()
     local success, GameUtilLocal = pcall(function() return require(rs.Modules.GameUtil) end)
     if success and GameUtilLocal.Data and GameUtilLocal.Data.level then
@@ -961,184 +961,63 @@ local function getPlayerLevel()
     return plr:GetAttribute("Level") or 0
 end
 
--- ANCIENT TREE DETECTION
-local function isAncientTreePresent()
-    local resources = workspace:FindFirstChild("Resources")
-    if not resources then
-        print("⚠️ Resources folder not found")
-        return false
-    end
-
-    -- Direct check + descendant check
-    if resources:FindFirstChild("Ancient Tree") then
-        print("🌳 Ancient Tree FOUND (Direct)")
-        return true
-    end
-
-    for _, obj in ipairs(resources:GetDescendants()) do
-        if obj.Name == "Ancient Tree" or obj.Name:find("Ancient Tree") or obj.Name:find("AncientTree") then
-            print("🌳 Ancient Tree FOUND (Descendant):", obj:GetFullName())
-            return true
-        end
-    end
-
-    print("🌳 NO Ancient Tree Found - Triggering Rejoin")
-    return false
-end
-
--- BED BUTTON PRESS
-local function pressBedButton()
-    for _, gui in ipairs(plr.PlayerGui:GetChildren()) do
-        local bedButton = gui:FindFirstChild("BedButton", true)
-        if bedButton then
-            pcall(function() bedButton.Activated:Fire() end)
-            pcall(function() firesignal(bedButton.Activated) end)
-            return true
-        end
-    end
-    pcall(function() rs.Events.SpawnFirst:InvokeServer(true) end)
-    return false
-end
-
--- REBIRTH FUNCTION
-local function doRebirth()
-    print("🎉 Level 100 reached → Triggering Rebirth")
+-- 3. REBIRTH & RESET
+local function doRebirthAndReset()
+    print("🎉 Level 100! Rebirthing and Resetting...")
     
+    -- Send Rebirth Packet
     local success, packetsLocal = pcall(function() return require(rs.Modules.Packets) end)
     if success and packetsLocal.Rebirth then
-        pcall(function()
-            packetsLocal.Rebirth.send()
-            print("✅ Sent Rebirth packet")
-        end)
+        pcall(function() packetsLocal.Rebirth.send() end)
     end
     
-    task.wait(2)
-    pressBedButton()
-    task.wait(1)
+    task.wait(0.5)
     
-    -- Rejoin after rebirth
-    rejoinServer("Rebirth Completed")
-end
-
--- BUY / CRAFT / EQUIP
-local function hasEnoughItem(itemName, required)
-    local success, GameUtilLocal = pcall(function() return require(rs.Modules.GameUtil) end)
-    if not success then return false end
-    local inv = GameUtilLocal.Data and GameUtilLocal.Data.inventory or {}
-    for _, slot in pairs(inv) do
-        if slot.name == itemName and (slot.quantity or 0) >= required then
-            return true
-        end
+    -- Character Reset (Health = 0)
+    if plr.Character and plr.Character:FindFirstChild("Humanoid") then
+        plr.Character.Humanoid.Health = 0
     end
-    return false
+    
+    print("✅ Cycle complete. Waiting for respawn...")
+    task.wait(2) -- Wait for death animation/reloading
 end
 
-local function buyItem(itemName, amount)
-    local success1, itemIDS = pcall(function() return require(rs.Modules.ItemIDS) end)
-    local success2, packetsLocal = pcall(function() return require(rs.Modules.Packets) end)
-    if not (success1 and success2) then return end
-
-    local id = itemIDS[itemName]
-    if not id then return end
-
-    print("🛒 Buying " .. amount .. "x " .. itemName)
-    for i = 1, amount do
-        pcall(function() packetsLocal.PurchaseFromShop.send(id) end)
-        task.wait(0.06)
-    end
-end
-
-local function craftGodAxe()
-    local success1, itemIDS = pcall(function() return require(rs.Modules.ItemIDS) end)
-    local success2, packetsLocal = pcall(function() return require(rs.Modules.Packets) end)
-    if not (success1 and success2) then return end
-
-    local godAxeID = itemIDS["God Axe"]
-    if godAxeID then
-        print("⚒️ Crafting God Axe...")
-        pcall(function() packetsLocal.CraftItem.send(godAxeID) end)
-    end
-end
-
-local function equipSlot2()
-    if equippedThisSession then return end
-    local success, packetsLocal = pcall(function() return require(rs.Modules.Packets) end)
-    if success then
-        print("🛠️ Equipping Slot 2")
-        pcall(function() packetsLocal.EquipTool.send(2) end)
-        equippedThisSession = true
-    end
-end
-
--- AUTO REBIRTH LOOP WITH BOTH TREE CHECK AND LEVEL CHECK
+-- MAIN LOOP
 local function AutoRebirthLoop()
-    print("🚀 Auto Rebirth System Started")
-    print("🌳 Will check for Ancient Tree and rejoin if broken")
-    print("📊 Will also check level and rebirth at 100")
-    equippedThisSession = false
-
+    print("🚀 Auto Rebirth + Bed Spam Active")
+    
     while autoRebirthRunning do
-        task.wait(0.7)
-
-        -- Spawn Screen
+        -- CONSTANT STEP 1: Spam Bed Button if SpawnGui is visible or character is missing
         local spawnGui = plr.PlayerGui:FindFirstChild("SpawnGui")
-        if spawnGui and spawnGui.Enabled then
+        if (spawnGui and spawnGui.Enabled) or not plr.Character or not plr.Character:FindFirstChild("HumanoidRootPart") then
             pressBedButton()
-            continue
         end
 
-        -- Buy, Craft, Equip
-        if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-            if not hasEnoughItem("Crystal Chunk", 0) then buyItem("Crystal Chunk", 0) end
-            if not hasEnoughItem("Gold", 0) then buyItem("Gold", 0) end
-
-            craftGodAxe()
-            task.wait(0.6)
-            equipSlot2()
-        end
-
-        -- LEVEL CHECK FIRST - Rebirth at 100 regardless of tree
+        -- STEP 2: Check Level
         local currentLevel = getPlayerLevel()
         
         if currentLevel >= 100 then
-            print("🎉🎉🎉 LEVEL 100 DETECTED! Current Level: " .. currentLevel)
-            doRebirth()
-            break
+            doRebirthAndReset()
         end
-        
-        -- TREE CHECK - If tree is gone and level < 100, rejoin
-        local treePresent = isAncientTreePresent()
 
-        if not treePresent then
-            print("🌳 TREE GONE CONFIRMED | Level: " .. currentLevel)
-            rejoinServer("Ancient Tree Broken")
-            break
-        end
-        
-        -- Print status every cycle
-        print("📊 Level: " .. currentLevel .. " | 🌳 Tree: " .. (treePresent and "Present" or "Missing"))
-        
-        -- Small wait between cycles
-        task.wait(1)
+        task.wait(0.5) -- Faster polling for the "Spam" feel
     end
 end
 
+-- UI INTEGRATION
 local function StartAutoRebirth()
     if autoRebirthRunning then return end
     autoRebirthRunning = true
-    print("✅ AUTO REBIRTH ENABLED")
     task.spawn(AutoRebirthLoop)
 end
 
 local function StopAutoRebirth()
     autoRebirthRunning = false
-    print("⛔ AUTO REBIRTH DISABLED")
 end
 
--- Add Auto Rebirth UI to Event Tab
-Tabs.Event:AddSection("Auto Rebirth")
+-- Update your existing Toggle to point to these new functions
 Tabs.Event:AddToggle("AutoRebirthToggle", {
-    Title = "Auto Rebirth + Tree Detection",
+    Title = "Auto Rebirth (Bed Spam + Reset)",
     Default = false,
     Callback = function(state)
         if state then
