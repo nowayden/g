@@ -1067,7 +1067,7 @@ local function AutoRebirthLoop()
             
             doRebirth()
             task.wait(3)           -- Wait for rebirth to process
-            resetCharacter()       -- Reset character as requested
+          --  resetCharacter()       -- Reset character as requested
             task.wait(4)           -- Wait after reset
             
             print("🔄 Cycle completed. Starting next run...")
