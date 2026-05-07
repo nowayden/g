@@ -988,6 +988,63 @@ local function resetCharacter()
     end
 end
 
+-- ==================== AUTO REBIRTH SYSTEM (Simplified) ====================
+local TS = game:GetService("TeleportService")
+local Players = game:GetService("Players")
+local plr = Players.LocalPlayer
+local rs = game:GetService("ReplicatedStorage")
+
+local PLACE_ID = game.PlaceId
+local PRIVATE_SERVER_CODE = "5031d22683fd2446b995b52491d09fae"
+
+local autoRebirthRunning = false
+
+-- ====================== HELPER FUNCTIONS ======================
+
+local function pressBedButton()
+    for _, gui in ipairs(plr.PlayerGui:GetChildren()) do
+        local bedButton = gui:FindFirstChild("BedButton", true)
+        if bedButton then
+            pcall(function() bedButton.Activated:Fire() end)
+            pcall(function() firesignal(bedButton.Activated) end)
+            return true
+        end
+    end
+    pcall(function() rs.Events.SpawnFirst:InvokeServer(true) end)
+    return false
+end
+
+local function getPlayerLevel()
+    local success, GameUtilLocal = pcall(function() return require(rs.Modules.GameUtil) end)
+    if success and GameUtilLocal.Data and GameUtilLocal.Data.level then
+        return GameUtilLocal.Data.level
+    end
+    return plr:GetAttribute("Level") or 0
+end
+
+local function doRebirth()
+    print("🎉 Level 100 reached → Triggering Rebirth")
+    
+    local success, packetsLocal = pcall(function() return require(rs.Modules.Packets) end)
+    if success and packetsLocal.Rebirth then
+        pcall(function()
+            packetsLocal.Rebirth.send()
+            print("✅ Rebirth packet sent")
+        end)
+    end
+    
+    task.wait(2)
+    pressBedButton()
+end
+
+local function resetCharacter()
+    local char = plr.Character
+    if char and char:FindFirstChild("Humanoid") then
+        print("💀 Resetting character...")
+        char.Humanoid.Health = 0
+    end
+end
+
 -- ====================== MAIN LOOP ======================
 
 local function AutoRebirthLoop()
