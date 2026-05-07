@@ -88,7 +88,7 @@ local itemdropdown = Tabs.Pickup:CreateDropdown("itemdropdown", {
         "Raw Emerald", "Pink Diamond", "Raw Pink Diamond", "Void Shard","Jelly", 
         "Magnetite", "Raw Magnetite", "Adurite", "Raw Adurite", "Ice Cube", "Stone", 
         "Iron", "Raw Iron", "Steel", "Hide", "Leaves", "Log", "Wood", "Pie", 
-        "Bread", "Cooked Egg", "Grain Mush" -- NEW ITEMS ADDED HERE
+        "Bread", "Cooked Egg", "Grain Mush", "Raw Meat" -- NEW ITEMS ADDED HERE
     }, 
     Multi = true, 
     Default = { Leaves = true, Log = true }
