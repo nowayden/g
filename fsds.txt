@@ -1089,8 +1089,8 @@ local function AutoRebirthLoop()
 
         -- Buy, Craft, Equip
         if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-            if not hasEnoughItem("Crystal Chunk", 3) then buyItem("Crystal Chunk", 3) end
-            if not hasEnoughItem("Gold", 13) then buyItem("Gold", 13) end
+            if not hasEnoughItem("Crystal Chunk", 0) then buyItem("Crystal Chunk", 0) end
+            if not hasEnoughItem("Gold", 0) then buyItem("Gold", 0) end
 
             craftGodAxe()
             task.wait(0.6)
