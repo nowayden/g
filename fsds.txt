@@ -22,6 +22,7 @@ local Tabs = {
     Pickup = Window:AddTab({ Title = "Pickup", Icon = "backpack" }),
     Farming = Window:AddTab({ Title = "Farming", Icon = "sprout" }),
     Event = Window:AddTab({ Title = "Event", Icon = "zap" }),
+    Potions = Window:AddTab({ Title = "Potions", Icon = "flask" }),
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
 }
 
@@ -132,6 +133,236 @@ Tabs.Farming:CreateButton({Title = "Place 16x16 Plantboxes (256)", Callback = fu
 Tabs.Farming:CreateButton({Title = "Place 15x15 Plantboxes (225)", Callback = function() placestructure(15) end })
 Tabs.Farming:CreateButton({Title = "Place 10x10 Plantboxes (100)", Callback = function() placestructure(10) end })
 Tabs.Farming:CreateButton({Title = "Place 5x5 Plantboxes (25)", Callback = function() placestructure(5) end })
+
+-- ========= [ POTION LOGIC ] =========
+local potionLoop = nil
+local isBrewing = false
+
+local ITEM_NAMES = {
+    IceCube = "Ice Cube",
+    Bloodfruit = "Bloodfruit",
+    Strawberry = "Strawberry",
+    PricklyPear = "Prickly Pear",
+    Crystal = "Crystal",
+    Cloudberry = "Cloudberry",
+    Adurite = "Adurite",
+    FireHide = "Fire Hide",
+    Berry = "Berry",
+    Magnetite = "Magnetite",
+    Iron = "Iron",
+    Lemon = "Lemon"
+}
+
+-- All potions now start with 3 Ice Cubes
+local POTIONS = {
+    ["Healing Potion"] = {
+        {name = "Ice Cube", amount = 3},
+        {name = "Bloodfruit", amount = 5},
+        {name = "Strawberry", amount = 2}
+    },
+    ["Poison Potion"] = {
+        {name = "Ice Cube", amount = 3},
+        {name = "Prickly Pear", amount = 3},
+        {name = "Magnetite", amount = 1}
+    },
+    ["Swiftness Potion"] = {
+        {name = "Ice Cube", amount = 3},
+        {name = "Crystal", amount = 1},
+        {name = "Cloudberry", amount = 3}
+    },
+    ["Ice Potion"] = {
+        {name = "Ice Cube", amount = 3},
+        {name = "Crystal", amount = 1},
+        {name = "Ice Cube", amount = 3}  -- extra ice
+    },
+    ["Harming Potion"] = {
+        {name = "Ice Cube", amount = 3},
+        {name = "Prickly Pear", amount = 3},
+        {name = "Adurite", amount = 3}
+    },
+    ["Fire Resistance Potion"] = {
+        {name = "Ice Cube", amount = 3},
+        {name = "Fire Hide", amount = 2}
+    },
+    ["Strength Potion"] = {
+        {name = "Ice Cube", amount = 3},
+        {name = "Adurite", amount = 2},
+        {name = "Bloodfruit", amount = 2}
+    },
+    ["Weakness Potion"] = {
+        {name = "Ice Cube", amount = 3},
+        {name = "Berry", amount = 2},
+        {name = "Magnetite", amount = 3}
+    },
+    ["Haste Potion"] = {
+        {name = "Ice Cube", amount = 3},
+        {name = "Iron", amount = 2},
+        {name = "Lemon", amount = 2}
+    }
+}
+
+local function getInventorySlot(itemName)
+    local pg = plr:FindFirstChild("PlayerGui")
+    if not pg then return nil end
+    local mg = pg:FindFirstChild("MainGui")
+    if not mg then return nil end
+    local rp = mg:FindFirstChild("RightPanel")
+    if not rp then return nil end
+    local inv = rp:FindFirstChild("Inventory")
+    if not inv then return nil end
+    local list = inv:FindFirstChild("List")
+    if not list then return nil end
+
+    for _, slot in ipairs(list:GetChildren()) do
+        if slot:IsA("ImageLabel") and slot.Name:find(itemName) then
+            return slot.LayoutOrder
+        end
+    end
+    return nil
+end
+
+local function dropFromSlot(slot, amount)
+    if not slot then return end
+    for i = 1, amount do
+        pcall(function()
+            packets.DropBagItem.send(slot)
+        end)
+        task.wait(0.07)
+    end
+end
+
+local function findAllCauldrons()
+    local deployables = workspace:FindFirstChild("Deployables")
+    if not deployables then return {} end
+
+    local character = plr.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return {} end
+
+    local root = character.HumanoidRootPart.Position
+    local cauldrons = {}
+
+    for _, obj in ipairs(deployables:GetChildren()) do
+        if obj.Name == "Cauldron" then
+            local hitbox = obj:FindFirstChild("Hitbox")
+            if hitbox then
+                local dist = (hitbox.Position - root).Magnitude
+                if dist < 30 then
+                    table.insert(cauldrons, {cauldron = obj, hitbox = hitbox})
+                end
+            end
+        end
+    end
+    return cauldrons
+end
+
+local function teleportToHitbox(hitbox)
+    if not hitbox then return end
+    local targetPos = hitbox.Position + Vector3.new(math.random(-2,2)*0.3, 0.8, math.random(-2,2)*0.3)
+
+    local itemsFolder = workspace:FindFirstChild("Items")
+    if not itemsFolder then return end
+
+    for _, item in ipairs(itemsFolder:GetChildren()) do
+        local name = item.Name or ""
+        if name:find("Ice Cube") or name:find("Bloodfruit") or name:find("Strawberry") or 
+           name:find("Prickly Pear") or name:find("Crystal") or name:find("Cloudberry") or
+           name:find("Adurite") or name:find("Fire Hide") or name:find("Berry") or 
+           name:find("Iron") or name:find("Lemon") or name:find("Magnetite") then
+            pcall(function()
+                if item:IsA("BasePart") then
+                    item.Position = targetPos
+                elseif item:IsA("Model") and item.PrimaryPart then
+                    item:SetPrimaryPartCFrame(CFrame.new(targetPos))
+                end
+            end)
+        end
+    end
+end
+
+local selectedPotion = "Healing Potion"
+
+local function brewPotions()
+    if isBrewing then return end
+    isBrewing = true
+
+    local cauldrons = findAllCauldrons()
+    if #cauldrons == 0 then
+        print("❌ No Cauldrons found")
+        isBrewing = false
+        return
+    end
+
+    local recipe = POTIONS[selectedPotion]
+    if not recipe then 
+        print("❌ Recipe not found")
+        isBrewing = false
+        return 
+    end
+
+    print("🔄 Brewing " .. selectedPotion .. " in " .. #cauldrons .. " Cauldrons")
+
+    for _, ingredient in ipairs(recipe) do
+        local slot = getInventorySlot(ingredient.name)
+        if slot then
+            for i, c in ipairs(cauldrons) do
+                dropFromSlot(slot, ingredient.amount)
+                task.wait(0.5)
+                teleportToHitbox(c.hitbox)
+                task.wait(0.4)
+            end
+        else
+            print("❌ Missing: " .. ingredient.name)
+        end
+        task.wait(0.8)
+    end
+
+    task.wait(2)
+
+    for _, c in ipairs(cauldrons) do
+        local entityID = c.cauldron:GetAttribute("EntityID")
+        if entityID then
+            pcall(function()
+                packets.SweepPotion.send(entityID)
+            end)
+        end
+    end
+
+    print("✅ Finished " .. selectedPotion)
+    isBrewing = false
+end
+
+-- ========= [ POTIONS UI ] =========
+Tabs.Potions:AddSection("Mass Potion Crafter")
+local potionDropdown = Tabs.Potions:AddDropdown("PotionType", {
+    Title = "Select Potion",
+    Values = {"Healing Potion", "Poison Potion", "Swiftness Potion", "Ice Potion", "Harming Potion", 
+              "Fire Resistance Potion", "Strength Potion", "Weakness Potion", "Haste Potion"},
+    Default = "Healing Potion",
+    Multi = false,
+    Callback = function(value)
+        selectedPotion = value
+    end
+})
+
+Tabs.Potions:AddToggle("AutoPotionToggle", {
+    Title = "Auto Craft Selected Potion",
+    Default = false,
+    Callback = function(state)
+        if state then
+            if potionLoop then potionLoop:Disconnect() end
+            potionLoop = runs.Heartbeat:Connect(brewPotions)
+            print("✅ Auto Crafting: " .. selectedPotion)
+        else
+            if potionLoop then potionLoop:Disconnect() end
+            potionLoop = nil
+            isBrewing = false
+            print("❌ Auto Potion Stopped")
+        end
+    end
+})
+
+print("Multi Potion Crafter Loaded (All potions start with 3 Ice Cubes)")
+-- ========= [ END POTION LOGIC ] =========
 
 local wscon
 local function updws()
@@ -651,6 +882,8 @@ local function tweenpbs(range, fruitname)
                      -- lastPlantTime = tick() -- Uncomment if you want a cooldown per plant action
                  end
              end
+
+
         end
     end
 end
@@ -719,6 +952,7 @@ Options.tweenrange:OnChanged(function(value)
     end
 end)
 
+
 -- IMPROVED: Auto Plant (Faster, Higher Range)
 local plantConnection = nil
 Options.planttoggle:OnChanged(function(value)
@@ -747,6 +981,7 @@ Options.planttoggle:OnChanged(function(value)
         end
     end
 end)
+
 
 task.spawn(function()
     while true do
@@ -984,6 +1219,63 @@ local function resetCharacter()
     end
 end
 
+-- ==================== AUTO REBIRTH SYSTEM (Simplified) ====================
+local TS = game:GetService("TeleportService")
+local Players = game:GetService("Players")
+local plr = Players.LocalPlayer
+local rs = game:GetService("ReplicatedStorage")
+
+local PLACE_ID = game.PlaceId
+local PRIVATE_SERVER_CODE = "5031d22683fd2446b995b52491d09fae"
+
+local autoRebirthRunning = false
+
+-- ====================== HELPER FUNCTIONS ======================
+
+local function pressBedButton()
+    for _, gui in ipairs(plr.PlayerGui:GetChildren()) do
+        local bedButton = gui:FindFirstChild("BedButton", true)
+        if bedButton then
+            pcall(function() bedButton.Activated:Fire() end)
+            pcall(function() firesignal(bedButton.Activated) end)
+            return true
+        end
+    end
+    pcall(function() rs.Events.SpawnFirst:InvokeServer(true) end)
+    return false
+end
+
+local function getPlayerLevel()
+    local success, GameUtilLocal = pcall(function() return require(rs.Modules.GameUtil) end)
+    if success and GameUtilLocal.Data and GameUtilLocal.Data.level then
+        return GameUtilLocal.Data.level
+    end
+    return plr:GetAttribute("Level") or 0
+end
+
+local function doRebirth()
+    print("🎉 Level 100 reached → Triggering Rebirth")
+    
+    local success, packetsLocal = pcall(function() return require(rs.Modules.Packets) end)
+    if success and packetsLocal.Rebirth then
+        pcall(function()
+            packetsLocal.Rebirth.send()
+            print("✅ Rebirth packet sent")
+        end)
+    end
+    
+    task.wait(2)
+    pressBedButton()
+end
+
+local function resetCharacter()
+    local char = plr.Character
+    if char and char:FindFirstChild("Humanoid") then
+        print("💀 Resetting character...")
+        char.Humanoid.Health = 0
+    end
+end
+
 -- ====================== MAIN LOOP ======================
 
 local function AutoRebirthLoop()
@@ -1052,265 +1344,6 @@ Tabs.Event:AddToggle("AutoRebirthToggle", {
 
 print("Auto Rebirth script loaded! Toggle it in the Event tab.")
 
--- ==================== POTION LOGIC (FULLY INTEGRATED) ====================
-
-local url = "https://raw.githubusercontent.com/nowayden/g/refs/heads/main/fsds.txt"
-
-local orig = game:HttpGet(url)
-
-orig = orig:gsub("local%s+Library%s*=", "Library =")
-orig = orig:gsub("local%s+Window%s*=", "Window =")
-orig = orig:gsub("local%s+Tabs%s*=", "Tabs =")
-
-local appended = [[
-
-local plr = game.Players.LocalPlayer
-local RS = game:GetService("RunService")
-local packets = require(game.ReplicatedStorage.Modules.Packets)
-
--- ========= [ MULTI POTION AUTO CRAFTER + 3 ICE CUBES ] =========
-local potionLoop = nil
-local isBrewing = false
-
-local ITEM_NAMES = {
-    IceCube = "Ice Cube",
-    Bloodfruit = "Bloodfruit",
-    Strawberry = "Strawberry",
-    PricklyPear = "Prickly Pear",
-    Crystal = "Crystal",
-    Cloudberry = "Cloudberry",
-    Adurite = "Adurite",
-    FireHide = "Fire Hide",
-    Berry = "Berry",
-    Magnetite = "Magnetite",
-    Iron = "Iron",
-    Lemon = "Lemon"
-}
-
--- All potions now start with 3 Ice Cubes
-local POTIONS = {
-    ["Healing Potion"] = {
-        {name = "Ice Cube", amount = 3},
-        {name = "Bloodfruit", amount = 5},
-        {name = "Strawberry", amount = 2}
-    },
-    ["Poison Potion"] = {
-        {name = "Ice Cube", amount = 3},
-        {name = "Prickly Pear", amount = 3},
-        {name = "Magnetite", amount = 1}
-    },
-    ["Swiftness Potion"] = {
-        {name = "Ice Cube", amount = 3},
-        {name = "Crystal", amount = 1},
-        {name = "Cloudberry", amount = 3}
-    },
-    ["Ice Potion"] = {
-        {name = "Ice Cube", amount = 3},
-        {name = "Crystal", amount = 1},
-        {name = "Ice Cube", amount = 3}  -- extra ice
-    },
-    ["Harming Potion"] = {
-        {name = "Ice Cube", amount = 3},
-        {name = "Prickly Pear", amount = 3},
-        {name = "Adurite", amount = 3}
-    },
-    ["Fire Resistance Potion"] = {
-        {name = "Ice Cube", amount = 3},
-        {name = "Fire Hide", amount = 2}
-    },
-    ["Strength Potion"] = {
-        {name = "Ice Cube", amount = 3},
-        {name = "Adurite", amount = 2},
-        {name = "Bloodfruit", amount = 2}
-    },
-    ["Weakness Potion"] = {
-        {name = "Ice Cube", amount = 3},
-        {name = "Berry", amount = 2},
-        {name = "Magnetite", amount = 3}
-    },
-    ["Haste Potion"] = {
-        {name = "Ice Cube", amount = 3},
-        {name = "Iron", amount = 2},
-        {name = "Lemon", amount = 2}
-    }
-}
-
-local function getInventorySlot(itemName)
-    local pg = plr:FindFirstChild("PlayerGui")
-    if not pg then return nil end
-    local mg = pg:FindFirstChild("MainGui")
-    if not mg then return nil end
-    local rp = mg:FindFirstChild("RightPanel")
-    if not rp then return nil end
-    local inv = rp:FindFirstChild("Inventory")
-    if not inv then return nil end
-    local list = inv:FindFirstChild("List")
-    if not list then return nil end
-
-    for _, slot in ipairs(list:GetChildren()) do
-        if slot:IsA("ImageLabel") and slot.Name:find(itemName) then
-            return slot.LayoutOrder
-        end
-    end
-    return nil
-end
-
-local function dropFromSlot(slot, amount)
-    if not slot then return end
-    for i = 1, amount do
-        pcall(function()
-            packets.DropBagItem.send(slot)
-        end)
-        task.wait(0.07)
-    end
-end
-
-local function findAllCauldrons()
-    local deployables = workspace:FindFirstChild("Deployables")
-    if not deployables then return {} end
-
-    local character = plr.Character
-    if not character or not character:FindFirstChild("HumanoidRootPart") then return {} end
-
-    local root = character.HumanoidRootPart.Position
-    local cauldrons = {}
-
-    for _, obj in ipairs(deployables:GetChildren()) do
-        if obj.Name == "Cauldron" then
-            local hitbox = obj:FindFirstChild("Hitbox")
-            if hitbox then
-                local dist = (hitbox.Position - root).Magnitude
-                if dist < 30 then
-                    table.insert(cauldrons, {cauldron = obj, hitbox = hitbox})
-                end
-            end
-        end
-    end
-    return cauldrons
-end
-
-local function teleportToHitbox(hitbox)
-    if not hitbox then return end
-    local targetPos = hitbox.Position + Vector3.new(math.random(-2,2)*0.3, 0.8, math.random(-2,2)*0.3)
-
-    local itemsFolder = workspace:FindFirstChild("Items")
-    if not itemsFolder then return end
-
-    for _, item in ipairs(itemsFolder:GetChildren()) do
-        local name = item.Name or ""
-        if name:find("Ice Cube") or name:find("Bloodfruit") or name:find("Strawberry") or 
-           name:find("Prickly Pear") or name:find("Crystal") or name:find("Cloudberry") or
-           name:find("Adurite") or name:find("Fire Hide") or name:find("Berry") or 
-           name:find("Iron") or name:find("Lemon") or name:find("Magnetite") then
-            pcall(function()
-                if item:IsA("BasePart") then
-                    item.Position = targetPos
-                elseif item:IsA("Model") and item.PrimaryPart then
-                    item:SetPrimaryPartCFrame(CFrame.new(targetPos))
-                end
-            end)
-        end
-    end
-end
-
-local selectedPotion = "Healing Potion"
-
-local function brewPotions()
-    if isBrewing then return end
-    isBrewing = true
-
-    local cauldrons = findAllCauldrons()
-    if #cauldrons == 0 then
-        print("❌ No Cauldrons found")
-        isBrewing = false
-        return
-    end
-
-    local recipe = POTIONS[selectedPotion]
-    if not recipe then 
-        print("❌ Recipe not found")
-        isBrewing = false
-        return 
-    end
-
-    print("🔄 Brewing " .. selectedPotion .. " in " .. #cauldrons .. " Cauldrons")
-
-    for _, ingredient in ipairs(recipe) do
-        local slot = getInventorySlot(ingredient.name)
-        if slot then
-            for i, c in ipairs(cauldrons) do
-                dropFromSlot(slot, ingredient.amount)
-                task.wait(0.5)
-                teleportToHitbox(c.hitbox)
-                task.wait(0.4)
-            end
-        else
-            print("❌ Missing: " .. ingredient.name)
-        end
-        task.wait(0.8)
-    end
-
-    task.wait(2)
-
-    for _, c in ipairs(cauldrons) do
-        local entityID = c.cauldron:GetAttribute("EntityID")
-        if entityID then
-            pcall(function()
-                packets.SweepPotion.send(entityID)
-            end)
-        end
-    end
-
-    print("✅ Finished " .. selectedPotion)
-    isBrewing = false
-end
-
--- ========= [ UI ] =========
-task.wait(0.5)
-if not Tabs.Potions then
-    Tabs.Potions = Window:AddTab({ Title = "Potions", Icon = "flask" })
-end
-
-Tabs.Potions:AddSection("Mass Potion Crafter")
-local potionDropdown = Tabs.Potions:AddDropdown("PotionType", {
-    Title = "Select Potion",
-    Values = {"Healing Potion", "Poison Potion", "Swiftness Potion", "Ice Potion", "Harming Potion", 
-              "Fire Resistance Potion", "Strength Potion", "Weakness Potion", "Haste Potion"},
-    Default = "Healing Potion",
-    Multi = false,
-    Callback = function(value)
-        selectedPotion = value
-    end
-})
-
-Tabs.Potions:AddToggle("AutoPotionToggle", {
-    Title = "Auto Craft Selected Potion",
-    Default = false,
-    Callback = function(state)
-        if state then
-            if potionLoop then potionLoop:Disconnect() end
-            potionLoop = RS.Heartbeat:Connect(brewPotions)
-            print("✅ Auto Crafting: " .. selectedPotion)
-        else
-            if potionLoop then potionLoop:Disconnect() end
-            potionLoop = nil
-            isBrewing = false
-            print("❌ Auto Potion Stopped")
-        end
-    end
-})
-
-print("Multi Potion Crafter Loaded (All potions start with 3 Ice Cubes)")
-]]
-
-local merged = orig .. appended
-local fn, err = loadstring(merged)
-if not fn then 
-    error("Script loading failed: " .. tostring(err))
-else 
-    fn() 
-end
-
 SaveManager:SetLibrary(Library)
 InterfaceManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
@@ -1326,4 +1359,4 @@ Library:Notify{
     Duration = 8
 }
 SaveManager:LoadAutoloadConfig()
-print("done")
+print("Done! Enjoy neverlose!")
