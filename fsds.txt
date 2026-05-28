@@ -541,7 +541,7 @@ Tabs.Potions:AddDropdown("PotionType", {
     Callback = function(v) selectedPotion = v end
 })
 Tabs.Potions:AddToggle("AutoPotionToggle", {
-    Title = "Auto Craft Selected Potion Z", Default = false,
+    Title = "Auto Craft Selected Potion", Default = false,
     Callback = function(s)
         if s then
             if potionLoop then potionLoop:Disconnect() end
@@ -553,24 +553,8 @@ Tabs.Potions:AddToggle("AutoPotionToggle", {
     end
 })
 
--- ==================== AUTO REBIRTH SYSTEM (COPIED BED LOGIC) ====================
+-- ==================== AUTO REBIRTH SYSTEM ====================
 local autoRebirthRunning = false
-
--- COPIED BED LOGIC FROM YOUR ORIGINAL SCRIPT
-local function pressBedButton()
-    -- Spam bed button / spawn
-    for _, gui in ipairs(plr.PlayerGui:GetChildren()) do
-        local bedButton = gui:FindFirstChild("BedButton", true)
-        if bedButton then
-            pcall(function() bedButton.Activated:Fire() end)
-            pcall(function() firesignal(bedButton.Activated) end)
-        end
-    end
-    
-    pcall(function()
-        rs.Events.SpawnFirst:InvokeServer(true)
-    end)
-end
 
 local function getPlayerLevel()
     local success, GameUtilLocal = pcall(function() return require(rs.Modules.GameUtil) end)
@@ -592,68 +576,51 @@ local function doRebirth()
     end
     
     task.wait(2)
-    pressBedButton()
+    
+    -- Reset character to trigger spawn screen
+    if plr.Character and plr.Character:FindFirstChild("Humanoid") then
+        plr.Character.Humanoid.Health = 0
+    end
 end
 
 local function AutoRebirthLoop()
-    print("🚀 Auto Rebirth System Started (Level 100 → Rebirth → Reset)")
+    print("🚀 Auto Rebirth System Started (Level 100 → Rebirth)")
     
     while autoRebirthRunning do
         task.wait(0.5)
         
-        -- Constantly spam bed/spawn when needed
-        local spawnGui = plr.PlayerGui:FindFirstChild("SpawnGui")
-        if spawnGui and spawnGui.Enabled then
-            pressBedButton()
-        end
-        
         local currentLevel = getPlayerLevel()
         
-        -- LEVEL 100 CHECK
         if currentLevel >= 100 then
             print("🎉 LEVEL 100 DETECTED! Current Level: " .. currentLevel)
-            
             doRebirth()
-            task.wait(3)
-            task.wait(4)
-            
+            task.wait(5)
             print("🔄 Cycle completed. Starting next run...")
-        else
-            if math.random(1, 8) == 1 then
-                print("📊 Current Level: " .. currentLevel .. " | Waiting to reach 100...")
-            end
+        elseif math.random(1, 10) == 1 then
+            print("📊 Current Level: " .. currentLevel .. " | Waiting to reach 100...")
         end
         
         task.wait(0.8)
     end
 end
 
-local function StartAutoRebirth()
-    if autoRebirthRunning then return end
-    autoRebirthRunning = true
-    print("✅ AUTO REBIRTH ENABLED")
-    task.spawn(AutoRebirthLoop)
-end
-
-local function StopAutoRebirth()
-    autoRebirthRunning = false
-    print("⛔ AUTO REBIRTH DISABLED")
-end
-
 Tabs.Event:AddSection("Auto Rebirth")
 Tabs.Event:AddToggle("AutoRebirthToggle", {
-    Title = "Auto Rebirth (Level 100 → Rebirth + Reset)",
+    Title = "Auto Rebirth (Level 100 → Rebirth)",
     Default = false,
     Callback = function(state)
         if state then
-            StartAutoRebirth()
+            if not autoRebirthRunning then
+                autoRebirthRunning = true
+                task.spawn(AutoRebirthLoop)
+                print("✅ AUTO REBIRTH ENABLED")
+            end
         else
-            StopAutoRebirth()
+            autoRebirthRunning = false
+            print("⛔ AUTO REBIRTH DISABLED")
         end
     end
 })
-
-print("Auto Rebirth script loaded! Toggle it in the Event tab.")
 
 -- Final setup
 SaveManager:SetLibrary(Library)
