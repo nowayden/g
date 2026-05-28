@@ -556,28 +556,25 @@ Tabs.Potions:AddToggle("AutoPotionToggle", {
 -- ==================== AUTO REBIRTH SYSTEM (FIXED FOR BED SPAWN) ====================
 local autoRebirthRunning = false
 
-local function forceCameraFix()
-    task.wait(2)
-    local cam = workspace.CurrentCamera
-    if cam then
-        cam.CameraType = Enum.CameraType.Custom
-        if plr.Character and plr.Character:FindFirstChild("Humanoid") then
-            cam.CameraSubject = plr.Character.Humanoid
-        end
-    end
-end
-
 local function pressBedButton()
-    -- Improved for "BED SPAWN" button
-    for _, gui in ipairs(plr.PlayerGui:GetDescendants()) do
-        if gui.Name:find("Bed") or gui.Name:find("Spawn") or (gui.Text and (gui.Text:find("BED") or gui.Text:find("SPAWN"))) then
-            pcall(function() 
-                if gui.Activated then gui.Activated:Fire() end 
-                firesignal(gui.Activated) 
-            end)
+    local spawnGui = plr.PlayerGui:FindFirstChild("SpawnGui")
+    if spawnGui and spawnGui:FindFirstChild("Customization") then
+        local bedButton = spawnGui.Customization:FindFirstChild("BedButton")
+        if bedButton then
+            pcall(function() bedButton.Activated:Fire() end)
+            pcall(function() firesignal(bedButton.Activated) end)
+            print("BedButton pressed directly!")
+            return
         end
     end
-    
+
+    for _, gui in ipairs(plr.PlayerGui:GetDescendants()) do
+        if gui.Name == "BedButton" then
+            pcall(function() gui.Activated:Fire() end)
+            pcall(function() firesignal(gui.Activated) end)
+        end
+    end
+
     pcall(function()
         rs.Events.SpawnFirst:InvokeServer(true)
     end)
@@ -599,7 +596,6 @@ local function doRebirth()
     end
     task.wait(2.5)
     pressBedButton()
-    forceCameraFix()
 end
 
 local function AutoRebirthLoop()
@@ -611,7 +607,7 @@ local function AutoRebirthLoop()
         end
         local currentLevel = getPlayerLevel()
         if currentLevel >= 100 then
-            print("🎉 LEVEL 100 DETECTED!")
+            print("LEVEL 100 DETECTED!")
             doRebirth()
             task.wait(6)
         end
@@ -655,6 +651,6 @@ SaveManager:BuildConfigSection(Tabs.Settings)
 Window:SelectTab(1)
 
 task.wait(0.5)
-Library:Notify{Title = "neverlose", Content = "holy sigma gang | Bed Spawn Fixed", Duration = 8}
+Library:Notify{Title = "neverlose", Content = "holy sigma gang | BedButton Fixed", Duration = 8}
 SaveManager:LoadAutoloadConfig()
 print("Done! Enjoy neverlose!")
