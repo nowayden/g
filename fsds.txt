@@ -1,16 +1,13 @@
 print("Loading neverlose")
 print("-----------------------------------------")
-
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
-
 local Window = Library:CreateWindow{
     Title = "neverlose", SubTitle = ":)", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
-
 local Tabs = {
     Main = Window:AddTab({ Title = "Main", Icon = "menu" }),
     Map = Window:AddTab({ Title = "Map", Icon = "trees" }),
@@ -20,17 +17,13 @@ local Tabs = {
     Potions = Window:AddTab({ Title = "Potions", Icon = "flask" }),
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
 }
-
 local rs, plr = game:GetService("ReplicatedStorage"), game.Players.LocalPlayer
 local packets = require(rs.Modules.Packets)
 local GameUtil = require(rs.Modules.GameUtil)
 local clock = require(rs.Modules.Clock)
 local runs, tspmo = game:GetService("RunService"), game:GetService("TweenService")
-
 local Options = Library.Options
-
 local char, root, hum, wscon, slopecon
-
 local function updateCharacter()
     char = plr.Character
     if char then
@@ -55,7 +48,6 @@ Tabs.Map:CreateToggle("resourceauratoggle", { Title = "Resource Aura", Default =
 Tabs.Map:CreateSlider("resourceaurarange", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
 Tabs.Map:CreateDropdown("resourcetargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
 Tabs.Map:CreateSlider("resourcecooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
-
 Tabs.Map:AddSection("Critter Aura")
 Tabs.Map:CreateToggle("critterauratoggle", { Title = "Critter Aura", Default = false })
 Tabs.Map:CreateSlider("critterrangeslider", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
@@ -72,7 +64,6 @@ Tabs.Pickup:CreateDropdown("itemdropdown", {
     Values = {"Berry", "Bloodfruit", "Bluefruit", "Lemon", "Strawberry", "Gold", "Raw Gold", "Crystal Chunk", "Coin", "Coins", "Coin2", "Coin Stack", "Essence", "Emerald", "Raw Emerald", "Pink Diamond", "Raw Pink Diamond", "Void Shard", "Jelly", "Magnetite", "Raw Magnetite", "Adurite", "Raw Adurite", "Ice Cube", "Stone", "Iron", "Raw Iron", "Steel", "Hide", "Leaves", "Log", "Wood", "Glass", "Bread", "Cooked Egg", "Grain Mush", "Raw Meat", "Cooked Meat", "Glass Bottle", "Healing Potion", "Strength Potion", "Swiftness Potion"},
     Multi = true, Default = { Leaves = true, Log = true }
 })
-
 Tabs.Pickup:AddSection("Auto Drop")
 Tabs.Pickup:AddToggle("droptoggle", { Title = "Auto Drop", Default = false })
 Tabs.Pickup:AddDropdown("dropdropdown", {Title = "Select Item to Drop", Values = { "Bloodfruit", "Jelly", "Bluefruit", "Log", "Leaves", "Wood" }, Default = "Bloodfruit"})
@@ -87,13 +78,11 @@ Tabs.Farming:CreateSlider("plantrange", { Title = "Plant Range", Min = 1, Max = 
 Tabs.Farming:CreateSlider("plantdelay", { Title = "Plant Delay (s)", Min = 0.01, Max = 1, Rounding = 2, Default = 0.1 })
 Tabs.Farming:CreateToggle("harvesttoggle", { Title = "Auto Harvest", Default = false })
 Tabs.Farming:CreateSlider("harvestrange", { Title = "Harvest Range", Min = 1, Max = 30, Rounding = 1, Default = 30 })
-
 Tabs.Farming:AddSection("Tween Settings")
 Tabs.Farming:AddSlider("tweenspeed", { Title = "Tween Speed (Higher = Faster)", Min = 10, Max = 200, Rounding = 1, Default = 50 })
 Tabs.Farming:AddToggle("tweentoplantbox", { Title = "Tween to Plant Box", Default = false })
 Tabs.Farming:AddToggle("tweentobush", { Title = "Tween to Bush + Plant Box", Default = false })
 Tabs.Farming:AddSlider("tweenrange", { Title = "Range", Min = 1, Max = 250, Rounding = 1, Default = 250 })
-
 Tabs.Farming:AddSection("Plant Box Placer")
 Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Continuously", Default = false })
 Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees", "45 degrees"}, Default = "0 degrees"})
@@ -277,7 +266,6 @@ end)
 
 -- Farming helpers
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
-
 local function getpbs(range)
     local boxes = {}
     if not root then return boxes end
@@ -292,7 +280,6 @@ local function getpbs(range)
     end
     return boxes
 end
-
 local function getbushes(range, fruitname)
     local bushes = {}
     if not root then return bushes end
@@ -306,7 +293,6 @@ local function getbushes(range, fruitname)
     end
     return bushes
 end
-
 local tweening = nil
 local function tween(target)
     if not root then return end
@@ -336,7 +322,6 @@ local function placeSingleSnappedBox()
         packets.PlaceStructure.send({buildingName = "Plant Box", cframe = CFrame.new(fp)*rot, vec = fp, isMobile = false, cursor = cursorPos})
     end
 end
-
 local function placeGridOfBoxes(gridSize)
     local char = plr.Character
     if not (char and char:FindFirstChild("HumanoidRootPart")) then return end
@@ -360,7 +345,6 @@ local function placeGridOfBoxes(gridSize)
         end
     end
 end
-
 local placestructure = function(gs)
     if gs == 1 then placeSingleSnappedBox() else placeGridOfBoxes(gs) end
 end
@@ -395,7 +379,6 @@ Options.tweentoplantbox:OnChanged(function(v)
         if tweening then tweening:Cancel(); tweening = nil end
     end
 end)
-
 Options.tweentobush:OnChanged(function(v)
     if v then
         if bushConn then bushConn:Disconnect() end
@@ -446,7 +429,6 @@ Options.planttoggle:OnChanged(function(v)
         end)
     elseif plantConn then plantConn:Disconnect(); plantConn = nil end
 end)
-
 task.spawn(function()
     while true do
         if Options.harvesttoggle.Value and root then
@@ -471,7 +453,6 @@ local POTIONS = {
     ["Weakness Potion"] = {{name = "Ice Cube", amount = 3}, {name = "Berry", amount = 2}, {name = "Magnetite", amount = 3}},
     ["Haste Potion"] = {{name = "Ice Cube", amount = 3}, {name = "Iron", amount = 2}, {name = "Lemon", amount = 2}}
 }
-
 local function getInventorySlot(itemName)
     local list = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
     if not list then return nil end
@@ -479,12 +460,10 @@ local function getInventorySlot(itemName)
         if slot:IsA("ImageLabel") and slot.Name:find(itemName) then return slot.LayoutOrder end
     end
 end
-
 local function dropFromSlot(slot, amount)
     if not slot then return end
     for _ = 1, amount do pcall(function() packets.DropBagItem.send(slot) end); task.wait(0.07) end
 end
-
 local function findAllCauldrons()
     local dep = workspace:FindFirstChild("Deployables")
     if not dep or not (plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")) then return {} end
@@ -497,7 +476,6 @@ local function findAllCauldrons()
     end
     return cauldrons
 end
-
 local function teleportToHitbox(hitbox)
     if not hitbox or not workspace:FindFirstChild("Items") then return end
     local tp = hitbox.Position + Vector3.new(math.random(-2,2)*0.3, 0.8, math.random(-2,2)*0.3)
@@ -511,7 +489,6 @@ local function teleportToHitbox(hitbox)
         end
     end
 end
-
 local function brewPotions()
     if isBrewing then return end
     isBrewing = true
@@ -533,7 +510,6 @@ local function brewPotions()
     end
     isBrewing = false
 end
-
 Tabs.Potions:AddSection("Mass Potion Crafter")
 Tabs.Potions:AddDropdown("PotionType", {
     Title = "Select Potion",
@@ -554,8 +530,29 @@ Tabs.Potions:AddToggle("AutoPotionToggle", {
     end
 })
 
--- ==================== AUTO REBIRTH SYSTEM (FIXED - No Camera Stuck) ====================
+-- ==================== AUTO REBIRTH SYSTEM (SPAM BED 24/7) ====================
 local autoRebirthRunning = false
+
+-- SPAM BED BUTTON 24/7 - simple and effective (exactly like your original working version)
+task.spawn(function()
+    while true do
+        pcall(function()
+            for _, gui in ipairs(plr.PlayerGui:GetChildren()) do
+                local bedButton = gui:FindFirstChild("BedButton", true)
+                if bedButton then
+                    pcall(function() bedButton.Activated:Fire() end)
+                    pcall(function() firesignal(bedButton.Activated) end)
+                end
+            end
+            pcall(function()
+                if rs.Events and rs.Events.SpawnFirst then
+                    rs.Events.SpawnFirst:InvokeServer(true)
+                end
+            end)
+        end)
+        task.wait(0.1)
+    end
+end)
 
 local function getPlayerLevel()
     local success, GameUtilLocal = pcall(function() return require(rs.Modules.GameUtil) end)
@@ -579,24 +576,13 @@ end
 local function AutoRebirthLoop()
     print("🚀 Auto Rebirth System Started (Level 100 → Rebirth)")
     while autoRebirthRunning do
-        task.wait(0.2)
+        task.wait(0.5)
         local currentLevel = getPlayerLevel()
-        
         if currentLevel >= 100 then
             print("🎉 LEVEL 100 DETECTED! Current Level: " .. currentLevel)
-            
-            -- Smart bed clicking (less aggressive)
-            pcall(function()
-                for _, gui in ipairs(plr.PlayerGui:GetDescendants()) do
-                    if gui.Name == "BedButton" then
-                        pcall(function() gui.Activated:Fire() end)
-                        pcall(function() firesignal(gui.Activated) end)
-                    end
-                end
-            end)
-            
             doRebirth()
-            task.wait(4)
+            task.wait(5)
+            print("🔄 Cycle completed. Starting next run...")
         end
     end
 end
@@ -628,10 +614,8 @@ InterfaceManager:SetFolder("FluentScriptHub")
 SaveManager:SetFolder("FluentScriptHub/specific-game")
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
-
 Window:SelectTab(1)
 task.wait(0.5)
 Library:Notify{Title = "neverlose", Content = "holy sigma gang", Duration = 8}
 SaveManager:LoadAutoloadConfig()
-
 print("Done! Enjoy neverlose!")
