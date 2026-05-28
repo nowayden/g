@@ -543,8 +543,23 @@ Tabs.Potions:AddToggle("AutoPotionToggle", {
     end
 })
 
--- Auto Rebirth
+-- ==================== AUTO REBIRTH SYSTEM (COPY FROM ORIGINAL) ====================
 local autoRebirthRunning = false
+
+local function pressBedButton()
+    -- Spam bed button / spawn
+    for _, gui in ipairs(plr.PlayerGui:GetChildren()) do
+        local bedButton = gui:FindFirstChild("BedButton", true)
+        if bedButton then
+            pcall(function() bedButton.Activated:Fire() end)
+            pcall(function() firesignal(bedButton.Activated) end)
+        end
+    end
+    
+    pcall(function()
+        rs.Events.SpawnFirst:InvokeServer(true)
+    end)
+end
 
 local function getPlayerLevel()
     local success, GameUtilLocal = pcall(function() return require(rs.Modules.GameUtil) end)
@@ -552,60 +567,6 @@ local function getPlayerLevel()
         return GameUtilLocal.Data.level
     end
     return plr:GetAttribute("Level") or 0
-end
-
-local function pressBedButton()
-    local playerGui = plr:FindFirstChild("PlayerGui")
-    if not playerGui then return false end
-    
-    -- Method 1: Search all buttons for bed/spawn/respawn text
-    for _, gui in ipairs(playerGui:GetChildren()) do
-        for _, child in ipairs(gui:GetDescendants()) do
-            if child:IsA("TextButton") or child:IsA("ImageButton") then
-                local text = child.Text or child.Name or ""
-                if text:lower():find("bed") or text:lower():find("spawn") or text:lower():find("respawn") then
-                    pcall(function() child.Activated:Fire() end)
-                    pcall(function() firesignal(child.Activated) end)
-                    pcall(function() child.MouseButton1Click:Fire() end)
-                    return true
-                end
-            end
-        end
-    end
-    
-    -- Method 2: Specific SpawnGui search
-    local spawnGui = playerGui:FindFirstChild("SpawnGui")
-    if spawnGui and spawnGui.Enabled then
-        for _, button in ipairs(spawnGui:GetDescendants()) do
-            if button:IsA("TextButton") or button:IsA("ImageButton") then
-                pcall(function() button.Activated:Fire() end)
-                pcall(function() firesignal(button.Activated) end)
-                pcall(function() button.MouseButton1Click:Fire() end)
-                return true
-            end
-        end
-    end
-    
-    -- Method 3: Remote events
-    pcall(function() 
-        if rs.Events and rs.Events.SpawnFirst then
-            rs.Events.SpawnFirst:InvokeServer(true)
-            return true
-        end
-    end)
-    
-    -- Method 4: Try alternative remote names
-    local spawnRemotes = {"Spawn", "Respawn", "BedSpawn", "SelectBed"}
-    for _, remoteName in ipairs(spawnRemotes) do
-        pcall(function()
-            if rs.Events and rs.Events[remoteName] then
-                rs.Events[remoteName]:InvokeServer(true)
-                return true
-            end
-        end)
-    end
-    
-    return false
 end
 
 local function doRebirth()
@@ -619,23 +580,17 @@ local function doRebirth()
         end)
     end
     
-    -- Multiple attempts with delays
-    for i = 1, 5 do
-        task.wait(1)
-        if pressBedButton() then
-            print("✅ Bed button pressed successfully")
-            break
-        end
-    end
+    task.wait(2)
+    pressBedButton()
 end
 
 local function AutoRebirthLoop()
-    print("🚀 Auto Rebirth System Started (Level 100 → Rebirth)")
+    print("🚀 Auto Rebirth System Started (Level 100 → Rebirth → Reset)")
     
     while autoRebirthRunning do
         task.wait(0.5)
         
-        -- Check for spawn GUI and try to spawn
+        -- Constantly spam bed/spawn when needed
         local spawnGui = plr.PlayerGui:FindFirstChild("SpawnGui")
         if spawnGui and spawnGui.Enabled then
             pressBedButton()
@@ -643,33 +598,51 @@ local function AutoRebirthLoop()
         
         local currentLevel = getPlayerLevel()
         
+        -- LEVEL 100 CHECK
         if currentLevel >= 100 then
             print("🎉 LEVEL 100 DETECTED! Current Level: " .. currentLevel)
+            
             doRebirth()
-            task.wait(5)
+            task.wait(3)
+            task.wait(4)
+            
             print("🔄 Cycle completed. Starting next run...")
-        elseif math.random(1, 10) == 1 then
-            print("📊 Current Level: " .. currentLevel .. " | Waiting to reach 100...")
+        else
+            if math.random(1, 8) == 1 then
+                print("📊 Current Level: " .. currentLevel .. " | Waiting to reach 100...")
+            end
         end
         
         task.wait(0.8)
     end
 end
 
+local function StartAutoRebirth()
+    if autoRebirthRunning then return end
+    autoRebirthRunning = true
+    print("✅ AUTO REBIRTH ENABLED")
+    task.spawn(AutoRebirthLoop)
+end
+
+local function StopAutoRebirth()
+    autoRebirthRunning = false
+    print("⛔ AUTO REBIRTH DISABLED")
+end
+
 Tabs.Event:AddSection("Auto Rebirth")
 Tabs.Event:AddToggle("AutoRebirthToggle", {
-    Title = "Auto Rebirth (Level 100 → Rebirth)", Default = false,
-    Callback = function(s)
-        if s then
-            if not autoRebirthRunning then
-                autoRebirthRunning = true
-                task.spawn(AutoRebirthLoop)
-            end
+    Title = "Auto Rebirth (Level 100 → Rebirth + Reset)",
+    Default = false,
+    Callback = function(state)
+        if state then
+            StartAutoRebirth()
         else
-            autoRebirthRunning = false
+            StopAutoRebirth()
         end
     end
 })
+
+print("Auto Rebirth script loaded! Toggle it in the Event tab.")
 
 -- Final setup
 SaveManager:SetLibrary(Library)
@@ -686,3 +659,4 @@ task.wait(0.5)
 Library:Notify{Title = "neverlose", Content = "holy sigma gang", Duration = 8}
 SaveManager:LoadAutoloadConfig()
 print("Done! Enjoy neverlose!")
+print("✅ Auto Rebirth System - Checks both Ancient Tree AND Level 100")
