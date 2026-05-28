@@ -457,7 +457,7 @@ task.spawn(function()
     end
 end)
 
--- Potions (unchanged)
+-- Potions
 local potionLoop, isBrewing, selectedPotion = nil, false, "Healing Potion"
 local POTIONS = {
     ["Healing Potion"] = {{name = "Ice Cube", amount = 3}, {name = "Bloodfruit", amount = 5}, {name = "Strawberry", amount = 2}},
@@ -553,23 +553,28 @@ Tabs.Potions:AddToggle("AutoPotionToggle", {
     end
 })
 
--- ==================== AUTO REBIRTH SYSTEM (FIXED CAMERA STUCK) ====================
+-- ==================== AUTO REBIRTH SYSTEM (FIXED FOR BED SPAWN) ====================
 local autoRebirthRunning = false
 
-local function resetCamera()
-    task.wait(1.8)
-    local camera = workspace.CurrentCamera
-    if camera and plr.Character and plr.Character:FindFirstChild("Humanoid") then
-        camera.CameraType = Enum.CameraType.Custom
-        camera.CameraSubject = plr.Character.Humanoid
+local function forceCameraFix()
+    task.wait(2)
+    local cam = workspace.CurrentCamera
+    if cam then
+        cam.CameraType = Enum.CameraType.Custom
+        if plr.Character and plr.Character:FindFirstChild("Humanoid") then
+            cam.CameraSubject = plr.Character.Humanoid
+        end
     end
 end
 
 local function pressBedButton()
+    -- Improved for "BED SPAWN" button
     for _, gui in ipairs(plr.PlayerGui:GetDescendants()) do
-        if gui.Name:find("BedButton") or gui.Name:find("Bed") or gui.Name:find("Spawn") then
-            pcall(function() gui.Activated:Fire() end)
-            pcall(function() firesignal(gui.Activated) end)
+        if gui.Name:find("Bed") or gui.Name:find("Spawn") or (gui.Text and (gui.Text:find("BED") or gui.Text:find("SPAWN"))) then
+            pcall(function() 
+                if gui.Activated then gui.Activated:Fire() end 
+                firesignal(gui.Activated) 
+            end)
         end
     end
     
@@ -590,34 +595,25 @@ local function doRebirth()
     print("🎉 Level 100 reached → Triggering Rebirth")
     local success, packetsLocal = pcall(function() return require(rs.Modules.Packets) end)
     if success and packetsLocal.Rebirth then
-        pcall(function()
-            packetsLocal.Rebirth.send()
-        end)
+        pcall(function() packetsLocal.Rebirth.send() end)
     end
     task.wait(2.5)
     pressBedButton()
-    resetCamera()
+    forceCameraFix()
 end
 
 local function AutoRebirthLoop()
     while autoRebirthRunning do
         task.wait(0.5)
-        
         local spawnGui = plr.PlayerGui:FindFirstChild("SpawnGui")
         if spawnGui and spawnGui.Enabled then
             pressBedButton()
         end
-        
         local currentLevel = getPlayerLevel()
-        
         if currentLevel >= 100 then
-            print("🎉 LEVEL 100 DETECTED! Current Level: " .. currentLevel)
+            print("🎉 LEVEL 100 DETECTED!")
             doRebirth()
             task.wait(6)
-        else
-            if math.random(1, 10) == 1 then
-                print("📊 Current Level: " .. currentLevel .. " | Waiting to reach 100...")
-            end
         end
     end
 end
@@ -659,6 +655,6 @@ SaveManager:BuildConfigSection(Tabs.Settings)
 Window:SelectTab(1)
 
 task.wait(0.5)
-Library:Notify{Title = "neverlose", Content = "holy sigma gang | Bed fixed", Duration = 8}
+Library:Notify{Title = "neverlose", Content = "holy sigma gang | Bed Spawn Fixed", Duration = 8}
 SaveManager:LoadAutoloadConfig()
 print("Done! Enjoy neverlose!")
