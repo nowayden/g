@@ -1,5 +1,6 @@
 print("Loading neverlose")
 print("-----------------------------------------")
+
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
@@ -25,9 +26,11 @@ local packets = require(rs.Modules.Packets)
 local GameUtil = require(rs.Modules.GameUtil)
 local clock = require(rs.Modules.Clock)
 local runs, tspmo = game:GetService("RunService"), game:GetService("TweenService")
+
 local Options = Library.Options
 
 local char, root, hum, wscon, slopecon
+
 local function updateCharacter()
     char = plr.Character
     if char then
@@ -252,7 +255,7 @@ task.spawn(function()
     end
 end)
 
--- Drop loops (FIXED: Now using proper debounce system like original)
+-- Drop loops
 local debounce = 0
 local cd = 0
 runs.Heartbeat:Connect(function()
@@ -263,7 +266,6 @@ runs.Heartbeat:Connect(function()
         end
     end
 end)
-
 runs.Heartbeat:Connect(function()
     if Options.droptogglemanual.Value then
         if tick() - debounce >= cd then
@@ -275,7 +277,6 @@ end)
 
 -- Farming helpers
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
-local plantedboxes = {}
 
 local function getpbs(range)
     local boxes = {}
@@ -553,29 +554,8 @@ Tabs.Potions:AddToggle("AutoPotionToggle", {
     end
 })
 
--- ==================== AUTO REBIRTH SYSTEM (SPAM BED 24/7) ====================
+-- ==================== AUTO REBIRTH SYSTEM (FIXED - No Camera Stuck) ====================
 local autoRebirthRunning = false
-
--- SPAM BED BUTTON 24/7 - simple and effective
-task.spawn(function()
-    while true do
-        pcall(function()
-            for _, gui in ipairs(plr.PlayerGui:GetChildren()) do
-                local bedButton = gui:FindFirstChild("BedButton", true)
-                if bedButton then
-                    pcall(function() bedButton.Activated:Fire() end)
-                    pcall(function() firesignal(bedButton.Activated) end)
-                end
-            end
-            pcall(function()
-                if rs.Events and rs.Events.SpawnFirst then
-                    rs.Events.SpawnFirst:InvokeServer(true)
-                end
-            end)
-        end)
-        task.wait(0.1)
-    end
-end)
 
 local function getPlayerLevel()
     local success, GameUtilLocal = pcall(function() return require(rs.Modules.GameUtil) end)
@@ -587,7 +567,6 @@ end
 
 local function doRebirth()
     print("🎉 Level 100 reached → Triggering Rebirth")
-    
     local success, packetsLocal = pcall(function() return require(rs.Modules.Packets) end)
     if success and packetsLocal.Rebirth then
         pcall(function()
@@ -599,22 +578,26 @@ end
 
 local function AutoRebirthLoop()
     print("🚀 Auto Rebirth System Started (Level 100 → Rebirth)")
-    
     while autoRebirthRunning do
-        task.wait(0.5)
-        
+        task.wait(0.2)
         local currentLevel = getPlayerLevel()
         
         if currentLevel >= 100 then
             print("🎉 LEVEL 100 DETECTED! Current Level: " .. currentLevel)
+            
+            -- Smart bed clicking (less aggressive)
+            pcall(function()
+                for _, gui in ipairs(plr.PlayerGui:GetDescendants()) do
+                    if gui.Name == "BedButton" then
+                        pcall(function() gui.Activated:Fire() end)
+                        pcall(function() firesignal(gui.Activated) end)
+                    end
+                end
+            end)
+            
             doRebirth()
-            task.wait(5)
-            print("🔄 Cycle completed. Starting next run...")
-        elseif math.random(1, 10) == 1 then
-            print("📊 Current Level: " .. currentLevel .. " | Waiting to reach 100...")
+            task.wait(4)
         end
-        
-        task.wait(0.8)
     end
 end
 
@@ -645,9 +628,10 @@ InterfaceManager:SetFolder("FluentScriptHub")
 SaveManager:SetFolder("FluentScriptHub/specific-game")
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
-Window:SelectTab(1)
 
+Window:SelectTab(1)
 task.wait(0.5)
 Library:Notify{Title = "neverlose", Content = "holy sigma gang", Duration = 8}
 SaveManager:LoadAutoloadConfig()
+
 print("Done! Enjoy neverlose!")
