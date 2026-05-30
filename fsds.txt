@@ -157,7 +157,7 @@ local function pickup(entityid)
 end
 
 -- =============================================================================
--- 2. FIXED BYTENET REBUILT DROP METHOD (Uses absolute type casting)
+-- 2. FIXED DATA-BASED DROP SEARCH METHOD (Prevents Custom Drop Mismatch Flags)
 -- =============================================================================
 local function drop(itemname)
     local inv = plr.PlayerGui:FindFirstChild("MainGui") 
@@ -167,17 +167,28 @@ local function drop(itemname)
         
     if not inv then return end
     
+    -- Strip trailing spaces and convert input to clean lowercase format
+    local targetName = string.gsub(itemname:lower(), "%s+", "")
+    if targetName == "" then return end
+    
     for _, child in ipairs(inv:GetChildren()) do
-        if child:IsA("ImageLabel") and child.Name:lower() == itemname:lower() then
-            -- Safely look up the real interface indexing values
-            local slotIndex = child:GetAttribute("SlotIndex") or child.LayoutOrder
+        if child:IsA("ImageLabel") then
+            -- Cross-reference both layout instances and nested text elements for safety
+            local actualItemName = child.Name:lower()
+            local textLabel = child:FindFirstChildWhichIsA("TextLabel")
+            local internalName = textLabel and textLabel.Text:lower() or ""
             
-            if packets.DropBagItem and packets.DropBagItem.send then
-                pcall(function()
-                    -- Enforce direct unsigned integer translation to match standard schema definitions
-                    packets.DropBagItem.send(tonumber(slotIndex))
-                end)
-                break
+            if actualItemName:find(targetName) or internalName:find(targetName) then
+                -- Safely resolve ByteNet Index profiles
+                local slotIndex = child:GetAttribute("SlotIndex") or child.LayoutOrder
+                
+                if slotIndex and packets.DropBagItem and packets.DropBagItem.send then
+                    pcall(function()
+                        -- Explicit number casting required to avoid deserializer threshold rejects
+                        packets.DropBagItem.send(tonumber(slotIndex))
+                    end)
+                    break
+                end
             end
         end
     end
@@ -289,7 +300,7 @@ end)
 -- =============================================================================
 local dropdownDebounce = 0
 local customDropDebounce = 0
-local safeDropCooldown = 0.85 -- Adjusted to avoid high-volume telemetry flags
+local safeDropCooldown = 0.85 -- Human click threshold emulation to avoid spam bans
 
 runs.Heartbeat:Connect(function()
     if Options.droptoggle.Value then
