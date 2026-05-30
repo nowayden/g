@@ -1,25 +1,5 @@
-print("Loading neverlose - ByteNet Edition")
+print("Loading neverlose")
 print("-----------------------------------------")
-
--- =============================================================================
--- 1. ANTI-CHEAT TELEMETRY INTERCEPTOR (Prevents localized flagging packets)
--- =============================================================================
-local namecallHook
-namecallHook = hookmetamethod(game, "__namecall", function(self, ...)
-    local method = getnamecallmethod()
-    if method == "FireServer" or method == "InvokeServer" then
-        local targetName = tostring(self):lower()
-        if targetName:find("report") or targetName:find("cheat") or targetName:find("log") or targetName:find("telemetry") then
-            warn("⚠️ Intercepted and blocked an automated telemetry flag packet: " .. tostring(self))
-            return nil
-        end
-    end
-    return namecallHook(self, ...)
-end)
-
--- =============================================================================
--- UI LIBRARY INITIALIZATION
--- =============================================================================
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
@@ -155,39 +135,16 @@ local function pickup(entityid)
     if packets.Pickup and packets.Pickup.send then packets.Pickup.send(entityid) end
 end
 
--- =============================================================================
--- 2. STRUCT-COMPLIANT BYTE-NET DROP SYSTEM (Fixes Instant Flags)
--- =============================================================================
 local function drop(itemname)
-    local targetName = string.gsub(itemname:lower(), "%s+", "")
-    if targetName == "" then return false end
-    
-    if not GameUtil or not GameUtil.Data or not GameUtil.Data.inventory then 
-        warn("⚠️ Inventory data layout unavailable.")
-        return false 
-    end
-    
-    for slotIndex, itemData in pairs(GameUtil.Data.inventory) do
-        local realName = itemData.Name or itemData.name or ""
-        
-        if tostring(realName):lower():find(targetName) then
-            local safeSlotIndex = tonumber(slotIndex)
-            
-            if safeSlotIndex and packets.DropBagItem and packets.DropBagItem.send then
-                local success = pcall(function()
-                    -- FIX: Wrap slot inside a struct matching ByteNet definitions exactly
-                    packets.DropBagItem.send({
-                        slot = safeSlotIndex
-                    })
-                end)
-                
-                if success then
-                    return true 
-                end
+    local inv = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
+    if not inv then return end
+    for _, child in ipairs(inv:GetChildren()) do
+        if child:IsA("ImageLabel") and child.Name == itemname then
+            if packets.DropBagItem and packets.DropBagItem.send then
+                packets.DropBagItem.send(child.LayoutOrder)
             end
         end
     end
-    return false
 end
 
 local selecteditems = {}
@@ -291,39 +248,30 @@ task.spawn(function()
     end
 end)
 
--- =============================================================================
--- 3. THROTTLED HEARTBEAT LOOPS
--- =============================================================================
-local dropdownDebounce = 0
-local customDropDebounce = 0
-local safeDropCooldown = 1.00 -- 1 second separation rules out click frequency triggers
-
+-- Drop loops
+local debounce = 0
+local cd = 0
 runs.Heartbeat:Connect(function()
     if Options.droptoggle.Value then
-        if tick() - dropdownDebounce >= safeDropCooldown then
-            dropdownDebounce = tick()
-            local success = drop(Options.dropdropdown.Value)
-            if not success then
-                dropdownDebounce = tick() - (safeDropCooldown - 0.2)
-            end
+        if tick() - debounce >= cd then
+            drop(Options.dropdropdown.Value)
+            debounce = tick()
         end
     end
 end)
 
 runs.Heartbeat:Connect(function()
     if Options.droptogglemanual.Value then
-        if tick() - customDropDebounce >= safeDropCooldown then
-            customDropDebounce = tick()
-            local success = drop(Options.droptextbox.Value)
-            if not success then
-                customDropDebounce = tick() - (safeDropCooldown - 0.2)
-            end
+        if tick() - debounce >= cd then
+            drop(Options.droptextbox.Value)
+            debounce = tick()
         end
     end
 end)
 
 -- Farming helpers
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
+local plantedboxes = {}
 
 local function getpbs(range)
     local boxes = {}
@@ -373,6 +321,7 @@ function placeSingleSnappedBox()
     local cam = workspace.CurrentCamera
     local cursorPos = cam and cam.CFrame.Position or pos
     
+    -- Reduced grid size boundary from 6.05 to 5.05 for absolute tightest physical placement
     local gs = 5.05
     local sp = Vector3.new(math.round(pos.X/gs)*gs, pos.Y, math.round(pos.Z/gs)*gs)
     
@@ -380,7 +329,7 @@ function placeSingleSnappedBox()
     rp.FilterType, rp.FilterDescendantsInstances, rp.IgnoreWater = Enum.RaycastFilterType.Blacklist, {char}, true
     local rr = workspace:Raycast(Vector3.new(sp.X, sp.Y+100, sp.Z), Vector3.new(0,-200,0), rp)
     local fp = rr and rr.Position or sp
-    local rot = CFrame.Angles(0, 0, 0)
+    local rot = CFrame.Angles(0, 0, 0) -- Hardlocked to 0 degrees
     
     if packets.PlaceStructure and packets.PlaceStructure.send then
         packets.PlaceStructure.send({buildingName = "Plant Box", cframe = CFrame.new(fp)*rot, vec = fp, isMobile = false, cursor = cursorPos})
@@ -453,7 +402,7 @@ Options.tweentobush:OnChanged(function(v)
     end
 end)
 
--- AUTO-PLANT SYSTEM
+-- ==================== OPTIMIZED ULTRA-FAST AUTO-PLANT SYSTEM ====================
 local isPlantingRunning = false
 
 local function FastPlantLoop()
@@ -461,6 +410,7 @@ local function FastPlantLoop()
         local plantToggleOpt = Options.planttoggle
         local rangeOpt = Options.plantrange
         local fruitOpt = Options.fruitdropdown
+        local delayOpt = Options.plantdelay
 
         if plantToggleOpt and plantToggleOpt.Value and root and packets.InteractStructure then
             local currentRange = tonumber(rangeOpt.Value) or 30
@@ -506,7 +456,7 @@ task.spawn(function()
     end
 end)
 
--- Potions System (Updated to safely use structural drop tables)
+-- Potions
 local potionLoop, isBrewing, selectedPotion = nil, false, "Healing Potion"
 local POTIONS = {
     ["Healing Potion"] = {{name = "Ice Cube", amount = 3}, {name = "Bloodfruit", amount = 5}, {name = "Strawberry", amount = 2}},
@@ -521,22 +471,16 @@ local POTIONS = {
 }
 
 local function getInventorySlot(itemName)
-    if not GameUtil or not GameUtil.Data or not GameUtil.Data.inventory then return nil end
-    for slotIndex, itemData in pairs(GameUtil.Data.inventory) do
-        local realName = itemData.Name or itemData.name or ""
-        if tostring(realName):lower():find(itemName:lower()) then return tonumber(slotIndex) end
+    local list = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
+    if not list then return nil end
+    for _, slot in ipairs(list:GetChildren()) do
+        if slot:IsA("ImageLabel") and slot.Name:find(itemName) then return slot.LayoutOrder end
     end
-    return nil
 end
 
 local function dropFromSlot(slot, amount)
     if not slot then return end
-    for _ = 1, amount do 
-        pcall(function() 
-            packets.DropBagItem.send({ slot = slot }) 
-        end)
-        task.wait(0.1) 
-    end
+    for _ = 1, amount do pcall(function() packets.DropBagItem.send(slot) end); task.wait(0.07) end
 end
 
 local function findAllCauldrons()
@@ -608,7 +552,7 @@ Tabs.Potions:AddToggle("AutoPotionToggle", {
     end
 })
 
--- AUTO REBIRTH SYSTEM
+-- ==================== AUTO REBIRTH SYSTEM (FIXED FOR BED SPAWN) ====================
 local autoRebirthRunning = false
 
 local function pressBedButton()
@@ -706,6 +650,6 @@ SaveManager:BuildConfigSection(Tabs.Settings)
 Window:SelectTab(1)
 
 task.wait(0.5)
-Library:Notify{Title = "neverlose", Content = "ByteNet Framework Sync Completed Successfully", Duration = 8}
+Library:Notify{Title = "neverlose", Content = "holy sigma gang | BedButton Fixed", Duration = 8}
 SaveManager:LoadAutoloadConfig()
 print("Done! Enjoy neverlose!")
