@@ -1,5 +1,26 @@
-print("Loading neverlose")
+print("Loading neverlose - ByteNet Edition")
 print("-----------------------------------------")
+
+-- =============================================================================
+-- 1. ANTI-CHEAT TELEMETRY INTERCEPTOR (Prevents localized flagging packets)
+-- =============================================================================
+local namecallHook
+namecallHook = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    if method == "FireServer" or method == "InvokeServer" then
+        local targetName = tostring(self):lower()
+        -- Block automated loggers, anti-cheat signals, or remote report webhooks
+        if targetName:find("report") or targetName:find("cheat") or targetName:find("log") or targetName:find("telemetry") then
+            warn("⚠️ Intercepted and blocked an automated telemetry flag packet: " .. tostring(self))
+            return nil
+        end
+    end
+    return namecallHook(self, ...)
+end)
+
+-- =============================================================================
+-- UI LIBRARY INITIALIZATION
+-- =============================================================================
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
@@ -135,20 +156,26 @@ local function pickup(entityid)
     if packets.Pickup and packets.Pickup.send then packets.Pickup.send(entityid) end
 end
 
--- ==================== NEW SECURE BYTENET REBUILT DROP METHOD ====================
+-- =============================================================================
+-- 2. FIXED BYTENET REBUILT DROP METHOD (Uses absolute type casting)
+-- =============================================================================
 local function drop(itemname)
-    local inv = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
+    local inv = plr.PlayerGui:FindFirstChild("MainGui") 
+        and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") 
+        and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") 
+        and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
+        
     if not inv then return end
     
-    -- Verify layout item directly in game structures to pull correct active ByteNet sequence mapping
     for _, child in ipairs(inv:GetChildren()) do
         if child:IsA("ImageLabel") and child.Name:lower() == itemname:lower() then
+            -- Safely look up the real interface indexing values
             local slotIndex = child:GetAttribute("SlotIndex") or child.LayoutOrder
             
             if packets.DropBagItem and packets.DropBagItem.send then
                 pcall(function()
-                    -- Perform validation structure sync before triggering item array release
-                    packets.DropBagItem.send(slotIndex)
+                    -- Enforce direct unsigned integer translation to match standard schema definitions
+                    packets.DropBagItem.send(tonumber(slotIndex))
                 end)
                 break
             end
@@ -257,10 +284,12 @@ task.spawn(function()
     end
 end)
 
--- Safe Cooldown boundaries
+-- =============================================================================
+-- 3. SAFE RECONFIGURED DEBOUNCE DELAYS (Prevents packet-frequency triggers)
+-- =============================================================================
 local dropdownDebounce = 0
 local customDropDebounce = 0
-local safeDropCooldown = 0.55
+local safeDropCooldown = 0.85 -- Adjusted to avoid high-volume telemetry flags
 
 runs.Heartbeat:Connect(function()
     if Options.droptoggle.Value then
@@ -412,7 +441,7 @@ Options.tweentobush:OnChanged(function(v)
     end
 end)
 
--- ==================== OPTIMIZED ULTRA-FAST AUTO-PLANT SYSTEM ====================
+-- AUTO-PLANT SYSTEM
 local isPlantingRunning = false
 
 local function FastPlantLoop()
@@ -420,7 +449,6 @@ local function FastPlantLoop()
         local plantToggleOpt = Options.planttoggle
         local rangeOpt = Options.plantrange
         local fruitOpt = Options.fruitdropdown
-        local delayOpt = Options.plantdelay
 
         if plantToggleOpt and plantToggleOpt.Value and root and packets.InteractStructure then
             local currentRange = tonumber(rangeOpt.Value) or 30
@@ -562,7 +590,7 @@ Tabs.Potions:AddToggle("AutoPotionToggle", {
     end
 })
 
--- ==================== AUTO REBIRTH SYSTEM (FIXED FOR BED SPAWN) ====================
+-- AUTO REBIRTH SYSTEM
 local autoRebirthRunning = false
 
 local function pressBedButton()
@@ -660,6 +688,6 @@ SaveManager:BuildConfigSection(Tabs.Settings)
 Window:SelectTab(1)
 
 task.wait(0.5)
-Library:Notify{Title = "neverlose", Content = "ByteNet Verification Bypass Implemented", Duration = 8}
+Library:Notify{Title = "neverlose", Content = "ByteNet Framework Sync Completed Successfully", Duration = 8}
 SaveManager:LoadAutoloadConfig()
 print("Done! Enjoy neverlose!")
