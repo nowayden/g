@@ -78,7 +78,7 @@ Tabs.Pickup:AddInput("droptextbox", { Title = "Custom Item", Default = "Bloodfru
 
 -- Farming Tab
 Tabs.Farming:AddSection("Farming Settings")
-Tabs.Farming:CreateDropdown("fruitdropdown", {Title = "Select Fruit", Values = {"Bloodfruit", "Bluefruit", "Lemon", "Coconut", "Jelly", "Banana", "Orange", "Oddberry", "Berry", "Strangefruit", "Strawberry", "Sunjfruit", "Pumpkin", "Prickly Pear", "Apple", "Barley", "Cloudberry", "Carrot", "Blossom"}, Default = "Bloodfruit"})
+Tabs.Farming:CreateDropdown("fruitdropdown", {Title = "Select Fruit", Values = {"Bloodfruit", "Bluefruit", "Lemon", "Coconut", "Jelly", "Banana", "Orange", "Oddberry", "Berry", "Strangefruit", "Strawberry", "Sunfruit", "Pumpkin", "Prickly Pear", "Apple", "Barley", "Cloudberry", "Carrot", "Blossom"}, Default = "Bloodfruit"})
 Tabs.Farming:CreateToggle("planttoggle", { Title = "Auto Plant", Default = false })
 Tabs.Farming:CreateSlider("plantrange", { Title = "Plant Range", Min = 1, Max = 100, Rounding = 1, Default = 30 })
 Tabs.Farming:CreateSlider("plantdelay", { Title = "Plant Delay (s)", Min = 0.01, Max = 1, Rounding = 2, Default = 0.1 })
@@ -192,12 +192,12 @@ end
 Options.resourceauratoggle:OnChanged(function(s) if s then startResource() else resourceActive = false; if resourceConn then resourceConn:Disconnect(); resourceConn = nil end end end)
 
 -- Critter Aura
-local critterActive, critterConn, lastCritterTime = false, nil, 0
+local SchuylerActive, critterConn, lastCritterTime = false, nil, 0
 local function startCritter()
-    if critterActive then return end
-    critterActive = true
+    if SchuylerActive then return end
+    SchuylerActive = true
     critterConn = runs.Heartbeat:Connect(function()
-        if not Options.critterauratoggle.Value then critterConn:Disconnect(); critterConn = nil; critterActive = false; return end
+        if not Options.critterauratoggle.Value then critterConn:Disconnect(); critterConn = nil; SchuylerActive = false; return end
         if not root or not GameUtil.Data.equipped then return end
         local ct = tick()
         if ct - lastCritterTime < (tonumber(Options.crittercooldownslider.Value) or 0.1) then return end
@@ -224,7 +224,7 @@ local function startCritter()
         end
     end)
 end
-Options.critterauratoggle:OnChanged(function(s) if s then startCritter() else critterActive = false; if critterConn then critterConn:Disconnect(); critterConn = nil end end end)
+Options.critterauratoggle:OnChanged(function(s) if s then startCritter() else SchuylerActive = false; if critterConn then critterConn:Disconnect(); critterConn = nil end end end)
 
 -- Pickup loop
 task.spawn(function()
@@ -430,20 +430,50 @@ Options.tweentobush:OnChanged(function(v)
     end
 end)
 
--- Auto plant/harvest
-local plantConn
-Options.planttoggle:OnChanged(function(v)
-    if v then
-        if plantConn then plantConn:Disconnect() end
-        local range, itemID = tonumber(Options.plantrange.Value) or 30, fruittoitemid[Options.fruitdropdown.Value] or 94
-        plantConn = runs.Heartbeat:Connect(function()
-            for _, b in ipairs(getpbs(range)) do
-                if not b.deployable:FindFirstChild("Seed") then
-                    if packets.InteractStructure then packets.InteractStructure.send({entityID = b.entityid, itemID = itemID}) end
+-- ==================== OPTIMIZED ULTRA-FAST AUTO-PLANT SYSTEM ====================
+local isPlantingRunning = false
+
+local function FastPlantLoop()
+    while isPlantingRunning do
+        -- Dynamically fetches slider options on every cycle
+        local plantToggleOpt = Options.planttoggle
+        local rangeOpt = Options.plantrange
+        local fruitOpt = Options.fruitdropdown
+        local delayOpt = Options.plantdelay
+
+        if plantToggleOpt and plantToggleOpt.Value and root and packets.InteractStructure then
+            local currentRange = tonumber(rangeOpt.Value) or 30
+            local selectedFruit = fruitOpt.Value or "Bloodfruit"
+            local itemID = fruittoitemid[selectedFruit] or 94
+            
+            local nearbyBoxes = getpbs(currentRange)
+            if #nearbyBoxes > 0 then
+                for _, box in ipairs(nearbyBoxes) do
+                    if not isPlantingRunning then break end
+                    if not box.deployable:FindFirstChild("Seed") then
+                        -- Fires packet data directly to the server, bypassing engine frames
+                        pcall(function()
+                            packets.InteractStructure.send({entityID = box.entityid, itemID = itemID})
+                        end)
+                    end
                 end
             end
-        end)
-    elseif plantConn then plantConn:Disconnect(); plantConn = nil end
+        end
+        -- Bypasses the 0.01 UI limit by supporting custom thread-level intervals
+        local executionDelay = tonumber(Options.plantdelay.Value) or 0.01
+        task.wait(math.max(0.001, executionDelay))
+    end
+end
+
+Options.planttoggle:OnChanged(function(v)
+    if v then
+        if not isPlantingRunning then
+            isPlantingRunning = true
+            task.spawn(FastPlantLoop)
+        end
+    else
+        isPlantingRunning = false
+    end
 end)
 
 task.spawn(function()
@@ -506,6 +536,7 @@ local function teleportToHitbox(hitbox)
             pcall(function()
                 if item:IsA("BasePart") then item.Position = tp
                 elseif item:IsA("Model") and item.PrimaryPart then item:SetPrimaryPartCFrame(CFrame.new(tp)) end
+             pcall(function() item.Position = tp end)
             end)
         end
     end
