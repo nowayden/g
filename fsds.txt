@@ -157,36 +157,31 @@ local function pickup(entityid)
 end
 
 -- =============================================================================
--- 2. RATE-LIMIT CONTEXT DROP SEARCH METHOD (Prevents Cumulative Frequency Flags)
+-- 2. RECONFIGURED ANTI-DESERIALIZATION DROP SYSTEM (Prevents Structural Flags)
 -- =============================================================================
 local function drop(itemname)
-    local inv = plr.PlayerGui:FindFirstChild("MainGui") 
-        and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") 
-        and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") 
-        and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
-        
-    if not inv then return end
-    
     local targetName = string.gsub(itemname:lower(), "%s+", "")
-    if targetName == "" then return end
+    if targetName == "" then return false end
     
-    for _, child in ipairs(inv:GetChildren()) do
-        if child:IsA("ImageLabel") then
-            local actualItemName = child.Name:lower()
-            local textLabel = child:FindFirstChildWhichIsA("TextLabel")
-            local internalName = textLabel and textLabel.Text:lower() or ""
+    if not GameUtil or not GameUtil.Data or not GameUtil.Data.inventory then 
+        warn("⚠️ Inventory data structure unavailable.")
+        return false 
+    end
+    
+    -- Iterate directly across the engine data layout cache
+    for slotIndex, itemData in pairs(GameUtil.Data.inventory) do
+        local realName = itemData.Name or itemData.name or ""
+        
+        if tostring(realName):lower():find(targetName) then
+            local safeSlotIndex = tonumber(slotIndex)
             
-            if actualItemName:find(targetName) or internalName:find(targetName) then
-                local slotIndex = child:GetAttribute("SlotIndex") or child.LayoutOrder
+            if safeSlotIndex and packets.DropBagItem and packets.DropBagItem.send then
+                local success = pcall(function()
+                    packets.DropBagItem.send(safeSlotIndex)
+                end)
                 
-                if slotIndex and packets.DropBagItem and packets.DropBagItem.send then
-                    local passedIndex = tonumber(slotIndex)
-                    pcall(function()
-                        packets.DropBagItem.send(passedIndex)
-                    end)
-                    -- Terminate the execution stack immediately after processing exactly ONE object instance
-                    -- This ensures multiple packets are never dispatched simultaneously in a single frame
-                    return true
+                if success then
+                    return true -- Terminate iteration stack context safely immediately
                 end
             end
         end
@@ -296,19 +291,19 @@ task.spawn(function()
 end)
 
 -- =============================================================================
--- 3. ENFORCED TIMING AND THREAD DEBOUNCE INITIALIZATION
+-- 3. ISOLATED THROTTLING AND HEARTBEAT DEBOUNCES
 -- =============================================================================
 local dropdownDebounce = 0
 local customDropDebounce = 0
-local safeDropCooldown = 0.95 -- Marginally extended to clear server interaction window limits cleanly
+local safeDropCooldown = 1.25 -- Clears ticking evaluation window safely
 
 runs.Heartbeat:Connect(function()
     if Options.droptoggle.Value then
         if tick() - dropdownDebounce >= safeDropCooldown then
-            local dropped = drop(Options.dropdropdown.Value)
-            if dropped then
-                dropdownDebounce = tick()
-                task.wait(0.05) -- Forces the scheduling thread to wait for UI state updates
+            dropdownDebounce = tick()
+            local success = drop(Options.dropdropdown.Value)
+            if not success then
+                dropdownDebounce = tick() - (safeDropCooldown - 0.2)
             end
         end
     end
@@ -317,10 +312,10 @@ end)
 runs.Heartbeat:Connect(function()
     if Options.droptogglemanual.Value then
         if tick() - customDropDebounce >= safeDropCooldown then
-            local dropped = drop(Options.droptextbox.Value)
-            if dropped then
-                customDropDebounce = tick()
-                task.wait(0.05) -- Stabilizes client/server inventory layout properties
+            customDropDebounce = tick()
+            local success = drop(Options.droptextbox.Value)
+            if not success then
+                customDropDebounce = tick() - (safeDropCooldown - 0.2)
             end
         end
     end
