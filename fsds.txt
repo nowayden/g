@@ -248,23 +248,25 @@ task.spawn(function()
     end
 end)
 
--- Drop loops
-local debounce = 0
-local cd = 0
+-- Fixed anti-webhook auto-drop connections
+local dropdownDebounce = 0
+local customDropDebounce = 0
+local safeDropCooldown = 0.3 -- Blocks automated system verification triggers
+
 runs.Heartbeat:Connect(function()
     if Options.droptoggle.Value then
-        if tick() - debounce >= cd then
+        if tick() - dropdownDebounce >= safeDropCooldown then
             drop(Options.dropdropdown.Value)
-            debounce = tick()
+            dropdownDebounce = tick()
         end
     end
 end)
 
 runs.Heartbeat:Connect(function()
     if Options.droptogglemanual.Value then
-        if tick() - debounce >= cd then
+        if tick() - customDropDebounce >= safeDropCooldown then
             drop(Options.droptextbox.Value)
-            debounce = tick()
+            customDropDebounce = tick()
         end
     end
 end)
@@ -321,7 +323,6 @@ function placeSingleSnappedBox()
     local cam = workspace.CurrentCamera
     local cursorPos = cam and cam.CFrame.Position or pos
     
-    -- Reduced grid size boundary from 6.05 to 5.05 for absolute tightest physical placement
     local gs = 5.05
     local sp = Vector3.new(math.round(pos.X/gs)*gs, pos.Y, math.round(pos.Z/gs)*gs)
     
@@ -329,7 +330,7 @@ function placeSingleSnappedBox()
     rp.FilterType, rp.FilterDescendantsInstances, rp.IgnoreWater = Enum.RaycastFilterType.Blacklist, {char}, true
     local rr = workspace:Raycast(Vector3.new(sp.X, sp.Y+100, sp.Z), Vector3.new(0,-200,0), rp)
     local fp = rr and rr.Position or sp
-    local rot = CFrame.Angles(0, 0, 0) -- Hardlocked to 0 degrees
+    local rot = CFrame.Angles(0, 0, 0)
     
     if packets.PlaceStructure and packets.PlaceStructure.send then
         packets.PlaceStructure.send({buildingName = "Plant Box", cframe = CFrame.new(fp)*rot, vec = fp, isMobile = false, cursor = cursorPos})
@@ -650,6 +651,6 @@ SaveManager:BuildConfigSection(Tabs.Settings)
 Window:SelectTab(1)
 
 task.wait(0.5)
-Library:Notify{Title = "neverlose", Content = "holy sigma gang | BedButton Fixed", Duration = 8}
+Library:Notify{Title = "neverlose", Content = "holy sigma gang | Drop Lag Webhook Fixed", Duration = 8}
 SaveManager:LoadAutoloadConfig()
 print("Done! Enjoy neverlose!")
