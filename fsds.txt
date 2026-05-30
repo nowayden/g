@@ -93,12 +93,8 @@ Tabs.Farming:AddSlider("tweenrange", { Title = "Range", Min = 1, Max = 250, Roun
 
 Tabs.Farming:AddSection("Plant Box Placer")
 Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Continuously", Default = false })
-Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees", "45 degrees"}, Default = "0 degrees"})
-Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placestructure(1) end})
-Tabs.Farming:AddButton({Title = "Place 16x16 Plantboxes (256)", Callback = function() placestructure(16) end})
-Tabs.Farming:AddButton({Title = "Place 15x15 Plantboxes (225)", Callback = function() placestructure(15) end})
-Tabs.Farming:AddButton({Title = "Place 10x10 Plantboxes (100)", Callback = function() placestructure(10) end})
-Tabs.Farming:AddButton({Title = "Place 5x5 Plantboxes (25)", Callback = function() placestructure(5) end})
+Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees"}, Default = "0 degrees"})
+Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placeSingleSnappedBox() end})
 
 -- WS/JP handlers
 local function updws()
@@ -317,51 +313,27 @@ local function tween(target)
     tweening = tw
 end
 
--- Plant box placement
-local function placeSingleSnappedBox()
+-- Plant box placement (Tight Edge-to-Edge Snapping)
+function placeSingleSnappedBox()
     local char = plr.Character
     if not (char and char:FindFirstChild("HumanoidRootPart")) then return end
     local pos = char.HumanoidRootPart.Position
     local cam = workspace.CurrentCamera
     local cursorPos = cam and cam.CFrame.Position or pos
-    local gs = 6.05
+    
+    -- Reduced grid size boundary from 6.05 to 5.05 for absolute tightest physical placement
+    local gs = 5.05
     local sp = Vector3.new(math.round(pos.X/gs)*gs, pos.Y, math.round(pos.Z/gs)*gs)
+    
     local rp = RaycastParams.new()
     rp.FilterType, rp.FilterDescendantsInstances, rp.IgnoreWater = Enum.RaycastFilterType.Blacklist, {char}, true
     local rr = workspace:Raycast(Vector3.new(sp.X, sp.Y+100, sp.Z), Vector3.new(0,-200,0), rp)
     local fp = rr and rr.Position or sp
-    local rot = Options.rotationdropdown.Value == "45 degrees" and CFrame.Angles(0, math.rad(45), 0) or CFrame.Angles(0,0,0)
+    local rot = CFrame.Angles(0, 0, 0) -- Hardlocked to 0 degrees
+    
     if packets.PlaceStructure and packets.PlaceStructure.send then
         packets.PlaceStructure.send({buildingName = "Plant Box", cframe = CFrame.new(fp)*rot, vec = fp, isMobile = false, cursor = cursorPos})
     end
-end
-
-local function placeGridOfBoxes(gridSize)
-    local char = plr.Character
-    if not (char and char:FindFirstChild("HumanoidRootPart")) then return end
-    local torso, cam = char.HumanoidRootPart, workspace.CurrentCamera
-    local cursorPos = cam and cam.CFrame.Position or torso.Position
-    local rot = Options.rotationdropdown.Value == "45 degrees" and CFrame.Angles(0, math.rad(45), 0) or CFrame.Angles(0,0,0)
-    local sp = 6.05
-    local startpos = torso.Position - Vector3.new(0,3,0)
-    for x = 0, gridSize-1 do
-        for z = 0, gridSize-1 do
-            task.wait(0.3)
-            local gp = Vector3.new(startpos.X + x*sp, startpos.Y, startpos.Z + z*sp)
-            local sgp = Vector3.new(math.round(gp.X/sp)*sp, gp.Y, math.round(gp.Z/sp)*sp)
-            local rp = RaycastParams.new()
-            rp.FilterType, rp.FilterDescendantsInstances, rp.IgnoreWater = Enum.RaycastFilterType.Blacklist, {char}, true
-            local rr = workspace:Raycast(Vector3.new(sgp.X, sgp.Y+100, sgp.Z), Vector3.new(0,-200,0), rp)
-            local fp = rr and rr.Position or sgp
-            if packets.PlaceStructure and packets.PlaceStructure.send then
-                packets.PlaceStructure.send({buildingName = "Plant Box", cframe = CFrame.new(fp)*rot, vec = fp, isMobile = false, cursor = cursorPos})
-            end
-        end
-    end
-end
-
-local placestructure = function(gs)
-    if gs == 1 then placeSingleSnappedBox() else placeGridOfBoxes(gs) end
 end
 
 -- Continuous placement
@@ -435,7 +407,6 @@ local isPlantingRunning = false
 
 local function FastPlantLoop()
     while isPlantingRunning do
-        -- Dynamically fetches slider options on every cycle
         local plantToggleOpt = Options.planttoggle
         local rangeOpt = Options.plantrange
         local fruitOpt = Options.fruitdropdown
@@ -451,7 +422,6 @@ local function FastPlantLoop()
                 for _, box in ipairs(nearbyBoxes) do
                     if not isPlantingRunning then break end
                     if not box.deployable:FindFirstChild("Seed") then
-                        -- Fires packet data directly to the server, bypassing engine frames
                         pcall(function()
                             packets.InteractStructure.send({entityID = box.entityid, itemID = itemID})
                         end)
@@ -459,7 +429,6 @@ local function FastPlantLoop()
                 end
             end
         end
-        -- Bypasses the 0.01 UI limit by supporting custom thread-level intervals
         local executionDelay = tonumber(Options.plantdelay.Value) or 0.01
         task.wait(math.max(0.001, executionDelay))
     end
@@ -536,7 +505,6 @@ local function teleportToHitbox(hitbox)
             pcall(function()
                 if item:IsA("BasePart") then item.Position = tp
                 elseif item:IsA("Model") and item.PrimaryPart then item:SetPrimaryPartCFrame(CFrame.new(tp)) end
-             pcall(function() item.Position = tp end)
             end)
         end
     end
