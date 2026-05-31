@@ -246,12 +246,12 @@ end
 Options.resourceauratoggle:OnChanged(function(s) if s then startResource() else resourceActive = false; if resourceConn then resourceConn:Disconnect(); resourceConn = nil end end end)
 
 -- Critter Aura
-local SchuylerActive, critterConn, lastCritterTime = false, nil, 0
+local SchuylerActive, NuvaConn, lastCritterTime = false, nil, 0
 local function startCritter()
     if SchuylerActive then return end
-    SchylerActive = true
-    critterConn = runs.Heartbeat:Connect(function()
-        if not Options.critterauratoggle.Value then critterConn:Disconnect(); critterConn = nil; SchuylerActive = false; return end
+    SchuylerActive = true
+    NuvaConn = runs.Heartbeat:Connect(function()
+        if not Options.critterauratoggle.Value then NuvaConn:Disconnect(); NuvaConn = nil; SchuylerActive = false; return end
         if not root or not GameUtil.Data.equipped then return end
         local ct = tick()
         if ct - lastCritterTime < (tonumber(Options.crittercooldownslider.Value) or 0.1) then return end
@@ -278,7 +278,7 @@ local function startCritter()
         end
     end)
 end
-Options.critterauratoggle:OnChanged(function(s) if s then startCritter() else SchuylerActive = false; if critterConn then critterConn:Disconnect(); critterConn = nil end end end)
+Options.critterauratoggle:OnChanged(function(s) if s then startCritter() else SchuylerActive = false; if NuvaConn then NuvaConn:Disconnect(); NuvaConn = nil end end end)
 
 
 -- ==================== REWORKED HARVEST / DROP / PICKUP ASYNC MOTORS ====================
@@ -357,7 +357,6 @@ local function tween(targetCFrame)
     tweening = tspmo:Create(root, TweenInfo.new(dur, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
     tweening:Play()
     
-    -- Wait until the animation completes or gets canceled externally
     local completedSignal
     completedSignal = tweening.Completed:Connect(function()
         completedSignal:Disconnect()
@@ -396,14 +395,12 @@ Options.placeplantboxestoggle:OnChanged(function(v)
     end
 end)
 
--- Multi-threaded 24/7 continuous worker for movement logic
 task.spawn(function()
     while task.wait(0.05) do
         if root then
             local range = Options.tweenrange.Value or 250
             local selectedFruit = Options.fruitdropdown.Value or "Bloodfruit"
             
-            -- VERSION 1: Tween to Plant Box 24/7 Non-Stop
             if Options.tweentoplantbox.Value and not Options.tweentobush.Value then
                 local boxes = getpbs(range)
                 local closestBox, minBoxDist = nil, math.huge
@@ -420,7 +417,6 @@ task.spawn(function()
                     tween(closestBox.cframe + Vector3.new(0, 3, 0))
                 end
                 
-            -- VERSION 2: Tween to Bush + Plant Box Mixed Mode
             elseif Options.tweentobush.Value then
                 local bushes = getbushes(range, selectedFruit)
                 local closestBush, minBushDist = nil, math.huge
@@ -439,7 +435,6 @@ task.spawn(function()
                         pickup(closestBush.entityid)
                     end
                 else
-                    -- No bushes found, proceed to process empty boxes inside the same thread seamlessly
                     local boxes = getpbs(range)
                     local closestBox, minBoxDist = nil, math.huge
                     
@@ -466,7 +461,6 @@ task.spawn(function()
     end
 end)
 
--- Synchronize UI states so they don't fight each other
 Options.tweentoplantbox:OnChanged(function(v)
     if v then 
         Options.tweentobush:SetValue(false) 
@@ -483,7 +477,6 @@ Options.tweentobush:OnChanged(function(v)
     end
 end)
 
--- FPS Lag Fix for Auto Plant Routine (Optimized query cycle)
 local isPlantingRunning = false
 local lastPlantCycle = 0
 
@@ -513,7 +506,7 @@ local function FastPlantLoop()
             end
             lastPlantCycle = ct
         end
-        task.wait(0.02) -- Fixed yield to keep thread running smoothly without locking execution frames
+        task.wait(0.02)
     end
 end
 
@@ -736,12 +729,16 @@ Tabs.Event:AddToggle("AutoRebirthToggle", {
 
 SaveManager:SetLibrary(Library)
 InterfaceManager:SetLibrary(Library)
+
 SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes{}
+SaveManager:SetIgnoreIndexes(table.create(0))
+
 InterfaceManager:SetFolder("FluentScriptHub")
 SaveManager:SetFolder("FluentScriptHub/specific-game")
+
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
+
 Window:SelectTab(1)
 
 task.wait(0.5)
