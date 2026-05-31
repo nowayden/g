@@ -180,7 +180,7 @@ local function startResource()
             table.sort(targets, function(a,b) return a.dist < b.dist end)
             local sel = {}
             for i = 1, math.min(tc, #targets) do table.insert(sel, targets[i].eid) end
-            network.swingtool(sel)
+            swingtool(sel)
             lastResourceTime = ct
         end
     end)
@@ -191,7 +191,7 @@ Options.resourceauratoggle:OnChanged(function(s) if s then startResource() else 
 local SchuylerActive, critterConn, lastCritterTime = false, nil, 0
 local function startCritter()
     if SchuylerActive then return end
-     SchuylerActive = true
+    SchuylerActive = true
     critterConn = runs.Heartbeat:Connect(function()
         if not Options.critterauratoggle.Value then critterConn:Disconnect(); critterConn = nil; SchuylerActive = false; return end
         if not root or not GameUtil.Data.equipped then return end
@@ -345,19 +345,33 @@ Options.placeplantboxestoggle:OnChanged(function(v)
     end
 end)
 
--- Tween toggles (PURE MOVEMENT ONLY - RUNS 24/7 WITHOUT PLANTING ACTIONS)
+-- ==================== 24/7 DYNAMIC TWEEN MOVEMENT SYSTEMS ====================
 local plantBoxConn, bushConn
+local currentTargetIndex = 1
+
 Options.tweentoplantbox:OnChanged(function(v)
     if v then
         if plantBoxConn then plantBoxConn:Disconnect() end
         plantBoxConn = runs.Heartbeat:Connect(function()
             if not root then return end
             local boxes = getpbs(Options.tweenrange.Value)
-            local closest, minD = nil, math.huge
-            for _, b in ipairs(boxes) do
-                if not b.deployable:FindFirstChild("Seed") and b.dist < minD then minD, closest = b.dist, b end
+            if #boxes == 0 then return end
+            
+            -- Cycle targets sequentially to keep movement completely non-stop 24/7
+            if currentTargetIndex > #boxes then currentTargetIndex = 1 end
+            local currentTarget = boxes[currentTargetIndex]
+            
+            if currentTarget and currentTarget.deployable and currentTarget.deployable.PrimaryPart then
+                local targetCFrame = currentTarget.deployable.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
+                tween(targetCFrame)
+                
+                -- When close enough, immediately shift target to keep traveling non-stop
+                if (root.Position - targetCFrame.Position).Magnitude < 4 then
+                    currentTargetIndex = currentTargetIndex + 1
+                end
+            else
+                currentTargetIndex = currentTargetIndex + 1
             end
-            if closest then tween(closest.deployable.PrimaryPart.CFrame + Vector3.new(0,3,0)) end
         end)
     else
         if plantBoxConn then plantBoxConn:Disconnect(); plantBoxConn = nil end
@@ -372,20 +386,28 @@ Options.tweentobush:OnChanged(function(v)
             if not root then return end
             local fn = Options.fruitdropdown.Value
             local range = Options.tweenrange.Value
+            
             local bushes = getbushes(range, fn)
-            local cb, minD = nil, math.huge
-            for _, b in ipairs(bushes) do if b.dist < minD then minD, cb = b.dist, b end end
-            if cb then
-                tween(cb.model.PrimaryPart.CFrame + Vector3.new(0,3,0))
+            local boxes = getpbs(range)
+            
+            -- Combine everything into a giant movement sequence list
+            local combinedTargets = {}
+            for _, b in ipairs(bushes) do table.insert(combinedTargets, b.model) end
+            for _, b in ipairs(boxes) do table.insert(combinedTargets, b.deployable) end
+            
+            if #combinedTargets == 0 then return end
+            if currentTargetIndex > #combinedTargets then currentTargetIndex = 1 end
+            
+            local currentTarget = combinedTargets[currentTargetIndex]
+            if currentTarget and currentTarget.PrimaryPart then
+                local targetCFrame = currentTarget.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
+                tween(targetCFrame)
+                
+                if (root.Position - targetCFrame.Position).Magnitude < 4 then
+                    currentTargetIndex = currentTargetIndex + 1
+                end
             else
-                local boxes = getpbs(range)
-                local ce, minD2 = nil, math.huge
-                for _, b in ipairs(boxes) do
-                    if not b.deployable:FindFirstChild("Seed") and b.dist < minD2 then minD2, ce = b.dist, b end
-                end
-                if ce then
-                    tween(ce.deployable.PrimaryPart.CFrame + Vector3.new(0,3,0))
-                end
+                currentTargetIndex = currentTargetIndex + 1
             end
         end)
     else
