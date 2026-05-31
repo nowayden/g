@@ -269,13 +269,14 @@ runs.Heartbeat:Connect(function()
     end
 end)
 
--- Farming helpers
+-- Farming helpers (Pulls ONLY unplaced/natural map-generated boxes now)
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
 
 local function getpbs(range)
     local boxes = {}
     if not root then return boxes end
-    for _, d in ipairs(workspace.Deployables:GetChildren()) do
+    -- Changed workspace.Deployables to workspace to avoid tracking player-placed objects
+    for _, d in ipairs(workspace:GetChildren()) do
         if d:IsA("Model") and d.Name == "Plant Box" then
             local eid, pp = d:GetAttribute("EntityID"), d.PrimaryPart or d:FindFirstChildWhichIsA("BasePart")
             if eid and pp then
