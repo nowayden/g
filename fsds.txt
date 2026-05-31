@@ -554,6 +554,7 @@ Tabs.Potions:AddToggle("AutoPotionToggle", {
 
 -- ==================== AUTO REBIRTH SYSTEM (FIXED FOR BED SPAWN) ====================
 local autoRebirthRunning = false
+local hasConfirmedRebirth = false -- Tracks if user has given permission via dialog
 
 local function pressBedButton()
     local spawnGui = plr.PlayerGui:FindFirstChild("SpawnGui")
@@ -631,7 +632,32 @@ Tabs.Event:AddToggle("AutoRebirthToggle", {
     Default = false,
     Callback = function(state)
         if state then
-            StartAutoRebirth()
+            if not hasConfirmedRebirth then
+                -- Open a Fluent confirmation window on the first activation attempt
+                Window:Dialog({
+                    Title = "Confirmation Required",
+                    Content = "Are you sure you want to toggle Auto Rebirth?",
+                    Buttons = {
+                        {
+                            Title = "Confirm",
+                            Callback = function()
+                                hasConfirmedRebirth = true
+                                StartAutoRebirth()
+                            end
+                        },
+                        {
+                            Title = "Cancel",
+                            Callback = function()
+                                -- Revert UI toggle back to false without activating anything
+                                Options.AutoRebirthToggle:SetValue(false)
+                            end
+                        }
+                    }
+                })
+            else
+                -- Bypass dialog if already confirmed once during this session
+                StartAutoRebirth()
+            end
         else
             StopAutoRebirth()
         end
