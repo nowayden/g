@@ -729,7 +729,7 @@ Tabs.Event:AddToggle("AutoRebirthToggle", {
             StopAutoRebirth()
         end
     end
-end)
+})
 
 
 -- ==================== FINAL SETUP SECTION ====================
@@ -737,7 +737,7 @@ end)
 SaveManager:SetLibrary(Library)
 InterfaceManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes()
+SaveManager:SetIgnoreIndexes{}
 InterfaceManager:SetFolder("FluentScriptHub")
 SaveManager:SetFolder("FluentScriptHub/specific-game")
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
