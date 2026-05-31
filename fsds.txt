@@ -1,8 +1,8 @@
 print("loading neverlose")
-print("-------------------------")
+print("-----------------------------------------")
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
-local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
+local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
     Title = "neverlose", SubTitle = ":)", TabWidth = 160,
@@ -37,8 +37,6 @@ local function updateCharacter()
 end
 updateCharacter()
 plr.CharacterAdded:Connect(updateCharacter)
-
--- ==================== UI ELEMENTS ====================
 
 -- Main Tab
 Tabs.Main:AddSection("Movement")
@@ -96,14 +94,9 @@ Tabs.Farming:AddSlider("tweenrange", { Title = "Range", Min = 1, Max = 250, Roun
 Tabs.Farming:AddSection("Plant Box Placer")
 Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Continuously", Default = false })
 Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees"}, Default = "0 degrees"})
-
--- Forward declaration for button callback compatibility
-local placeSingleSnappedBox
 Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placeSingleSnappedBox() end})
 
-
--- ==================== CORE UTILITIES & MOTOR HANDLERS ====================
-
+-- WS/JP handlers
 local function updws()
     if wscon then wscon:Disconnect(); wscon = nil end
     if Options.wstoggle.Value or Options.jptoggle.Value then
@@ -128,6 +121,7 @@ local function updmsa()
 end
 Options.msatoggle:OnChanged(updmsa)
 
+-- Helper functions
 local function swingtool(entityIds)
     if not (packets.SwingTool and packets.SwingTool.send) then return end
     local arr = {}
@@ -158,58 +152,6 @@ Options.itemdropdown:OnChanged(function(v)
     selecteditems = {}
     for item, state in pairs(v) do if state then table.insert(selecteditems, item) end end
 end)
-
-
--- ==================== RE-ENGINEERED COMPACT CACHING REQUISITIONS ====================
-
-local function getpbs(range)
-    local boxes = {}
-    if not root then return boxes end
-    local currentPos = root.Position
-    local deployables = workspace:FindFirstChild("Deployables")
-    if not deployables then return boxes end
-    
-    local children = deployables:GetChildren()
-    for i = 1, #children do
-        local d = children[i]
-        if d.Name == "Plant Box" then
-            local eid = d:GetAttribute("EntityID")
-            local pp = d.PrimaryPart or d:FindFirstChildWhichIsA("BasePart")
-            if eid and pp then
-                local dist = (pp.Position - currentPos).Magnitude
-                if dist <= range then 
-                    table.insert(boxes, {entityid = eid, deployable = d, dist = dist, cframe = pp.CFrame}) 
-                end
-            end
-        end
-    end
-    return boxes
-end
-
-local function getbushes(range, fruitname)
-    local bushes = {}
-    if not root then return bushes end
-    local currentPos = root.Position
-    local children = workspace:GetChildren()
-    
-    for i = 1, #children do
-        local m = children[i]
-        if m:IsA("Model") and m.Name:find(fruitname) then
-            local pp = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
-            local eid = m:GetAttribute("EntityID")
-            if pp and eid then
-                local dist = (pp.Position - currentPos).Magnitude
-                if dist <= range then
-                    table.insert(bushes, {entityid = eid, model = m, dist = dist, cframe = pp.CFrame, position = pp.Position})
-                end
-            end
-        end
-    end
-    return bushes
-end
-
-
--- ==================== AURAS & INTERACTION PIPELINES ====================
 
 -- Resource Aura
 local resourceActive, resourceConn, lastResourceTime = false, nil, 0
@@ -246,12 +188,12 @@ end
 Options.resourceauratoggle:OnChanged(function(s) if s then startResource() else resourceActive = false; if resourceConn then resourceConn:Disconnect(); resourceConn = nil end end end)
 
 -- Critter Aura
-local SchuylerActive, NuvaConn, lastCritterTime = false, nil, 0
+local SchuylerActive, critterConn, lastCritterTime = false, nil, 0
 local function startCritter()
     if SchuylerActive then return end
-    SchuylerActive = true
-    NuvaConn = runs.Heartbeat:Connect(function()
-        if not Options.critterauratoggle.Value then NuvaConn:Disconnect(); NuvaConn = nil; SchuylerActive = false; return end
+     SchuylerActive = true
+    critterConn = runs.Heartbeat:Connect(function()
+        if not Options.critterauratoggle.Value then critterConn:Disconnect(); critterConn = nil; SchuylerActive = false; return end
         if not root or not GameUtil.Data.equipped then return end
         local ct = tick()
         if ct - lastCritterTime < (tonumber(Options.crittercooldownslider.Value) or 0.1) then return end
@@ -278,92 +220,101 @@ local function startCritter()
         end
     end)
 end
-Options.critterauratoggle:OnChanged(function(s) if s then startCritter() else SchuylerActive = false; if NuvaConn then NuvaConn:Disconnect(); NuvaConn = nil end end end)
+Options.critterauratoggle:OnChanged(function(s) if s then startCritter() else SchuylerActive = false; if critterConn then critterConn:Disconnect(); critterConn = nil end end end)
 
-
--- ==================== REWORKED HARVEST / DROP / PICKUP ASYNC MOTORS ====================
-
+-- Pickup loop
 task.spawn(function()
     while true do
         local range = tonumber(Options.pickuprange.Value) or 35
         if Options.autopickuptoggle.Value and root then
-            local items = workspace.Items:GetChildren()
-            for i = 1, #items do
-                local item = items[i]
+            for _, item in ipairs(workspace.Items:GetChildren()) do
                 if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
                     if (item.Position - root.Position).Magnitude <= range then pickup(item:GetAttribute("EntityID")) end
                 end
             end
         end
         if Options.chestpickuptoggle.Value and root then
-            local deployables = workspace.Deployables:GetChildren()
-            for i = 1, #deployables do
-                local chest = deployables[i]
-                if chest:IsA("Model") and chest:FindFirstChild("Contents") and chest.PrimaryPart then
-                    if (chest.PrimaryPart.Position - root.Position).Magnitude <= range then
-                        local contents = chest.Contents:GetChildren()
-                        for j = 1, #contents do
-                            local item = contents[j]
-                            if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
-                                pickup(item:GetAttribute("EntityID"))
-                            end
+            for _, chest in ipairs(workspace.Deployables:GetChildren()) do
+                if chest:IsA("Model") and chest:FindFirstChild("Contents") then
+                    for _, item in ipairs(chest.Contents:GetChildren()) do
+                        if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
+                            if (chest.PrimaryPart.Position - root.Position).Magnitude <= range then pickup(item:GetAttribute("EntityID")) end
                         end
                     end
                 end
             end
         end
-        task.wait(0.1)
+        task.wait(0.01)
     end
 end)
 
+-- Drop loops
 local debounce = 0
-local cd = 0.1
+local cd = 0
 runs.Heartbeat:Connect(function()
-    if tick() - debounce >= cd then
-        if Options.droptoggle.Value then
+    if Options.droptoggle.Value then
+        if tick() - debounce >= cd then
             drop(Options.dropdropdown.Value)
             debounce = tick()
-        elseif Options.droptogglemanual.Value then
+        end
+    end
+end)
+
+runs.Heartbeat:Connect(function()
+    if Options.droptogglemanual.Value then
+        if tick() - debounce >= cd then
             drop(Options.droptextbox.Value)
             debounce = tick()
         end
     end
 end)
 
-task.spawn(function()
-    while true do
-        if Options.harvesttoggle.Value and root then
-            local bushes = getbushes(tonumber(Options.harvestrange.Value) or 30, Options.fruitdropdown.Value)
-            for i = 1, #bushes do pickup(bushes[i].entityid) end
-        end
-        task.wait(0.2)
-    end
-end)
-
-
--- ==================== STABLE HIGH-PERFORMANCE FARMING ENGINE ====================
-
+-- Farming helpers
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
-local tweening = nil
 
-local function tween(targetCFrame)
-    if not root then return end
-    if tweening then tweening:Cancel() end
-    
-    local speed = Options.tweenspeed.Value or 50
-    local dur = (root.Position - targetCFrame.Position).Magnitude / speed
-    if dur < 0.05 then dur = 0.05 end
-    
-    tweening = tspmo:Create(root, TweenInfo.new(dur, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
-    tweening:Play()
-    
-    local completedSignal
-    completedSignal = tweening.Completed:Connect(function()
-        completedSignal:Disconnect()
-        tweening = nil
-    end)
+local function getpbs(range)
+    local boxes = {}
+    if not root then return boxes end
+    for _, d in ipairs(workspace.Deployables:GetChildren()) do
+        if d:IsA("Model") and d.Name == "Plant Box" then
+            local eid, pp = d:GetAttribute("EntityID"), d.PrimaryPart or d:FindFirstChildWhichIsA("BasePart")
+            if eid and pp then
+                local dist = (pp.Position - root.Position).Magnitude
+                if dist <= range then table.insert(boxes, {entityid = eid, deployable = d, dist = dist}) end
+            end
+        end
+    end
+    return boxes
 end
 
+local function getbushes(range, fruitname)
+    local bushes = {}
+    if not root then return bushes end
+    for _, m in ipairs(workspace:GetChildren()) do
+        if m:IsA("Model") and m.Name:find(fruitname) then
+            local pp, eid = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart"), m:GetAttribute("EntityID")
+            if pp and eid and (pp.Position - root.Position).Magnitude <= range then
+                table.insert(bushes, {entityid = eid, model = m, dist = (pp.Position - root.Position).Magnitude})
+            end
+        end
+    end
+    return bushes
+end
+
+local currentTween = nil
+local function tween(targetCFrame)
+    if not root then return end
+    local speed = Options.tweenspeed.Value or 50
+    local dist = (root.Position - targetCFrame.Position).Magnitude
+    local dur = math.max(0.05, dist / speed)
+    
+    if currentTween then currentTween:Cancel() end
+    currentTween = tspmo:Create(root, TweenInfo.new(dur, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
+    currentTween:Play()
+    return currentTween
+end
+
+-- Plant box placement (Tight Edge-to-Edge Snapping)
 function placeSingleSnappedBox()
     local char = plr.Character
     if not (char and char:FindFirstChild("HumanoidRootPart")) then return end
@@ -385,6 +336,7 @@ function placeSingleSnappedBox()
     end
 end
 
+-- Continuous placement
 local placementConn
 Options.placeplantboxestoggle:OnChanged(function(v)
     if v then
@@ -395,129 +347,142 @@ Options.placeplantboxestoggle:OnChanged(function(v)
     end
 end)
 
-task.spawn(function()
-    while task.wait(0.05) do
+-- ==================== 24/7 NON-STOP TWEEN LOGIC ====================
+local isTweenBoxRunning = false
+local isTweenBushRunning = false
+
+local function TweenToBoxLoop()
+    while isTweenBoxRunning do
         if root then
-            local range = Options.tweenrange.Value or 250
-            local selectedFruit = Options.fruitdropdown.Value or "Bloodfruit"
-            
-            if Options.tweentoplantbox.Value and not Options.tweentobush.Value then
-                local boxes = getpbs(range)
-                local closestBox, minBoxDist = nil, math.huge
-                
-                for i = 1, #boxes do
-                    local b = boxes[i]
-                    if not b.deployable:FindFirstChild("Seed") and b.dist < minBoxDist then
-                        minBoxDist = b.dist
-                        closestBox = b
-                    end
-                end
-                
-                if closestBox then
-                    tween(closestBox.cframe + Vector3.new(0, 3, 0))
-                end
-                
-            elseif Options.tweentobush.Value then
-                local bushes = getbushes(range, selectedFruit)
-                local closestBush, minBushDist = nil, math.huge
-                
-                for i = 1, #bushes do
-                    local b = bushes[i]
-                    if b.dist < minBushDist then
-                        minBushDist = b.dist
-                        closestBush = b
-                    end
-                end
-                
-                if closestBush then
-                    tween(closestBush.cframe + Vector3.new(0, 3, 0))
-                    if closestBush.dist <= 15 and packets.Pickup then
-                        pickup(closestBush.entityid)
-                    end
-                else
-                    local boxes = getpbs(range)
-                    local closestBox, minBoxDist = nil, math.huge
-                    
-                    for i = 1, #boxes do
-                        local b = boxes[i]
-                        if not b.deployable:FindFirstChild("Seed") and b.dist < minBoxDist then
-                            minBoxDist = b.dist
-                            closestBox = b
-                        end
-                    end
-                    
-                    if closestBox then
-                        tween(closestBox.cframe + Vector3.new(0, 3, 0))
-                        if closestBox.dist <= 15 and packets.InteractStructure then
-                            local itemID = fruittoitemid[selectedFruit] or 94
-                            pcall(function() 
-                                packets.InteractStructure.send({entityID = closestBox.entityid, itemID = itemID}) 
-                            end)
-                        end
-                    end
+            local boxes = getpbs(Options.tweenrange.Value)
+            local closest, minD = nil, math.huge
+            for _, b in ipairs(boxes) do
+                if not b.deployable:FindFirstChild("Seed") and b.dist < minD then 
+                    minD, closest = b.dist, b 
                 end
             end
+            if closest then
+                local tw = tween(closest.deployable.PrimaryPart.CFrame + Vector3.new(0, 3, 0))
+                if tw then tw.Completed:Wait() end
+            else
+                task.wait(0.1)
+            end
+        else
+            task.wait(0.2)
         end
     end
-end)
+end
+
+local function TweenToBushLoop()
+    while isTweenBushRunning do
+        if root then
+            local fn = Options.fruitdropdown.Value
+            local range = Options.tweenrange.Value
+            local bushes = getbushes(range, fn)
+            local cb, minD = nil, math.huge
+            
+            for _, b in ipairs(bushes) do 
+                if b.dist < minD then minD, cb = b.dist, b end 
+            end
+            
+            if cb then
+                local tw = tween(cb.model.PrimaryPart.CFrame + Vector3.new(0, 3, 0))
+                if tw then tw.Completed:Wait() end
+                if (cb.model.PrimaryPart.Position - root.Position).Magnitude <= range and packets.Pickup then
+                    packets.Pickup.send(cb.entityid)
+                end
+            else
+                local boxes = getpbs(range)
+                local ce, minD2 = nil, math.huge
+                for _, b in ipairs(boxes) do
+                    if not b.deployable:FindFirstChild("Seed") and b.dist < minD2 then 
+                        minD2, ce = b.dist, b 
+                    end
+                end
+                if ce then
+                    local tw = tween(ce.deployable.PrimaryPart.CFrame + Vector3.new(0, 3, 0))
+                    if tw then tw.Completed:Wait() end
+                    if (ce.deployable.PrimaryPart.Position - root.Position).Magnitude <= range and packets.InteractStructure then
+                        pcall(function() packets.InteractStructure.send({entityID = ce.entityid, itemID = fruittoitemid[fn] or 94}) end)
+                    end
+                else
+                    task.wait(0.1)
+                end
+            end
+        else
+            task.wait(0.2)
+        end
+    end
+end
 
 Options.tweentoplantbox:OnChanged(function(v)
-    if v then 
-        Options.tweentobush:SetValue(false) 
-    else 
-        if not Options.tweentobush.Value and tweening then tweening:Cancel(); tweening = nil end
+    isTweenBoxRunning = v
+    if v then
+        if Options.tweentobush.Value then Options.tweentobush:SetValue(false) end
+        task.spawn(TweenToBoxLoop)
+    else
+        if currentTween then currentTween:Cancel(); currentTween = nil end
     end
 end)
 
 Options.tweentobush:OnChanged(function(v)
-    if v then 
-        Options.tweentoplantbox:SetValue(false) 
-    else 
-        if not Options.tweentoplantbox.Value and tweening then tweening:Cancel(); tweening = nil end
+    isTweenBushRunning = v
+    if v then
+        if Options.tweentoplantbox.Value then Options.tweentoplantbox:SetValue(false) end
+        task.spawn(TweenToBushLoop)
+    else
+        if currentTween then currentTween:Cancel(); currentTween = nil end
     end
 end)
 
+-- ==================== OPTIMIZED LAG-FREE AUTO-PLANT ====================
 local isPlantingRunning = false
-local lastPlantCycle = 0
 
 local function FastPlantLoop()
     while isPlantingRunning do
-        local ct = tick()
-        local executionDelay = tonumber(Options.plantdelay.Value) or 0.1
-        
-        if ct - lastPlantCycle >= executionDelay then
-            if Options.planttoggle.Value and root and packets.InteractStructure then
-                local currentRange = tonumber(Options.plantrange.Value) or 30
-                local selectedFruit = Options.fruitdropdown.Value or "Bloodfruit"
-                local itemID = fruittoitemid[selectedFruit] or 94
-                
-                local nearbyBoxes = getpbs(currentRange)
-                if #nearbyBoxes > 0 then
-                    for i = 1, #nearbyBoxes do
-                        if not isPlantingRunning then break end
-                        local box = nearbyBoxes[i]
-                        if not box.deployable:FindFirstChild("Seed") then
-                            pcall(function()
-                                packets.InteractStructure.send({entityID = box.entityid, itemID = itemID})
-                            end)
-                        end
+        if Options.planttoggle.Value and root and packets.InteractStructure then
+            local currentRange = tonumber(Options.plantrange.Value) or 30
+            local selectedFruit = Options.fruitdropdown.Value or "Bloodfruit"
+            local itemID = fruittoitemid[selectedFruit] or 94
+            
+            local nearbyBoxes = getpbs(currentRange)
+            if #nearbyBoxes > 0 then
+                for _, box in ipairs(nearbyBoxes) do
+                    if not isPlantingRunning then break end
+                    if box.deployable and not box.deployable:FindFirstChild("Seed") then
+                        pcall(function()
+                            packets.InteractStructure.send({entityID = box.entityid, itemID = itemID})
+                        end)
+                        -- Added structural yield yield to prevent local data saturation / FPS choking
+                        runs.Heartbeat:Wait()
                     end
                 end
             end
-            lastPlantCycle = ct
         end
-        task.wait(0.02)
+        local executionDelay = tonumber(Options.plantdelay.Value) or 0.05
+        task.wait(math.max(0.01, executionDelay))
     end
 end
 
 Options.planttoggle:OnChanged(function(v)
     isPlantingRunning = v
-    if v then task.spawn(FastPlantLoop) end
+    if v then
+        task.spawn(FastPlantLoop)
+    end
 end)
 
+task.spawn(function()
+    while true do
+        if Options.harvesttoggle.Value and root then
+            local bushes = getbushes(tonumber(Options.harvestrange.Value) or 30, Options.fruitdropdown.Value)
+            table.sort(bushes, function(a,b) return a.dist < b.dist end)
+            for _, b in ipairs(bushes) do pickup(b.entityid) end
+        end
+        task.wait(0.1)
+    end
+end)
 
--- ==================== POTIONS ====================
-
+-- Potions
 local potionLoop, isBrewing, selectedPotion = nil, false, "Healing Potion"
 local POTIONS = {
     ["Healing Potion"] = {{name = "Ice Cube", amount = 3}, {name = "Bloodfruit", amount = 5}, {name = "Strawberry", amount = 2}},
@@ -613,9 +578,7 @@ Tabs.Potions:AddToggle("AutoPotionToggle", {
     end
 end)
 
-
--- ==================== AUTO REBIRTH SYSTEM ====================
-
+-- ==================== AUTO REBIRTH SYSTEM (FIXED FOR BED SPAWN) ====================
 local autoRebirthRunning = false
 local hasConfirmedRebirth = false
 
@@ -724,21 +687,15 @@ Tabs.Event:AddToggle("AutoRebirthToggle", {
     end
 })
 
-
--- ==================== FINAL SETUP SECTION ====================
-
+-- Final setup
 SaveManager:SetLibrary(Library)
 InterfaceManager:SetLibrary(Library)
-
 SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes({})
-
+SaveManager:SetIgnoreIndexes{}
 InterfaceManager:SetFolder("FluentScriptHub")
 SaveManager:SetFolder("FluentScriptHub/specific-game")
-
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
-
 Window:SelectTab(1)
 
 task.wait(0.5)
