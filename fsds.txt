@@ -345,19 +345,23 @@ Options.placeplantboxestoggle:OnChanged(function(v)
     end
 end)
 
--- ==================== 24/7 DYNAMIC TWEEN MOVEMENT SYSTEMS ====================
+-- ==================== 24/7 FIXED DYNAMIC MOVEMENT SYSTEMS ====================
 local plantBoxConn, bushConn
 local currentTargetIndex = 1
+local moveTimer = 0
 
 Options.tweentoplantbox:OnChanged(function(v)
     if v then
         if plantBoxConn then plantBoxConn:Disconnect() end
+        currentTargetIndex = 1
+        moveTimer = tick()
+        
         plantBoxConn = runs.Heartbeat:Connect(function()
             if not root then return end
             local boxes = getpbs(Options.tweenrange.Value)
             if #boxes == 0 then return end
             
-            -- Cycle targets sequentially to keep movement completely non-stop 24/7
+            -- Cycle targets sequentially
             if currentTargetIndex > #boxes then currentTargetIndex = 1 end
             local currentTarget = boxes[currentTargetIndex]
             
@@ -365,9 +369,10 @@ Options.tweentoplantbox:OnChanged(function(v)
                 local targetCFrame = currentTarget.deployable.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
                 tween(targetCFrame)
                 
-                -- When close enough, immediately shift target to keep traveling non-stop
-                if (root.Position - targetCFrame.Position).Magnitude < 4 then
+                -- FORCE next target after 0.25 seconds or if physically close
+                if tick() - moveTimer > 0.25 or (root.Position - targetCFrame.Position).Magnitude < 4 then
                     currentTargetIndex = currentTargetIndex + 1
+                    moveTimer = tick()
                 end
             else
                 currentTargetIndex = currentTargetIndex + 1
@@ -382,6 +387,9 @@ end)
 Options.tweentobush:OnChanged(function(v)
     if v then
         if bushConn then bushConn:Disconnect() end
+        currentTargetIndex = 1
+        moveTimer = tick()
+        
         bushConn = runs.Heartbeat:Connect(function()
             if not root then return end
             local fn = Options.fruitdropdown.Value
@@ -390,7 +398,6 @@ Options.tweentobush:OnChanged(function(v)
             local bushes = getbushes(range, fn)
             local boxes = getpbs(range)
             
-            -- Combine everything into a giant movement sequence list
             local combinedTargets = {}
             for _, b in ipairs(bushes) do table.insert(combinedTargets, b.model) end
             for _, b in ipairs(boxes) do table.insert(combinedTargets, b.deployable) end
@@ -403,8 +410,10 @@ Options.tweentobush:OnChanged(function(v)
                 local targetCFrame = currentTarget.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
                 tween(targetCFrame)
                 
-                if (root.Position - targetCFrame.Position).Magnitude < 4 then
+                -- FORCE next target after 0.25 seconds or if physically close
+                if tick() - moveTimer > 0.25 or (root.Position - targetCFrame.Position).Magnitude < 4 then
                     currentTargetIndex = currentTargetIndex + 1
+                    moveTimer = tick()
                 end
             else
                 currentTargetIndex = currentTargetIndex + 1
