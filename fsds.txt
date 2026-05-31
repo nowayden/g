@@ -275,7 +275,6 @@ local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1
 local function getpbs(range)
     local boxes = {}
     if not root then return boxes end
-    -- Changed workspace.Deployables to workspace to avoid tracking player-placed objects
     for _, d in ipairs(workspace:GetChildren()) do
         if d:IsA("Model") and d.Name == "Plant Box" then
             local eid, pp = d:GetAttribute("EntityID"), d.PrimaryPart or d:FindFirstChildWhichIsA("BasePart")
@@ -375,8 +374,6 @@ Options.tweentoplantbox:OnChanged(function(v)
                     currentTargetIndex = currentTargetIndex + 1
                     moveTimer = tick()
                 end
-            else
-                currentTargetIndex = currentTargetIndex + 1
             end
         end)
     else
@@ -416,8 +413,6 @@ Options.tweentobush:OnChanged(function(v)
                     currentTargetIndex = currentTargetIndex + 1
                     moveTimer = tick()
                 end
-            else
-                currentTargetIndex = currentTargetIndex + 1
             end
         end)
     else
