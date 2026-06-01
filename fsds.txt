@@ -234,11 +234,14 @@ task.spawn(function()
             end
         end
         if Options.chestpickuptoggle.Value and root then
-            for _, chest in ipairs(workspace.Deployables:GetChildren()) do
-                if chest:IsA("Model") and chest:FindFirstChild("Contents") then
-                    for _, item in ipairs(chest.Contents:GetChildren()) do
-                        if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
-                            if (chest.PrimaryPart.Position - root.Position).Magnitude <= range then pickup(item:GetAttribute("EntityID")) end
+            local deployablesFolder = workspace:FindFirstChild("Deployables")
+            if deployablesFolder then
+                for _, chest in ipairs(deployablesFolder:GetChildren()) do
+                    if chest:IsA("Model") and chest:FindFirstChild("Contents") then
+                        for _, item in ipairs(chest.Contents:GetChildren()) do
+                            if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
+                                if (chest.PrimaryPart.Position - root.Position).Magnitude <= range then pickup(item:GetAttribute("EntityID")) end
+                            end
                         end
                     end
                 end
@@ -269,19 +272,21 @@ runs.Heartbeat:Connect(function()
     end
 end)
 
--- Farming helpers (Pulls ONLY unplaced/natural map-generated boxes now)
+-- Farming helpers
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
 
 local function getpbs(range)
     local boxes = {}
     if not root then return boxes end
-    -- Changed workspace.Deployables to workspace to avoid tracking player-placed objects
-    for _, d in ipairs(workspace:GetChildren()) do
-        if d:IsA("Model") and d.Name == "Plant Box" then
-            local eid, pp = d:GetAttribute("EntityID"), d.PrimaryPart or d:FindFirstChildWhichIsA("BasePart")
-            if eid and pp then
-                local dist = (pp.Position - root.Position).Magnitude
-                if dist <= range then table.insert(boxes, {entityid = eid, deployable = d, dist = dist}) end
+    local deployablesFolder = workspace:FindFirstChild("Deployables")
+    if deployablesFolder then
+        for _, d in ipairs(deployablesFolder:GetChildren()) do
+            if d:IsA("Model") and d.Name == "Plant Box" then
+                local eid, pp = d:GetAttribute("EntityID"), d.PrimaryPart or d:FindFirstChildWhichIsA("BasePart")
+                if eid and pp then
+                    local dist = (pp.Position - root.Position).Magnitude
+                    if dist <= range then table.insert(boxes, {entityid = eid, deployable = d, dist = dist}) end
+                end
             end
         end
     end
@@ -306,7 +311,8 @@ local tweening = nil
 local function tween(target)
     if not root then return end
     if tweening then tweening:Cancel(); tweening = nil end
-    local dur = (root.Position - target.Position).Magnitude / Options.tweenspeed.Value
+    local speed = Options.tweenspeed and Options.tweenspeed.Value or 50
+    local dur = (root.Position - target.Position).Magnitude / speed
     if dur < 0.1 then dur = 0.1 end
     local tw = tspmo:Create(root, TweenInfo.new(dur, Enum.EasingStyle.Linear), {CFrame = target})
     tw:Play()
@@ -346,87 +352,113 @@ Options.placeplantboxestoggle:OnChanged(function(v)
     end
 end)
 
--- ==================== 24/7 FIXED DYNAMIC MOVEMENT SYSTEMS ====================
+-- ==================== SMART NEAREST-FIRST MOVEMENT SYSTEM ====================
 local plantBoxConn, bushConn
-local currentTargetIndex = 1
 local moveTimer = 0
+local isTweenBusy = false -- Tracks active tween execution
 
 Options.tweentoplantbox:OnChanged(function(v)
     if v then
         if plantBoxConn then plantBoxConn:Disconnect() end
-        currentTargetIndex = 1
+        isTweenBusy = false
         moveTimer = tick()
         
         plantBoxConn = runs.Heartbeat:Connect(function()
-            if not root then return end
+            if not root or isTweenBusy then return end
+            
             local boxes = getpbs(Options.tweenrange.Value)
             if #boxes == 0 then return end
             
-            -- Cycle targets sequentially
-            if currentTargetIndex > #boxes then currentTargetIndex = 1 end
-            local currentTarget = boxes[currentTargetIndex]
+            -- Sort by nearest distance
+            table.sort(boxes, function(a, b) return a.dist < b.dist end)
+            local nearestBox = boxes[1]
             
-            if currentTarget and currentTarget.deployable and currentTarget.deployable.PrimaryPart then
-                local targetCFrame = currentTarget.deployable.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
+            if nearestBox and nearestBox.deployable and nearestBox.deployable.PrimaryPart then
+                local targetCFrame = nearestBox.deployable.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
+                isTweenBusy = true
+                moveTimer = tick()
                 tween(targetCFrame)
                 
-                -- FORCE next target after 0.25 seconds or if physically close
-                if tick() - moveTimer > 0.25 or (root.Position - targetCFrame.Position).Magnitude < 4 then
-                    currentTargetIndex = currentTargetIndex + 1
-                    moveTimer = tick()
-                end
-            else
-                currentTargetIndex = currentTargetIndex + 1
+                -- Keep processing until target destination parameters are fulfilled
+                task.spawn(function()
+                    while isTweenBusy and root do
+                        runs.Heartbeat:Wait()
+                        if not Options.tweentoplantbox.Value then break end
+                        if (root.Position - targetCFrame.Position).Magnitude < 3.5 or (tick() - moveTimer > 7) then
+                            break
+                        end
+                    end
+                    isTweenBusy = false
+                end)
             end
         end)
     else
         if plantBoxConn then plantBoxConn:Disconnect(); plantBoxConn = nil end
         if tweening then tweening:Cancel(); tweening = nil end
+        isTweenBusy = false
     end
 end)
 
 Options.tweentobush:OnChanged(function(v)
     if v then
         if bushConn then bushConn:Disconnect() end
-        currentTargetIndex = 1
+        isTweenBusy = false
         moveTimer = tick()
         
         bushConn = runs.Heartbeat:Connect(function()
-            if not root then return end
+            if not root or isTweenBusy then return end
+            
             local fn = Options.fruitdropdown.Value
             local range = Options.tweenrange.Value
             
             local bushes = getbushes(range, fn)
             local boxes = getpbs(range)
             
+            -- Compile and map combined targets with real-time distance properties
             local combinedTargets = {}
-            for _, b in ipairs(bushes) do table.insert(combinedTargets, b.model) end
-            for _, b in ipairs(boxes) do table.insert(combinedTargets, b.deployable) end
+            for _, b in ipairs(bushes) do
+                if b.model and b.model.PrimaryPart then
+                    table.insert(combinedTargets, {part = b.model.PrimaryPart, dist = (b.model.PrimaryPart.Position - root.Position).Magnitude})
+                end
+            end
+            for _, b in ipairs(boxes) do
+                if b.deployable and b.deployable.PrimaryPart then
+                    table.insert(combinedTargets, {part = b.deployable.PrimaryPart, dist = (b.deployable.PrimaryPart.Position - root.Position).Magnitude})
+                end
+            end
             
             if #combinedTargets == 0 then return end
-            if currentTargetIndex > #combinedTargets then currentTargetIndex = 1 end
             
-            local currentTarget = combinedTargets[currentTargetIndex]
-            if currentTarget and currentTarget.PrimaryPart then
-                local targetCFrame = currentTarget.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
+            -- Closest target prioritization sorting
+            table.sort(combinedTargets, function(a, b) return a.dist < b.dist end)
+            local nearestTarget = combinedTargets[1]
+            
+            if nearestTarget and nearestTarget.part then
+                local targetCFrame = nearestTarget.part.CFrame + Vector3.new(0, 3, 0)
+                isTweenBusy = true
+                moveTimer = tick()
                 tween(targetCFrame)
                 
-                -- FORCE next target after 0.25 seconds or if physically close
-                if tick() - moveTimer > 0.25 or (root.Position - targetCFrame.Position).Magnitude < 4 then
-                    currentTargetIndex = currentTargetIndex + 1
-                    moveTimer = tick()
-                end
-            else
-                currentTargetIndex = currentTargetIndex + 1
+                task.spawn(function()
+                    while isTweenBusy and root do
+                        runs.Heartbeat:Wait()
+                        if not Options.tweentobush.Value then break end
+                        if (root.Position - targetCFrame.Position).Magnitude < 3.5 or (tick() - moveTimer > 7) then
+                            break
+                        end
+                    end
+                    isTweenBusy = false
+                end)
             end
         end)
     else
         if bushConn then bushConn:Disconnect(); bushConn = nil end
         if tweening then tweening:Cancel(); tweening = nil end
+        isTweenBusy = false
     end
 end)
 
--- ==================== OPTIMIZED ULTRA-FAST AUTO-PLANT SYSTEM (FPS DROP FIXED) ====================
+-- ==================== OPTIMIZED ULTRA-FAST AUTO-PLANT SYSTEM ====================
 local isPlantingRunning = false
 
 local function FastPlantLoop()
@@ -437,7 +469,6 @@ local function FastPlantLoop()
             local selectedFruit = Options.fruitdropdown.Value or "Bloodfruit"
             local itemID = fruittoitemid[selectedFruit] or 94
             
-            -- Query all nearby boxes ONCE per loop pass to completely eliminate FPS overhead
             local nearbyBoxes = getpbs(currentRange)
             if #nearbyBoxes > 0 then
                 for i = 1, #nearbyBoxes do
