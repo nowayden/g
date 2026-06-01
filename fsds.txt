@@ -352,61 +352,73 @@ Options.placeplantboxestoggle:OnChanged(function(v)
     end
 end)
 
--- ==================== SMART NEAREST-FIRST MOVEMENT SYSTEM ====================
-local plantBoxConn, bushConn
-local moveTimer = 0
-local isTweenBusy = false -- Tracks active tween execution
+-- ==================== 24/7 FIXED WORKER-THREAD MOVEMENT SYSTEMS ====================
+local visitedTargets = {}
+
+local function stopMovement()
+    if tweening then tweening:Cancel(); tweening = nil end
+    visitedTargets = {}
+end
 
 Options.tweentoplantbox:OnChanged(function(v)
-    if v then
-        if plantBoxConn then plantBoxConn:Disconnect() end
-        isTweenBusy = false
-        moveTimer = tick()
-        
-        plantBoxConn = runs.Heartbeat:Connect(function()
-            if not root or isTweenBusy then return end
+    if not v then
+        stopMovement()
+        return
+    end
+    
+    stopMovement()
+    
+    task.spawn(function()
+        while Options.tweentoplantbox.Value and task.wait(0.1) do
+            if not root then continue end
             
             local boxes = getpbs(Options.tweenrange.Value)
-            if #boxes == 0 then return end
+            if #boxes == 0 then continue end
             
-            -- Sort by nearest distance
-            table.sort(boxes, function(a, b) return a.dist < b.dist end)
-            local nearestBox = boxes[1]
+            local validBoxes = {}
+            for _, b in ipairs(boxes) do
+                if not visitedTargets[b.entityid] then
+                    table.insert(validBoxes, b)
+                end
+            end
+            
+            if #validBoxes == 0 then
+                visitedTargets = {}
+                validBoxes = boxes
+            end
+            
+            table.sort(validBoxes, function(a, b) return a.dist < b.dist end)
+            local nearestBox = validBoxes[1]
             
             if nearestBox and nearestBox.deployable and nearestBox.deployable.PrimaryPart then
                 local targetCFrame = nearestBox.deployable.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
-                isTweenBusy = true
-                moveTimer = tick()
+                local currentId = nearestBox.entityid
+                local moveTimer = tick()
+                
                 tween(targetCFrame)
                 
-                -- Keep processing until target destination parameters are fulfilled
-                task.spawn(function()
-                    while isTweenBusy and root do
-                        runs.Heartbeat:Wait()
-                        if not Options.tweentoplantbox.Value then break end
-                        if (root.Position - targetCFrame.Position).Magnitude < 3.5 or (tick() - moveTimer > 7) then
-                            break
-                        end
-                    end
-                    isTweenBusy = false
-                end)
+                repeat
+                    task.wait(0.05)
+                until not Options.tweentoplantbox.Value or not root or (root.Position - targetCFrame.Position).Magnitude < 4 or (tick() - moveTimer > 4)
+                
+                visitedTargets[currentId] = true
+                if tweening then tweening:Cancel(); tweening = nil end
             end
-        end)
-    else
-        if plantBoxConn then plantBoxConn:Disconnect(); plantBoxConn = nil end
-        if tweening then tweening:Cancel(); tweening = nil end
-        isTweenBusy = false
-    end
+        end
+    end)
 end)
 
 Options.tweentobush:OnChanged(function(v)
-    if v then
-        if bushConn then bushConn:Disconnect() end
-        isTweenBusy = false
-        moveTimer = tick()
-        
-        bushConn = runs.Heartbeat:Connect(function()
-            if not root or isTweenBusy then return end
+    if not v then
+        stopMovement()
+        return
+    end
+    
+    stopMovement()
+    
+    task.spawn(function()
+        while Options.tweentobush.Value and task.wait(0.1) do
+            if not root then continue end
             
             local fn = Options.fruitdropdown.Value
             local range = Options.tweenrange.Value
@@ -414,48 +426,42 @@ Options.tweentobush:OnChanged(function(v)
             local bushes = getbushes(range, fn)
             local boxes = getpbs(range)
             
-            -- Compile and map combined targets with real-time distance properties
             local combinedTargets = {}
             for _, b in ipairs(bushes) do
-                if b.model and b.model.PrimaryPart then
-                    table.insert(combinedTargets, {part = b.model.PrimaryPart, dist = (b.model.PrimaryPart.Position - root.Position).Magnitude})
+                if b.model and b.model.PrimaryPart and not visitedTargets[b.entityid] then
+                    table.insert(combinedTargets, {id = b.entityid, part = b.model.PrimaryPart, dist = (b.model.PrimaryPart.Position - root.Position).Magnitude})
                 end
             end
             for _, b in ipairs(boxes) do
-                if b.deployable and b.deployable.PrimaryPart then
-                    table.insert(combinedTargets, {part = b.deployable.PrimaryPart, dist = (b.deployable.PrimaryPart.Position - root.Position).Magnitude})
+                if b.deployable and b.deployable.PrimaryPart and not visitedTargets[b.entityid] then
+                    table.insert(combinedTargets, {id = b.entityid, part = b.deployable.PrimaryPart, dist = (b.deployable.PrimaryPart.Position - root.Position).Magnitude})
                 end
             end
             
-            if #combinedTargets == 0 then return end
+            if #combinedTargets == 0 then
+                visitedTargets = {}
+                continue
+            end
             
-            -- Closest target prioritization sorting
             table.sort(combinedTargets, function(a, b) return a.dist < b.dist end)
             local nearestTarget = combinedTargets[1]
             
             if nearestTarget and nearestTarget.part then
                 local targetCFrame = nearestTarget.part.CFrame + Vector3.new(0, 3, 0)
-                isTweenBusy = true
-                moveTimer = tick()
+                local currentId = nearestTarget.id
+                local moveTimer = tick()
+                
                 tween(targetCFrame)
                 
-                task.spawn(function()
-                    while isTweenBusy and root do
-                        runs.Heartbeat:Wait()
-                        if not Options.tweentobush.Value then break end
-                        if (root.Position - targetCFrame.Position).Magnitude < 3.5 or (tick() - moveTimer > 7) then
-                            break
-                        end
-                    end
-                    isTweenBusy = false
-                end)
+                repeat
+                    task.wait(0.05)
+                until not Options.tweentobush.Value or not root or (root.Position - targetCFrame.Position).Magnitude < 4 or (tick() - moveTimer > 4)
+                
+                visitedTargets[currentId] = true
+                if tweening then tweening:Cancel(); tweening = nil end
             end
-        end)
-    else
-        if bushConn then bushConn:Disconnect(); bushConn = nil end
-        if tweening then tweening:Cancel(); tweening = nil end
-        isTweenBusy = false
-    end
+        end
+    end)
 end)
 
 -- ==================== OPTIMIZED ULTRA-FAST AUTO-PLANT SYSTEM ====================
