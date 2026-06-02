@@ -22,7 +22,7 @@ local Tabs = {
 
 local rs, plr = game:GetService("ReplicatedStorage"), game.Players.LocalPlayer
 local packets = require(rs.Modules.Packets)
-local GameUtil = require(rs.Modules.Packets).Data or require(rs.Modules.GameUtil) -- Safe fallback
+local GameUtil = require(rs.Modules.Packets).Data or require(rs.Modules.GameUtil)
 local clock = require(rs.Modules.Clock)
 local runs = game:GetService("RunService")
 local Options = Library.Options
@@ -80,11 +80,12 @@ Tabs.Pickup:AddInput("droptextbox", { Title = "Custom Item", Default = "Bloodfru
 Tabs.Farming:AddSection("Farming Settings")
 Tabs.Farming:CreateDropdown("fruitdropdown", {Title = "Select Fruit", Values = {"Bloodfruit", "Bluefruit", "Lemon", "Coconut", "Jelly", "Banana", "Orange", "Oddberry", "Berry", "Strangefruit", "Strawberry", "Sunfruit", "Pumpkin", "Prickly Pear", "Apple", "Barley", "Cloudberry", "Carrot", "Blossom"}, Default = "Bloodfruit"})
 
--- Fixed paragraph elements (passing explicit configurations instead of naked text blocks)
+-- FIXED SECTION HEADERS & BREAKS (Passing raw string arguments to eradicate 'Title' indexing failures)
 Tabs.Farming:AddSection("Farming Statistics")
 local StatLabelMin = Tabs.Farming:AddParagraph({ Title = "Fruits / Minute", Content = "Calculating rate... (Harvest some fruit)" })
 local StatLabelHr = Tabs.Farming:AddParagraph({ Title = "Fruits / Hour", Content = "Calculating rate..." })
 
+Tabs.Farming:AddSection("Automation Execution")
 Tabs.Farming:CreateToggle("planttoggle", { Title = "Auto Plant", Default = false })
 Tabs.Farming:CreateSlider("plantrange", { Title = "Plant Range", Min = 1, Max = 100, Rounding = 1, Default = 30 })
 Tabs.Farming:CreateSlider("plantdelay", { Title = "Plant Delay (s)", Min = 0.01, Max = 1, Rounding = 2, Default = 0.1 })
@@ -407,23 +408,23 @@ local function getbushes(range, fruitname)
 end
 
 -- ==================== CHARACTER MOVEMENT PATHING + UNSTUCK LAYER ====================
-local lastPosition = Vector3.zero
+local lastPosition = Vector3.new(0, 0, 0)
 local lastMoveTime = tick()
 
 local function walkToTarget(targetPosition)
     if hum and root and targetPosition then
         hum:MoveTo(targetPosition)
         
-        -- Measure physical distance offset from the last recorded tick
+        -- Measure physical distance offset from the last recorded position
         local currentPos = root.Position
         if (currentPos - lastPosition).Magnitude > 1.0 then
             lastPosition = currentPos
             lastMoveTime = tick()
         else
-            -- If stuck in place matching or exceeding 3 seconds, fire jump sequences
+            -- Force State Modification Jumps to hop over static physics obstacles 
             if tick() - lastMoveTime >= 3.0 then
-                hum.Jump = true
-                lastMoveTime = tick() -- Reset countdown to prevent instant jump-spamming loops
+                hum:ChangeState(Enum.HumanoidStateType.Jumping)
+                lastMoveTime = tick() -- Reset countdown boundary
             end
         end
     end
@@ -813,7 +814,7 @@ InterfaceManager:SetFolder("FluentScriptHub")
 SaveManager:SetFolder("FluentScriptHub/specific-game")
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
-Window:SelectTab(1)
+Window:SelectTab(4) -- Select farming directly to view statistics instantly on injection
 
 task.wait(0.5)
 Library:Notify{Title = "neverlose", Content = "holy sigma gang", Duration = 8}
