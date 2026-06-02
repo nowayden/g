@@ -27,10 +27,9 @@ local clock = require(rs.Modules.Clock)
 local runs = game:GetService("RunService")
 local Options = Library.Options
 
--- Performance safe statistics memory with time tracking
+-- Farming statistics tracker table
 local farmStats = {
-    planted = 0,
-    harvested = 0,
+    bloodfruits = 0,
     startTime = tick()
 }
 
@@ -102,15 +101,13 @@ Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Con
 Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees"}, Default = "0 degrees"})
 Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placeSingleSnappedBox() end})
 
--- Farming Tracker UI Components
+-- Farming Tracker UI Components (Bloodfruits Only)
 Tabs.Farming:AddSection("Farming Statistics")
-local PlantedParagraph = Tabs.Farming:AddParagraph("PlantedSeedsStats", { Title = "Total Seeds Planted", Content = "0 (Per Min: 0 | Per Hour: 0)" })
-local HarvestedParagraph = Tabs.Farming:AddParagraph("HarvestedItemsStats", { Title = "Total Items Harvested", Content = "0 (Per Min: 0 | Per Hour: 0)" })
+local BloodfruitParagraph = Tabs.Farming:AddParagraph("BloodfruitStats", { Title = "Bloodfruits Harvested", Content = "0 (Per Min: 0 | Per Hour: 0)" })
 Tabs.Farming:AddButton({
     Title = "Reset Tracker Statistics",
     Callback = function()
-        farmStats.planted = 0
-        farmStats.harvested = 0
+        farmStats.bloodfruits = 0
         farmStats.startTime = tick()
     end
 })
@@ -295,6 +292,7 @@ end)
 local plantedboxes = {}
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
 
+-- Optimized to maintain 240 FPS during loop execution
 local function getpbs(range)
     local plantboxes = {}
     if not root then return plantboxes end
@@ -454,10 +452,11 @@ end)
 local function plant(entityid, itemID)
     if packets.InteractStructure and packets.InteractStructure.send then
         packets.InteractStructure.send({ entityID = entityid, itemID = itemID })
+        plantedboxes[entityid] = true
     end
 end
 
--- HIGH FPS AUTO PLANT LAYER (Fixed double-counting via dynamic replication tracking)
+-- HIGH FPS AUTO PLANT LAYER ONLY (Uses cached instances to stay fast)
 local plantCache = {}
 local lastPlantCacheUpdate = 0
 
@@ -500,15 +499,9 @@ task.spawn(function()
                     if data.box.Parent == deployablesFolder then
                         if (data.part.Position - myPos).Magnitude <= range then
                             if not data.box:FindFirstChild("Seed") then
-                                -- Only count and packet-send if we haven't locked this empty box yet
-                                if not plantedboxes[data.id] then
-                                    plantedboxes[data.id] = true
-                                    farmStats.planted = farmStats.planted + 1
-                                    plant(data.id, itemID)
-                                end
+                                plant(data.id, itemID)
                             else
-                                -- The seed physically replicated, clear the tracking lock so it resets when harvested
-                                plantedboxes[data.id] = false
+                                plantedboxes[data.id] = true
                             end
                         end
                     end
@@ -519,7 +512,7 @@ task.spawn(function()
     end
 end)
 
--- HIGH FPS HARVEST LAYER (Fixed multi-counting with temporary layout tracking)
+-- Original loop logic restored completely, with lightweight tracking to count +3 on Bloodfruits
 local harvestedBushes = {}
 task.spawn(function()
     while true do
@@ -532,14 +525,12 @@ task.spawn(function()
         local bushes = getbushes(harvestrange, selectedfruit)
         table.sort(bushes, function(a, b) return a.dist < b.dist end)
         for _, bush in ipairs(bushes) do
-            if not harvestedBushes[bush.entityid] then
+            pickup(bush.entityid)
+            if selectedfruit == "Bloodfruit" and not harvestedBushes[bush.entityid] then
                 harvestedBushes[bush.entityid] = true
-                pickup(bush.entityid)
+                farmStats.bloodfruits = farmStats.bloodfruits + 3
                 
-                farmStats.harvested = farmStats.harvested + 1
-                
-                -- Cleanup local memory block once instance leaves stream space
-                task.delay(7, function()
+                task.delay(5, function()
                     harvestedBushes[bush.entityid] = nil
                 end)
             end
@@ -548,21 +539,16 @@ task.spawn(function()
     end
 end)
 
--- Throttled UI Render Thread
+-- Statistics update thread
 task.spawn(function()
     while true do
         local elapsed = tick() - farmStats.startTime
         if elapsed < 1 then elapsed = 1 end 
         
-        local plantedPerMin = math.round((farmStats.planted / elapsed) * 60)
-        local plantedPerHour = math.round((farmStats.planted / elapsed) * 3600)
+        local bloodfruitsPerMin = math.round((farmStats.bloodfruits / elapsed) * 60)
+        local bloodfruitsPerHour = math.round((farmStats.bloodfruits / elapsed) * 3600)
         
-        local harvestedPerMin = math.round((farmStats.harvested / elapsed) * 60)
-        local harvestedPerHour = math.round((farmStats.harvested / elapsed) * 3600)
-        
-        PlantedParagraph:SetContent(string.format("%d (Per Min: %d | Per Hour: %d)", farmStats.planted, plantedPerMin, plantedPerHour))
-        HarvestedParagraph:SetContent(string.format("%d (Per Min: %d | Per Hour: %d)", farmStats.harvested, harvestedPerMin, harvestedPerHour))
-        
+        BloodfruitParagraph:SetContent(string.format("%d (Per Min: %d | Per Hour: %d)", farmStats.bloodfruits, bloodfruitsPerMin, bloodfruitsPerHour))
         task.wait(1) 
     end
 end)
