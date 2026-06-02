@@ -22,7 +22,7 @@ local Tabs = {
 
 local rs, plr = game:GetService("ReplicatedStorage"), game.Players.LocalPlayer
 local packets = require(rs.Modules.Packets)
-local GameUtil = require(rs.Modules.Packets).Data or require(rs.Modules.GameUtil)
+local GameUtil = require(rs.Modules.GameUtil)
 local clock = require(rs.Modules.Clock)
 local runs = game:GetService("RunService")
 local Options = Library.Options
@@ -40,31 +40,31 @@ plr.CharacterAdded:Connect(updateCharacter)
 
 -- Main Tab
 Tabs.Main:AddSection("Movement")
-Tabs.Main:AddToggle("wstoggle", { Title = "Walkspeed", Default = false })
-Tabs.Main:AddSlider("wsslider", { Title = "Value", Min = 1, Max = 35, Rounding = 1, Default = 16 })
-Tabs.Main:AddToggle("jptoggle", { Title = "JumpPower", Default = false })
-Tabs.Main:AddSlider("jpslider", { Title = "Value", Min = 1, Max = 65, Rounding = 1, Default = 50 })
-Tabs.Main:AddToggle("msatoggle", { Title = "No Mountain Slip", Default = false })
+Tabs.Main:CreateToggle("wstoggle", { Title = "Walkspeed", Default = false })
+Tabs.Main:CreateSlider("wsslider", { Title = "Value", Min = 1, Max = 35, Rounding = 1, Default = 16 })
+Tabs.Main:CreateToggle("jptoggle", { Title = "JumpPower", Default = false })
+Tabs.Main:CreateSlider("jpslider", { Title = "Value", Min = 1, Max = 65, Rounding = 1, Default = 50 })
+Tabs.Main:CreateToggle("msatoggle", { Title = "No Mountain Slip", Default = false })
 
 -- Map Tab
 Tabs.Map:AddSection("Resource Aura")
-Tabs.Map:AddToggle("resourceauratoggle", { Title = "Resource Aura", Default = false })
-Tabs.Map:AddSlider("resourceaurarange", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
-Tabs.Map:AddDropdown("resourcetargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
-Tabs.Map:AddSlider("resourcecooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
+Tabs.Map:CreateToggle("resourceauratoggle", { Title = "Resource Aura", Default = false })
+Tabs.Map:CreateSlider("resourceaurarange", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
+Tabs.Map:CreateDropdown("resourcetargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
+Tabs.Map:CreateSlider("resourcecooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
 
 Tabs.Map:AddSection("Critter Aura")
-Tabs.Map:AddToggle("critterauratoggle", { Title = "Critter Aura", Default = false })
-Tabs.Map:AddSlider("critterrangeslider", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
-Tabs.Map:AddDropdown("crittertargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
-Tabs.Map:AddSlider("crittercooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
+Tabs.Map:CreateToggle("critterauratoggle", { Title = "Critter Aura", Default = false })
+Tabs.Map:CreateSlider("critterrangeslider", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
+Tabs.Map:CreateDropdown("crittertargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
+Tabs.Map:CreateSlider("crittercooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
 
 -- Pickup Tab
 Tabs.Pickup:AddSection("Auto Pickup")
-Tabs.Pickup:AddToggle("autopickuptoggle", { Title = "Auto Pickup", Default = false })
-Tabs.Pickup:AddToggle("chestpickuptoggle", { Title = "Auto Pickup From Chests", Default = false })
-Tabs.Pickup:AddSlider("pickuprange", { Title = "Pickup Range", Min = 1, Max = 35, Rounding = 1, Default = 20 })
-Tabs.Pickup:AddDropdown("itemdropdown", {
+Tabs.Pickup:CreateToggle("autopickuptoggle", { Title = "Auto Pickup", Default = false })
+Tabs.Pickup:CreateToggle("chestpickuptoggle", { Title = "Auto Pickup From Chests", Default = false })
+Tabs.Pickup:CreateSlider("pickuprange", { Title = "Pickup Range", Min = 1, Max = 35, Rounding = 1, Default = 20 })
+Tabs.Pickup:CreateDropdown("itemdropdown", {
     Title = "Items",
     Values = {"Berry", "Bloodfruit", "Bluefruit", "Lemon", "Strawberry", "Gold", "Raw Gold", "Crystal Chunk", "Coin", "Coins", "Coin2", "Coin Stack", "Essence", "Emerald", "Raw Emerald", "Pink Diamond", "Raw Pink Diamond", "Void Shard", "Jelly", "Magnetite", "Raw Magnetite", "Adurite", "Raw Adurite", "Ice Cube", "Stone", "Iron", "Raw Iron", "Steel", "Hide", "Leaves", "Log", "Wood", "Glass", "Bread", "Cooked Egg", "Grain Mush", "Raw Meat", "Cooked Meat", "Glass Bottle", "Healing Potion", "Strength Potion", "Swiftness Potion"},
     Multi = true, Default = { Leaves = true, Log = true }
@@ -78,19 +78,12 @@ Tabs.Pickup:AddInput("droptextbox", { Title = "Custom Item", Default = "Bloodfru
 
 -- Farming Tab
 Tabs.Farming:AddSection("Farming Settings")
-Tabs.Farming:AddDropdown("fruitdropdown", {Title = "Select Fruit", Values = {"Bloodfruit", "Bluefruit", "Lemon", "Coconut", "Jelly", "Banana", "Orange", "Oddberry", "Berry", "Strangefruit", "Strawberry", "Sunfruit", "Pumpkin", "Prickly Pear", "Apple", "Barley", "Cloudberry", "Carrot", "Blossom"}, Default = "Bloodfruit"})
-
-Tabs.Farming:AddSection("Farming Statistics")
--- Resolved structural type gaps by matching strictly normalized (ID, Config) tables
-local StatLabelMin = Tabs.Farming:AddParagraph("StatLabelMin", { Title = "Fruits / Minute", Content = "Calculating rate... (Harvest some fruit)" })
-local StatLabelHr = Tabs.Farming:AddParagraph("StatLabelHr", { Title = "Fruits / Hour", Content = "Calculating rate..." })
-
-Tabs.Farming:AddSection("Automation Execution")
-Tabs.Farming:AddToggle("planttoggle", { Title = "Auto Plant", Default = false })
-Tabs.Farming:AddSlider("plantrange", { Title = "Plant Range", Min = 1, Max = 100, Rounding = 1, Default = 30 })
-Tabs.Farming:AddSlider("plantdelay", { Title = "Plant Delay (s)", Min = 0.01, Max = 1, Rounding = 2, Default = 0.1 })
-Tabs.Farming:AddToggle("harvesttoggle", { Title = "Auto Harvest", Default = false })
-Tabs.Farming:AddSlider("harvestrange", { Title = "Harvest Range", Min = 1, Max = 30, Rounding = 1, Default = 30 })
+Tabs.Farming:CreateDropdown("fruitdropdown", {Title = "Select Fruit", Values = {"Bloodfruit", "Bluefruit", "Lemon", "Coconut", "Jelly", "Banana", "Orange", "Oddberry", "Berry", "Strangefruit", "Strawberry", "Sunfruit", "Pumpkin", "Prickly Pear", "Apple", "Barley", "Cloudberry", "Carrot", "Blossom"}, Default = "Bloodfruit"})
+Tabs.Farming:CreateToggle("planttoggle", { Title = "Auto Plant", Default = false })
+Tabs.Farming:CreateSlider("plantrange", { Title = "Plant Range", Min = 1, Max = 100, Rounding = 1, Default = 30 })
+Tabs.Farming:CreateSlider("plantdelay", { Title = "Plant Delay (s)", Min = 0.01, Max = 1, Rounding = 2, Default = 0.1 })
+Tabs.Farming:CreateToggle("harvesttoggle", { Title = "Auto Harvest", Default = false })
+Tabs.Farming:CreateSlider("harvestrange", { Title = "Harvest Range", Min = 1, Max = 30, Rounding = 1, Default = 30 })
 
 Tabs.Farming:AddSection("Walk Settings")
 Tabs.Farming:AddToggle("tweentoplantbox", { Title = "Walk to Plant Box", Default = false })
@@ -100,7 +93,7 @@ Tabs.Farming:AddSlider("tweenrange", { Title = "Range", Min = 1, Max = 250, Roun
 Tabs.Farming:AddSection("Plant Box Placer")
 Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Continuously", Default = false })
 Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees"}, Default = "0 degrees"})
-Tabs.Farming:AddButton("PlaceSingleSnappedBoxBtn", {Title = "Place Single Plant Box (Snapped)", Callback = function() placeSingleSnappedBox() end})
+Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placeSingleSnappedBox() end})
 
 -- WS/JP handlers
 local function updws()
@@ -158,78 +151,6 @@ Options.itemdropdown:OnChanged(function(v)
     selecteditems = {}
     for item, state in pairs(v) do if state then table.insert(selecteditems, item) end end
 end)
-
--- ==================== ACTIVE ACCURATE FARMING CALCULATOR ====================
-local fruitHarvestLogs = {} 
-local function getInventoryCount(itemName)
-    local list = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui:FindFirstChild("MainGui").RightPanel and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
-    if not list then return 0 end
-    local total = 0
-    for _, slot in ipairs(list:GetChildren()) do
-        if slot:IsA("ImageLabel") and slot.Name == itemName then
-            local amtLabel = slot:FindFirstChild("Amount") or slot:FindFirstChildWhichIsA("TextLabel")
-            if amtLabel then
-                total = total + (tonumber(amtLabel.Text) or 1)
-            else
-                total = total + 1
-            end
-        end
-    end
-    return total
-end
-
-local lastKnownCount = 0
-local trackingFruit = "Bloodfruit"
-
-task.spawn(function()
-    lastKnownCount = getInventoryCount(trackingFruit)
-    while true do
-        task.wait(0.5)
-        local currentSelected = Options.fruitdropdown.Value
-        if currentSelected ~= trackingFruit then
-            trackingFruit = currentSelected
-            lastKnownCount = getInventoryCount(trackingFruit)
-            table.clear(fruitHarvestLogs)
-            StatLabelMin:SetContent("Switched tracking target to " .. trackingFruit)
-            StatLabelHr:SetContent("Calculating rate...")
-        end
-
-        local currentCount = getInventoryCount(trackingFruit)
-        if currentCount > lastKnownCount then
-            local gained = currentCount - lastKnownCount
-            table.insert(fruitHarvestLogs, { time = tick(), amount = gained })
-            lastKnownCount = currentCount
-        elseif currentCount < lastKnownCount then
-            lastKnownCount = currentCount
-        end
-
-        local now = tick()
-        for i = #fruitHarvestLogs, 1, -1 do
-            if now - fruitHarvestLogs[i].time > 300 then
-                table.remove(fruitHarvestLogs, i)
-            end
-        end
-
-        if #fruitHarvestLogs > 0 then
-            local totalGainedInWindow = 0
-            for _, log in ipairs(fruitHarvestLogs) do
-                totalGainedInWindow = totalGainedInWindow + log.amount
-            end
-            
-            local earliestTime = fruitHarvestLogs[1].time
-            local timespan = now - earliestTime
-            if timespan < 10 then timespan = 10 end
-
-            local perSecond = totalGainedInWindow / timespan
-            local perMinute = math.round(perSecond * 60)
-            local perHour = math.round(perSecond * 3600)
-
-            StatLabelMin:SetContent(string.format("%d %s / minute (Current Speed)", perMinute, trackingFruit))
-            StatLabelHr:SetContent(string.format("%d %s / hour (Est. Output)", perHour, trackingFruit))
-        end
-    end
-end)
--- ============================================================================
 
 -- Resource Aura
 local resourceActive, resourceConn, lastResourceTime = false, nil, 0
@@ -354,6 +275,7 @@ end)
 local plantedboxes = {}
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
 
+-- Optimized to maintain 240 FPS during loop execution
 local function getpbs(range)
     local plantboxes = {}
     if not root then return plantboxes end
@@ -407,23 +329,30 @@ local function getbushes(range, fruitname)
     return bushes
 end
 
--- ==================== CHARACTER MOVEMENT PATHING + UNSTUCK LAYER ====================
-local lastPosition = Vector3.new(0,0,0)
-local lastMoveTime = tick()
+-- ==================== PHANTOMHUB CHARACTER PATH PATHING ====================
+local lastCheck = tick()
+local lastPos = Vector3.new()
 
 local function walkToTarget(targetPosition)
     if hum and root and targetPosition then
         hum:MoveTo(targetPosition)
         
-        local currentPos = root.Position
-        if (currentPos - lastPosition).Magnitude > 1.0 then
-            lastPosition = currentPos
-            lastMoveTime = tick()
-        else
-            if tick() - lastMoveTime >= 3.0 then
-                hum:ChangeState(Enum.HumanoidStateType.Jumping)
-                lastMoveTime = tick()
+        local now = tick()
+        -- If the engine is actively attempting to move the humanoid
+        if hum.MoveDirection.Magnitude > 0 then
+            -- If the character moved more than 0.5 studs, update tracked positions
+            if (root.Position - lastPos).Magnitude > 0.5 then
+                lastPos = root.Position
+                lastCheck = now
+            elseif now - lastCheck >= 3 then
+                -- Stuck for 3 seconds while trying to move; invoke jump
+                hum.Jump = true
+                lastCheck = now
             end
+        else
+            -- Reset variables if sitting still or arrived
+            lastPos = root.Position
+            lastCheck = now
         end
     end
 end
@@ -447,7 +376,7 @@ local function pathToBushesOrBoxes(range, fruitname)
     if #bushes > 0 then
         for _, bush in ipairs(bushes) do
             if bush.model.PrimaryPart then
-                walkToTarget(bush.model.PrimaryPart.Position)
+                walkToTarget(box.model.PrimaryPart.Position)
                 break
             end
         end
@@ -465,6 +394,7 @@ local function pathToBushesOrBoxes(range, fruitname)
     end
 end
 
+-- Walk Thread Invokers
 task.spawn(function()
     while true do
         if not Options.tweentoplantbox.Value then
@@ -498,6 +428,7 @@ local function plant(entityid, itemID)
     end
 end
 
+-- HIGH FPS AUTO PLANT LAYER ONLY (Uses cached instances to stay fast)
 local plantCache = {}
 local lastPlantCacheUpdate = 0
 
@@ -570,6 +501,7 @@ task.spawn(function()
     end
 end)
 
+-- Plant box placement (Tight Edge-to-Edge Snapping)
 function placeSingleSnappedBox()
     local char = plr.Character
     if not (char and char:FindFirstChild("HumanoidRootPart")) then return end
@@ -591,6 +523,7 @@ function placeSingleSnappedBox()
     end
 end
 
+-- Continuous placement
 local placementConn
 Options.placeplantboxestoggle:OnChanged(function(v)
     if v then
@@ -616,7 +549,7 @@ local POTIONS = {
 }
 
 local function getInventorySlot(itemName)
-    local list = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui:FindFirstChild("MainGui").RightPanel and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
+    local list = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
     if not list then return nil end
     for _, slot in ipairs(list:GetChildren()) do
         if slot:IsA("ImageLabel") and slot.Name:find(itemName) then return slot.LayoutOrder end
@@ -808,7 +741,7 @@ InterfaceManager:SetFolder("FluentScriptHub")
 SaveManager:SetFolder("FluentScriptHub/specific-game")
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
-Window:SelectTab(4)
+Window:SelectTab(1)
 
 task.wait(0.5)
 Library:Notify{Title = "neverlose", Content = "holy sigma gang", Duration = 8}
