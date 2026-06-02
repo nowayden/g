@@ -1,5 +1,5 @@
 print("loading neverlose")
-print("-----------------------------------------")
+print("-------------------------")
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
@@ -85,12 +85,14 @@ Tabs.Farming:CreateSlider("plantdelay", { Title = "Plant Delay (s)", Min = 0.01,
 Tabs.Farming:CreateToggle("harvesttoggle", { Title = "Auto Harvest", Default = false })
 Tabs.Farming:CreateSlider("harvestrange", { Title = "Harvest Range", Min = 1, Max = 30, Rounding = 1, Default = 30 })
 
+-- Tween Settings
 Tabs.Farming:AddSection("Tween Settings")
 Tabs.Farming:AddSlider("tweenspeed", { Title = "Tween Speed (Higher = Faster)", Min = 10, Max = 200, Rounding = 1, Default = 19 })
 Tabs.Farming:AddToggle("tweentoplantbox", { Title = "Tween to Plant Box", Default = false })
 Tabs.Farming:AddToggle("tweentobush", { Title = "Tween to Bush + Plant Box", Default = false })
 Tabs.Farming:AddSlider("tweenrange", { Title = "Range", Min = 1, Max = 250, Rounding = 1, Default = 250 })
 
+-- Plant Box Placer
 Tabs.Farming:AddSection("Plant Box Placer")
 Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Continuously", Default = false })
 Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees"}, Default = "0 degrees"})
@@ -124,8 +126,8 @@ Options.msatoggle:OnChanged(updmsa)
 -- Helper functions
 local function swingtool(entityIds)
     if not (packets.SwingTool and packets.SwingTool.send) then return end
-    local arr = {}
-    for _, eid in ipairs(entityIds) do table.insert(arr, {entityID = eid, buffer = 0}) end
+    local arr = table.create(#entityIds)
+    for i = 1, #entityIds do arr[i] = {entityID = entityIds[i], buffer = 0} end
     pcall(function()
         packets.SwingTool.send({entityIDs = arr, cframe = root and root.CFrame or CFrame.new(), timestamp = clock.getServerTime(true)})
     end)
@@ -138,8 +140,10 @@ end
 local function drop(itemname)
     local inv = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
     if not inv then return end
-    for _, child in ipairs(inv:GetChildren()) do
-        if child:IsA("ImageLabel") and child.Name == itemname then
+    local children = inv:GetChildren()
+    for i = 1, #children do
+        local child = children[i]
+        if child.Name == itemname and child:IsA("ImageLabel") then
             if packets.DropBagItem and packets.DropBagItem.send then
                 packets.DropBagItem.send(child.LayoutOrder)
             end
@@ -166,20 +170,30 @@ local function startResource()
         local range = tonumber(Options.resourceaurarange.Value) or 20
         local tc = tonumber(Options.resourcetargetdropdown.Value) or 1
         local targets, all = {}, {}
-        for _, r in pairs(workspace.Resources:GetChildren()) do table.insert(all, r) end
-        for _, r in pairs(workspace:GetChildren()) do if r:IsA("Model") and r.Name == "Gold Node" then table.insert(all, r) end end
-        for _, res in pairs(all) do
+        
+        local resChildren = workspace.Resources:GetChildren()
+        for i = 1, #resChildren do table.insert(all, resChildren[i]) end
+        local wsChildren = workspace:GetChildren()
+        for i = 1, #wsChildren do 
+            if wsChildren[i].Name == "Gold Node" then table.insert(all, wsChildren[i]) end 
+        end
+        
+        for i = 1, #all do
+            local res = all[i]
             if res:IsA("Model") and res:GetAttribute("EntityID") then
                 local pp = res.PrimaryPart or res:FindFirstChildWhichIsA("BasePart")
-                if pp and (pp.Position - root.Position).Magnitude <= range then
-                    table.insert(targets, {eid = res:GetAttribute("EntityID"), dist = (pp.Position - root.Position).Magnitude})
+                if pp then
+                    local dist = (pp.Position - root.Position).Magnitude
+                    if dist <= range then
+                        table.insert(targets, {eid = res:GetAttribute("EntityID"), dist = dist})
+                    end
                 end
             end
         end
         if #targets > 0 then
             table.sort(targets, function(a,b) return a.dist < b.dist end)
-            local sel = {}
-            for i = 1, math.min(tc, #targets) do table.insert(sel, targets[i].eid) end
+            local sel = table.create(tc)
+            for i = 1, math.min(tc, #targets) do sel[i] = targets[i].eid end
             swingtool(sel)
             lastResourceTime = ct
         end
@@ -191,7 +205,7 @@ Options.resourceauratoggle:OnChanged(function(s) if s then startResource() else 
 local SchuylerActive, critterConn, lastCritterTime = false, nil, 0
 local function startCritter()
     if SchuylerActive then return end
-    SchuylerActive = true
+     SchuylerActive = true
     critterConn = runs.Heartbeat:Connect(function()
         if not Options.critterauratoggle.Value then critterConn:Disconnect(); critterConn = nil; SchuylerActive = false; return end
         if not root or not GameUtil.Data.equipped then return end
@@ -202,19 +216,24 @@ local function startCritter()
         local targets = {}
         local folder = workspace:FindFirstChild("Critters")
         if folder then
-            for _, c in pairs(folder:GetChildren()) do
+            local children = folder:GetChildren()
+            for i = 1, #children do
+                local c = children[i]
                 if c:IsA("Model") and c:GetAttribute("EntityID") then
                     local pp = c.PrimaryPart or c:FindFirstChildWhichIsA("BasePart")
-                    if pp and (pp.Position - root.Position).Magnitude <= range then
-                        table.insert(targets, {eid = c:GetAttribute("EntityID"), dist = (pp.Position - root.Position).Magnitude})
+                    if pp then
+                        local dist = (pp.Position - root.Position).Magnitude
+                        if dist <= range then
+                            table.insert(targets, {eid = c:GetAttribute("EntityID"), dist = dist})
+                        end
                     end
                 end
             end
         end
         if #targets > 0 then
             table.sort(targets, function(a,b) return a.dist < b.dist end)
-            local sel = {}
-            for i = 1, math.min(tc, #targets) do table.insert(sel, targets[i].eid) end
+            local sel = table.create(tc)
+            for i = 1, math.min(tc, #targets) do sel[i] = targets[i].eid end
             swingtool(sel)
             lastCritterTime = ct
         end
@@ -227,27 +246,40 @@ task.spawn(function()
     while true do
         local range = tonumber(Options.pickuprange.Value) or 35
         if Options.autopickuptoggle.Value and root then
-            for _, item in ipairs(workspace.Items:GetChildren()) do
-                if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
-                    if (item.Position - root.Position).Magnitude <= range then pickup(item:GetAttribute("EntityID")) end
+            local items = workspace.Items:GetChildren()
+            local charPos = root.Position
+            for i = 1, #items do
+                local item = items[i]
+                if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") then
+                    if table.find(selecteditems, item.Name) and (item.Position - charPos).Magnitude <= range then 
+                        pickup(item:GetAttribute("EntityID")) 
+                    end
                 end
             end
         end
         if Options.chestpickuptoggle.Value and root then
             local deployablesFolder = workspace:FindFirstChild("Deployables")
             if deployablesFolder then
-                for _, chest in ipairs(deployablesFolder:GetChildren()) do
-                    if chest:IsA("Model") and chest.Name == "Chest" and chest:FindFirstChild("Contents") then
-                        for _, item in ipairs(chest.Contents:GetChildren()) do
-                            if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
-                                if (chest.PrimaryPart.Position - root.Position).Magnitude <= range then pickup(item:GetAttribute("EntityID")) end
+                local chests = deployablesFolder:GetChildren()
+                local charPos = root.Position
+                for i = 1, #chests do
+                    local chest = chests[i]
+                    if chest.Name == "Chest" and chest:IsA("Model") and chest:FindFirstChild("Contents") then
+                        local primary = chest.PrimaryPart
+                        if primary and (primary.Position - charPos).Magnitude <= range then
+                            local contents = chest.Contents:GetChildren()
+                            for j = 1, #contents do
+                                local item = contents[j]
+                                if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
+                                    pickup(item:GetAttribute("EntityID"))
+                                end
                             end
                         end
                     end
                 end
             end
         end
-        task.wait(0.01)
+        task.wait(0.02)
     end
 end)
 
@@ -276,30 +308,44 @@ end)
 local plantedboxes = {}
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
 
--- Optimized to maintain 240 FPS during loop execution
+-- CACHING & PERFORMANCE FIX FOR HIGH FPS:
+local cachedPlantBoxes = {}
+local lastCacheTime = 0
+local cacheDuration = 0.5 -- Only query workspace for plant boxes twice a second instead of every single tick
+
 local function getpbs(range)
     local plantboxes = {}
     if not root then return plantboxes end
     
+    local currentTick = tick()
     local deployablesFolder = workspace:FindFirstChild("Deployables")
     if not deployablesFolder then return plantboxes end
     
-    local charPos = root.Position
-    local children = deployablesFolder:GetChildren()
-    
-    for i = 1, #children do
-        local deployable = children[i]
-        if deployable.Name == "Plant Box" and deployable:IsA("Model") then
-            local ppart = deployable.PrimaryPart or deployable:FindFirstChildWhichIsA("BasePart")
-            if ppart then
-                -- Perform calculation prior to grabbing attribute to save engine steps
-                local dist = (ppart.Position - charPos).Magnitude
-                if dist <= range then
-                    local entityid = deployable:GetAttribute("EntityID")
-                    if entityid then
-                        table.insert(plantboxes, { entityid = entityid, deployable = deployable, dist = dist })
-                    end
+    -- Refresh structured structural data array periodically
+    if currentTick - lastCacheTime > cacheDuration or #cachedPlantBoxes == 0 then
+        cachedPlantBoxes = {}
+        local children = deployablesFolder:GetChildren()
+        for i = 1, #children do
+            local deployable = children[i]
+            if deployable.Name == "Plant Box" then
+                local ppart = deployable.PrimaryPart or deployable:FindFirstChildWhichIsA("BasePart")
+                local entityid = deployable:GetAttribute("EntityID")
+                if ppart and entityid then
+                    table.insert(cachedPlantBoxes, { deployable = deployable, ppart = ppart, entityid = entityid })
                 end
+            end
+        end
+        lastCacheTime = currentTick
+    end
+    
+    -- Fast math processing index filtering out of cache
+    local charPos = root.Position
+    for i = 1, #cachedPlantBoxes do
+        local boxData = cachedPlantBoxes[i]
+        if boxData.deployable.Parent == deployablesFolder then -- Ensure it wasn't destroyed
+            local dist = (boxData.ppart.Position - charPos).Magnitude
+            if dist <= range then
+                table.insert(plantboxes, { entityid = boxData.entityid, deployable = boxData.deployable, dist = dist })
             end
         end
     end
@@ -315,7 +361,7 @@ local function getbushes(range, fruitname)
     
     for i = 1, #children do
         local model = children[i]
-        if model:IsA("Model") and model.Name:find(fruitname) then
+        if model.Name:find(fruitname) and model:IsA("Model") then
             local ppart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
             if ppart then
                 local dist = (ppart.Position - charPos).Magnitude
@@ -347,7 +393,8 @@ end
 local function tweenplantbox(range)
     local plantboxes = getpbs(range)
     table.sort(plantboxes, function(a, b) return a.dist < b.dist end)
-    for _, box in ipairs(plantboxes) do
+    for i = 1, #plantboxes do
+        local box = plantboxes[i]
         if not box.deployable:FindFirstChild("Seed") then
             local target = box.deployable.PrimaryPart.CFrame + Vector3.new(0, 5, 0)
             tween(target)
@@ -360,15 +407,16 @@ local function tweenpbs(range, fruitname)
     local bushes = getbushes(range, fruitname)
     table.sort(bushes, function(a, b) return a.dist < b.dist end)
     if #bushes > 0 then
-        for _, bush in ipairs(bushes) do
-            local target = bush.model.PrimaryPart.CFrame + Vector3.new(0, 5, 0)
+        for i = 1, #bushes do
+            local target = bushes[i].model.PrimaryPart.CFrame + Vector3.new(0, 5, 0)
             tween(target)
             break
         end
     else
         local plantboxes = getpbs(range)
         table.sort(plantboxes, function(a, b) return a.dist < b.dist end)
-        for _, box in ipairs(plantboxes) do
+        for i = 1, #plantboxes do
+            local box = plantboxes[i]
             if not box.deployable:FindFirstChild("Seed") then
                 local target = box.deployable.PrimaryPart.CFrame + Vector3.new(0, 5, 0)
                 tween(target)
@@ -382,7 +430,7 @@ end
 task.spawn(function()
     while true do
         if not Options.tweentoplantbox.Value then
-            task.wait(0.1)
+            task.wait(0.2)
             continue
         end
         local range = tonumber(Options.tweenrange.Value) or 250
@@ -394,7 +442,7 @@ end)
 task.spawn(function()
     while true do
         if not Options.tweentobush.Value then
-            task.wait(0.1)
+            task.wait(0.2)
             continue
         end
         local range = tonumber(Options.tweenrange.Value) or 20
@@ -412,19 +460,23 @@ local function plant(entityid, itemID)
     end
 end
 
+-- HIGHLY OPTIMIZED AUTO PLANT LOOP
 task.spawn(function()
     while true do
         if not Options.planttoggle.Value then
-            task.wait(0.1)
+            task.wait(0.2)
             continue
         end
+        
         local range = tonumber(Options.plantrange.Value) or 30
         local delay = tonumber(Options.plantdelay.Value) or 0.1
         local selectedfruit = Options.fruitdropdown.Value
         local itemID = fruittoitemid[selectedfruit] or 94
+        
         local plantboxes = getpbs(range)
-        table.sort(plantboxes, function(a, b) return a.dist < b.dist end)
-        for _, box in ipairs(plantboxes) do
+        -- Process operations inside lightweight iterations without dragging physics pipelines down
+        for i = 1, #plantboxes do
+            local box = plantboxes[i]
             if not box.deployable:FindFirstChild("Seed") then
                 plant(box.entityid, itemID)
             else
@@ -438,15 +490,14 @@ end)
 task.spawn(function()
     while true do
         if not Options.harvesttoggle.Value then
-            task.wait(0.1)
+            task.wait(0.2)
             continue
         end
         local harvestrange = tonumber(Options.harvestrange.Value) or 30
         local selectedfruit = Options.fruitdropdown.Value
         local bushes = getbushes(harvestrange, selectedfruit)
-        table.sort(bushes, function(a, b) return a.dist < b.dist end)
-        for _, bush in ipairs(bushes) do
-            pickup(bush.entityid)
+        for i = 1, #bushes do
+            pickup(bushes[i].entityid)
         end
         task.wait(0.1)
     end
@@ -502,7 +553,9 @@ local POTIONS = {
 local function getInventorySlot(itemName)
     local list = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
     if not list then return nil end
-    for _, slot in ipairs(list:GetChildren()) do
+    local slots = list:GetChildren()
+    for i = 1, #slots do
+        local slot = slots[i]
         if slot:IsA("ImageLabel") and slot.Name:find(itemName) then return slot.LayoutOrder end
     end
 end
@@ -517,7 +570,9 @@ local function findAllCauldrons()
     if not dep or not (plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")) then return {} end
     local rp = plr.Character.HumanoidRootPart.Position
     local cauldrons = {}
-    for _, obj in ipairs(dep:GetChildren()) do
+    local children = dep:GetChildren()
+    for i = 1, #children do
+        local obj = children[i]
         if obj.Name == "Cauldron" and obj:FindFirstChild("Hitbox") and (obj.Hitbox.Position - rp).Magnitude < 30 then
             table.insert(cauldrons, {cauldron = obj, hitbox = obj.Hitbox})
         end
@@ -528,7 +583,9 @@ end
 local function teleportToHitbox(hitbox)
     if not hitbox or not workspace:FindFirstChild("Items") then return end
     local tp = hitbox.Position + Vector3.new(math.random(-2,2)*0.3, 0.8, math.random(-2,2)*0.3)
-    for _, item in ipairs(workspace.Items:GetChildren()) do
+    local items = workspace.Items:GetChildren()
+    for i = 1, #items do
+        local item = items[i]
         local n = item.Name or ""
         if n:find("Ice Cube") or n:find("Bloodfruit") or n:find("Strawberry") or n:find("Prickly Pear") or n:find("Crystal") or n:find("Cloudberry") or n:find("Adurite") or n:find("Fire Hide") or n:find("Berry") or n:find("Iron") or n:find("Lemon") or n:find("Magnetite") then
             pcall(function()
@@ -595,10 +652,11 @@ local function pressBedButton()
             return
         end
     end
-    for _, gui in ipairs(plr.PlayerGui:GetDescendants()) do
-        if gui.Name == "BedButton" then
-            pcall(function() gui.Activated:Fire() end)
-            pcall(function() firesignal(gui.Activated) end)
+    local descendants = plr.PlayerGui:GetDescendants()
+    for i = 1, #descendants do
+        if descendants[i].Name == "BedButton" then
+            pcall(function() descendants[i].Activated:Fire() end)
+            pcall(function() firesignal(descendants[i].Activated) end)
         end
     end
     pcall(function()
