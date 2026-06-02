@@ -80,8 +80,8 @@ Tabs.Pickup:AddInput("droptextbox", { Title = "Custom Item", Default = "Bloodfru
 Tabs.Farming:AddSection("Farming Settings")
 Tabs.Farming:CreateDropdown("fruitdropdown", {Title = "Select Fruit", Values = {"Bloodfruit", "Bluefruit", "Lemon", "Coconut", "Jelly", "Banana", "Orange", "Oddberry", "Berry", "Strangefruit", "Strawberry", "Sunfruit", "Pumpkin", "Prickly Pear", "Apple", "Barley", "Cloudberry", "Carrot", "Blossom"}, Default = "Bloodfruit"})
 
--- Real-Time Fruit Statistics Displays
-local StatisticsSection = Tabs.Farming:AddSection("Farming Statistics")
+-- Fixed paragraph elements (passing explicit configurations instead of naked text blocks)
+Tabs.Farming:AddSection("Farming Statistics")
 local StatLabelMin = Tabs.Farming:AddParagraph({ Title = "Fruits / Minute", Content = "Calculating rate... (Harvest some fruit)" })
 local StatLabelHr = Tabs.Farming:AddParagraph({ Title = "Fruits / Hour", Content = "Calculating rate..." })
 
@@ -199,10 +199,9 @@ task.spawn(function()
             table.insert(fruitHarvestLogs, { time = tick(), amount = gained })
             lastKnownCount = currentCount
         elseif currentCount < lastKnownCount then
-            lastKnownCount = currentCount -- Handled item drops/crafting without breaking baseline calculations
+            lastKnownCount = currentCount
         end
 
-        -- Roll off logs older than 5 minutes to keep project rates precise to current speed
         local now = tick()
         for i = #fruitHarvestLogs, 1, -1 do
             if now - fruitHarvestLogs[i].time > 300 then
@@ -218,7 +217,7 @@ task.spawn(function()
             
             local earliestTime = fruitHarvestLogs[1].time
             local timespan = now - earliestTime
-            if timespan < 10 then timespan = 10 end -- Bound minimum timeframe sample window size
+            if timespan < 10 then timespan = 10 end
 
             local perSecond = totalGainedInWindow / timespan
             local perMinute = math.round(perSecond * 60)
@@ -354,7 +353,6 @@ end)
 local plantedboxes = {}
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
 
--- Optimized to maintain 240 FPS during loop execution
 local function getpbs(range)
     local plantboxes = {}
     if not root then return plantboxes end
@@ -408,10 +406,26 @@ local function getbushes(range, fruitname)
     return bushes
 end
 
--- ==================== PHANTOMHUB CHARACTER PATH PATHING ====================
+-- ==================== CHARACTER MOVEMENT PATHING + UNSTUCK LAYER ====================
+local lastPosition = Vector3.zero
+local lastMoveTime = tick()
+
 local function walkToTarget(targetPosition)
-    if hum and targetPosition then
+    if hum and root and targetPosition then
         hum:MoveTo(targetPosition)
+        
+        -- Measure physical distance offset from the last recorded tick
+        local currentPos = root.Position
+        if (currentPos - lastPosition).Magnitude > 1.0 then
+            lastPosition = currentPos
+            lastMoveTime = tick()
+        else
+            -- If stuck in place matching or exceeding 3 seconds, fire jump sequences
+            if tick() - lastMoveTime >= 3.0 then
+                hum.Jump = true
+                lastMoveTime = tick() -- Reset countdown to prevent instant jump-spamming loops
+            end
+        end
     end
 end
 
@@ -486,7 +500,7 @@ local function plant(entityid, itemID)
     end
 end
 
--- HIGH FPS AUTO PLANT LAYER ONLY (Uses cached instances to stay fast)
+-- HIGH FPS AUTO PLANT LAYER ONLY
 local plantCache = {}
 local lastPlantCacheUpdate = 0
 
