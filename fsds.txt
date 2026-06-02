@@ -5,7 +5,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "neverlose", SubTitle = "", TabWidth = 160,
+    Title = "neverlose", SubTitle = ":)", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -26,6 +26,13 @@ local GameUtil = require(rs.Modules.GameUtil)
 local clock = require(rs.Modules.Clock)
 local runs = game:GetService("RunService")
 local Options = Library.Options
+
+-- Performance safe statistics memory
+local farmStats = {
+    planted = 0,
+    harvested = 0
+}
+local statsUpdated = false
 
 local char, root, hum, wscon, slopecon
 local function updateCharacter()
@@ -94,6 +101,19 @@ Tabs.Farming:AddSection("Plant Box Placer")
 Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Continuously", Default = false })
 Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees"}, Default = "0 degrees"})
 Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placeSingleSnappedBox() end})
+
+-- Farming Tracker UI Components (Strict Table Structuring)
+Tabs.Farming:AddSection("Farming Statistics")
+local PlantedParagraph = Tabs.Farming:AddParagraph({ Title = "Total Seeds Planted", Content = "0" })
+local HarvestedParagraph = Tabs.Farming:AddParagraph({ Title = "Total Items Harvested", Content = "0" })
+Tabs.Farming:AddButton({
+    Title = "Reset Tracker Statistics",
+    Callback = function()
+        farmStats.planted = 0
+        farmStats.harvested = 0
+        statsUpdated = true
+    end
+})
 
 -- WS/JP handlers
 local function updws()
@@ -436,6 +456,10 @@ local function plant(entityid, itemID)
     if packets.InteractStructure and packets.InteractStructure.send then
         packets.InteractStructure.send({ entityID = entityid, itemID = itemID })
         plantedboxes[entityid] = true
+        
+        -- Tracker logic
+        farmStats.planted = farmStats.planted + 1
+        statsUpdated = true
     end
 end
 
@@ -507,8 +531,24 @@ task.spawn(function()
         table.sort(bushes, function(a, b) return a.dist < b.dist end)
         for _, bush in ipairs(bushes) do
             pickup(bush.entityid)
+            
+            -- Tracker logic
+            farmStats.harvested = farmStats.harvested + 1
+            statsUpdated = true
         end
         task.wait(0.1)
+    end
+end)
+
+-- Throttled UI Render Thread (Prevents UI threading overload lag)
+task.spawn(function()
+    while true do
+        if statsUpdated then
+            PlantedParagraph:SetContent(tostring(farmStats.planted))
+            HarvestedParagraph:SetContent(tostring(farmStats.harvested))
+            statsUpdated = false
+        end
+        task.wait(0.4)
     end
 end)
 
