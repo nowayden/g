@@ -102,10 +102,10 @@ Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Con
 Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees"}, Default = "0 degrees"})
 Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placeSingleSnappedBox() end})
 
--- Farming Tracker UI Components (Strict Table Structuring)
+-- Farming Tracker UI Components (Fixed Fluent-Renewed Table Structuring)
 Tabs.Farming:AddSection("Farming Statistics")
-local PlantedParagraph = Tabs.Farming:AddParagraph({ Title = "Total Seeds Planted", Content = "0" })
-local HarvestedParagraph = Tabs.Farming:AddParagraph({ Title = "Total Items Harvested", Content = "0" })
+local PlantedParagraph = Tabs.Farming:AddParagraph("PlantedSeedsStats", { Title = "Total Seeds Planted", Content = "0" })
+local HarvestedParagraph = Tabs.Farming:AddParagraph("HarvestedItemsStats", { Title = "Total Items Harvested", Content = "0" })
 Tabs.Farming:AddButton({
     Title = "Reset Tracker Statistics",
     Callback = function()
