@@ -1,12 +1,11 @@
 print("loading neverlose")
 print("-----------------------------------------")
-
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "neverlose", SubTitle = ":)", TabWidth = 160,
+    Title = "neverlose", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -29,7 +28,6 @@ local runs = game:GetService("RunService")
 local Options = Library.Options
 
 local char, root, hum, wscon, slopecon
-
 local function updateCharacter()
     char = plr.Character
     if char then
@@ -39,16 +37,6 @@ local function updateCharacter()
 end
 updateCharacter()
 plr.CharacterAdded:Connect(updateCharacter)
-
--- ==================== STATISTICS ====================
-local stats = {
-    plantsPlanted = 0,
-    harvestsDone = 0,
-    itemsCollected = 0,
-    sessionStart = tick(),
-}
-
-local statLabels = {}
 
 -- Main Tab
 Tabs.Main:AddSection("Movement")
@@ -107,25 +95,6 @@ Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Con
 Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees"}, Default = "0 degrees"})
 Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placeSingleSnappedBox() end})
 
--- ==================== STATISTICS SECTION ====================
-Tabs.Farming:AddSection("Statistics")
-
-statLabels.planted = Tabs.Farming:CreateLabel("Plants Planted: 0")
-statLabels.harvested = Tabs.Farming:CreateLabel("Harvests Done: 0")
-statLabels.collected = Tabs.Farming:CreateLabel("Items Collected: 0")
-statLabels.time = Tabs.Farming:CreateLabel("Session Time: 0m 0s")
-statLabels.rate = Tabs.Farming:CreateLabel("Harvest Rate: 0/h")
-
-Tabs.Farming:CreateButton({
-    Title = "Reset Statistics",
-    Callback = function()
-        stats.plantsPlanted = 0
-        stats.harvestsDone = 0
-        stats.itemsCollected = 0
-        stats.sessionStart = tick()
-    end
-})
-
 -- WS/JP handlers
 local function updws()
     if wscon then wscon:Disconnect(); wscon = nil end
@@ -181,29 +150,6 @@ local selecteditems = {}
 Options.itemdropdown:OnChanged(function(v)
     selecteditems = {}
     for item, state in pairs(v) do if state then table.insert(selecteditems, item) end end
-end)
-
--- Statistics Update
-local function updateStatsDisplay()
-    statLabels.planted:SetText("Plants Planted: " .. stats.plantsPlanted)
-    statLabels.harvested:SetText("Harvests Done: " .. stats.harvestsDone)
-    statLabels.collected:SetText("Items Collected: " .. stats.itemsCollected)
-    
-    local elapsed = tick() - stats.sessionStart
-    local minutes = math.floor(elapsed / 60)
-    local seconds = math.floor(elapsed % 60)
-    statLabels.time:SetText(string.format("Session Time: %dm %ds", minutes, seconds))
-    
-    local hours = elapsed / 3600
-    local rate = hours > 0 and math.floor(stats.harvestsDone / hours) or 0
-    statLabels.rate:SetText("Harvest Rate: " .. rate .. "/h")
-end
-
-task.spawn(function()
-    while true do
-        updateStatsDisplay()
-        task.wait(1)
-    end
 end)
 
 -- Resource Aura
@@ -282,10 +228,7 @@ task.spawn(function()
         if Options.autopickuptoggle.Value and root then
             for _, item in ipairs(workspace.Items:GetChildren()) do
                 if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
-                    if (item.Position - root.Position).Magnitude <= range then 
-                        pickup(item:GetAttribute("EntityID"))
-                        stats.itemsCollected += 1
-                    end
+                    if (item.Position - root.Position).Magnitude <= range then pickup(item:GetAttribute("EntityID")) end
                 end
             end
         end
@@ -296,10 +239,7 @@ task.spawn(function()
                     if chest:IsA("Model") and chest.Name == "Chest" and chest:FindFirstChild("Contents") then
                         for _, item in ipairs(chest.Contents:GetChildren()) do
                             if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
-                                if (chest.PrimaryPart.Position - root.Position).Magnitude <= range then 
-                                    pickup(item:GetAttribute("EntityID"))
-                                    stats.itemsCollected += 1
-                                end
+                                if (chest.PrimaryPart.Position - root.Position).Magnitude <= range then pickup(item:GetAttribute("EntityID")) end
                             end
                         end
                     end
@@ -332,15 +272,20 @@ runs.Heartbeat:Connect(function()
 end)
 
 -- Farming helpers
+local plantedboxes = {}
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
 
+-- Optimized to maintain 240 FPS during loop execution
 local function getpbs(range)
     local plantboxes = {}
     if not root then return plantboxes end
+    
     local deployablesFolder = workspace:FindFirstChild("Deployables")
     if not deployablesFolder then return plantboxes end
+    
     local charPos = root.Position
     local children = deployablesFolder:GetChildren()
+    
     for i = 1, #children do
         local deployable = children[i]
         if deployable.Name == "Plant Box" and deployable:IsA("Model") then
@@ -362,8 +307,10 @@ end
 local function getbushes(range, fruitname)
     local bushes = {}
     if not root then return bushes end
+    
     local charPos = root.Position
     local children = workspace:GetChildren()
+    
     for i = 1, #children do
         local model = children[i]
         if model:IsA("Model") and model.Name:find(fruitname) then
@@ -382,7 +329,7 @@ local function getbushes(range, fruitname)
     return bushes
 end
 
--- WalkTo functions (original)
+-- ==================== PHANTOMHUB CHARACTER PATH PATHING ====================
 local lastPos = Vector3.new()
 local stuckTimer = 0
 local lastCheck = 0
@@ -390,7 +337,34 @@ local lastCheck = 0
 local function walkToTarget(targetPosition)
     if hum and root and targetPosition then
         hum:MoveTo(targetPosition)
-        -- (stuck detection logic - kept minimal)
+        
+        local now = tick()
+        local dt = now - lastCheck
+        
+        if lastCheck == 0 or dt > 0.5 then
+            lastCheck = now
+            lastPos = root.Position
+            stuckTimer = 0
+            return
+        end
+        
+        lastCheck = now
+        
+        if (root.Position - targetPosition).Magnitude > 3 then
+            if (root.Position - lastPos).Magnitude < 1 * dt then
+                stuckTimer = stuckTimer + dt
+                if stuckTimer >= 3 then
+                    hum.Jump = true
+                    stuckTimer = 0
+                end
+            else
+                stuckTimer = 0
+            end
+        else
+            stuckTimer = 0
+        end
+        
+        lastPos = root.Position
     end
 end
 
@@ -418,51 +392,99 @@ local function pathToBushesOrBoxes(range, fruitname)
             end
         end
     else
-        pathToPlantbox(range)
+        local plantboxes = getpbs(range)
+        table.sort(plantboxes, function(a, b) return a.dist < b.dist end)
+        for _, box in ipairs(plantboxes) do
+            if not box.deployable:FindFirstChild("Seed") then
+                if box.deployable.PrimaryPart then
+                    walkToTarget(box.deployable.PrimaryPart.Position)
+                    break
+                end
+            end
+        end
     end
 end
 
+-- Walk Thread Invokers
 task.spawn(function()
     while true do
-        if Options.tweentoplantbox.Value then
-            pathToPlantbox(tonumber(Options.tweenrange.Value) or 250)
+        if not Options.tweentoplantbox.Value then
+            task.wait(0.1)
+            continue
         end
+        local range = tonumber(Options.tweenrange.Value) or 250
+        pathToPlantbox(range)
         task.wait(0.1)
     end
 end)
 
 task.spawn(function()
     while true do
-        if Options.tweentobush.Value then
-            local range = tonumber(Options.tweenrange.Value) or 250
-            local selectedfruit = Options.fruitdropdown.Value
-            pathToBushesOrBoxes(range, selectedfruit)
+        if not Options.tweentobush.Value then
+            task.wait(0.1)
+            continue
         end
+        local range = tonumber(Options.tweenrange.Value) or 20
+        local selectedfruit = Options.fruitdropdown.Value
+        pathToBushesOrBoxes(range, selectedfruit)
         task.wait(0.1)
     end
 end)
+-- ===========================================================================
 
--- Auto Plant
+local function plant(entityid, itemID)
+    if packets.InteractStructure and packets.InteractStructure.send then
+        packets.InteractStructure.send({ entityID = entityid, itemID = itemID })
+        plantedboxes[entityid] = true
+    end
+end
+
+-- HIGH FPS AUTO PLANT LAYER ONLY (Uses cached instances to stay fast)
+local plantCache = {}
+local lastPlantCacheUpdate = 0
+
 task.spawn(function()
     while true do
-        if not Options.planttoggle.Value then task.wait(0.1) continue end
+        if not Options.planttoggle.Value then
+            task.wait(0.1)
+            continue
+        end
+        
         local range = tonumber(Options.plantrange.Value) or 30
         local delay = tonumber(Options.plantdelay.Value) or 0.1
         local selectedfruit = Options.fruitdropdown.Value
         local itemID = fruittoitemid[selectedfruit] or 94
-
+        
+        local currentTime = tick()
         local deployablesFolder = workspace:FindFirstChild("Deployables")
-        if deployablesFolder and root then
-            local myPos = root.Position
-            for _, v in ipairs(deployablesFolder:GetChildren()) do
-                if v.Name == "Plant Box" then
-                    local ppart = v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
-                    local entityid = v:GetAttribute("EntityID")
-                    if ppart and entityid and (ppart.Position - myPos).Magnitude <= range then
-                        if not v:FindFirstChild("Seed") then
-                            if packets.InteractStructure and packets.InteractStructure.send then
-                                packets.InteractStructure.send({ entityID = entityid, itemID = itemID })
-                                stats.plantsPlanted += 1
+        
+        if deployablesFolder then
+            if currentTime - lastPlantCacheUpdate > 0.4 or #plantCache == 0 then
+                plantCache = {}
+                local children = deployablesFolder:GetChildren()
+                for i = 1, #children do
+                    local v = children[i]
+                    if v.Name == "Plant Box" then
+                        local ppart = v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
+                        local entityid = v:GetAttribute("EntityID")
+                        if ppart and entityid then
+                            table.insert(plantCache, {box = v, part = ppart, id = entityid})
+                        end
+                    end
+                end
+                lastPlantCacheUpdate = currentTime
+            end
+            
+            if root then
+                local myPos = root.Position
+                for i = 1, #plantCache do
+                    local data = plantCache[i]
+                    if data.box.Parent == deployablesFolder then
+                        if (data.part.Position - myPos).Magnitude <= range then
+                            if not data.box:FindFirstChild("Seed") then
+                                plant(data.id, itemID)
+                            else
+                                plantedboxes[data.id] = true
                             end
                         end
                     end
@@ -473,55 +495,255 @@ task.spawn(function()
     end
 end)
 
--- Auto Harvest
 task.spawn(function()
     while true do
-        if not Options.harvesttoggle.Value then task.wait(0.1) continue end
+        if not Options.harvesttoggle.Value then
+            task.wait(0.1)
+            continue
+        end
         local harvestrange = tonumber(Options.harvestrange.Value) or 30
         local selectedfruit = Options.fruitdropdown.Value
         local bushes = getbushes(harvestrange, selectedfruit)
         table.sort(bushes, function(a, b) return a.dist < b.dist end)
         for _, bush in ipairs(bushes) do
             pickup(bush.entityid)
-            stats.harvestsDone += 1
-            stats.itemsCollected += 1
         end
         task.wait(0.1)
     end
 end)
 
--- Plant Box Placement
+-- Plant box placement (Tight Edge-to-Edge Snapping)
 function placeSingleSnappedBox()
     local char = plr.Character
     if not (char and char:FindFirstChild("HumanoidRootPart")) then return end
     local pos = char.HumanoidRootPart.Position
     local cam = workspace.CurrentCamera
     local cursorPos = cam and cam.CFrame.Position or pos
+    
     local gs = 5.05
     local sp = Vector3.new(math.round(pos.X/gs)*gs, pos.Y, math.round(pos.Z/gs)*gs)
+    
     local rp = RaycastParams.new()
     rp.FilterType, rp.FilterDescendantsInstances, rp.IgnoreWater = Enum.RaycastFilterType.Blacklist, {char}, true
     local rr = workspace:Raycast(Vector3.new(sp.X, sp.Y+100, sp.Z), Vector3.new(0,-200,0), rp)
     local fp = rr and rr.Position or sp
     local rot = CFrame.Angles(0, 0, 0)
+    
     if packets.PlaceStructure and packets.PlaceStructure.send then
         packets.PlaceStructure.send({buildingName = "Plant Box", cframe = CFrame.new(fp)*rot, vec = fp, isMobile = false, cursor = cursorPos})
     end
 end
 
+-- Continuous placement
 local placementConn
 Options.placeplantboxestoggle:OnChanged(function(v)
     if v then
         if placementConn then placementConn:Disconnect() end
-        placementConn = runs.Heartbeat:Connect(function() placeSingleSnappedBox() task.wait(0.1) end)
+        placementConn = runs.Heartbeat:Connect(function() placeSingleSnappedBox(); task.wait(0.1) end)
     else
         if placementConn then placementConn:Disconnect(); placementConn = nil end
     end
 end)
 
--- Potions & Rebirth sections (kept from your original)
--- ... (Potions code, Auto Rebirth code - same as you provided earlier)
+-- Potions
+local potionLoop, isBrewing, selectedPotion = nil, false, "Healing Potion"
+local POTIONS = {
+    ["Healing Potion"] = {{name = "Ice Cube", amount = 3}, {name = "Bloodfruit", amount = 5}, {name = "Strawberry", amount = 2}},
+    ["Poison Potion"] = {{name = "Ice Cube", amount = 3}, {name = "Prickly Pear", amount = 3}, {name = "Magnetite", amount = 1}},
+    ["Swiftness Potion"] = {{name = "Ice Cube", amount = 3}, {name = "Crystal", amount = 1}, {name = "Cloudberry", amount = 3}},
+    ["Ice Potion"] = {{name = "Ice Cube", amount = 3}, {name = "Crystal", amount = 1}, {name = "Ice Cube", amount = 3}},
+    ["Harming Potion"] = {{name = "Ice Cube", amount = 3}, {name = "Prickly Pear", amount = 3}, {name = "Adurite", amount = 3}},
+    ["Fire Resistance Potion"] = {{name = "Ice Cube", amount = 3}, {name = "Fire Hide", amount = 2}},
+    ["Strength Potion"] = {{name = "Ice Cube", amount = 3}, {name = "Adurite", amount = 2}, {name = "Bloodfruit", amount = 2}},
+    ["Weakness Potion"] = {{name = "Ice Cube", amount = 3}, {name = "Berry", amount = 2}, {name = "Magnetite", amount = 3}},
+    ["Haste Potion"] = {{name = "Ice Cube", amount = 3}, {name = "Iron", amount = 2}, {name = "Lemon", amount = 2}}
+}
 
+local function getInventorySlot(itemName)
+    local list = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
+    if not list then return nil end
+    for _, slot in ipairs(list:GetChildren()) do
+        if slot:IsA("ImageLabel") and slot.Name:find(itemName) then return slot.LayoutOrder end
+    end
+end
+
+local function dropFromSlot(slot, amount)
+    if not slot then return end
+    for _ = 1, amount do pcall(function() packets.DropBagItem.send(slot) end); task.wait(0.07) end
+end
+
+local function findAllCauldrons()
+    local dep = workspace:FindFirstChild("Deployables")
+    if not dep or not (plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")) then return {} end
+    local rp = plr.Character.HumanoidRootPart.Position
+    local cauldrons = {}
+    for _, obj in ipairs(dep:GetChildren()) do
+        if obj.Name == "Cauldron" and obj:FindFirstChild("Hitbox") and (obj.Hitbox.Position - rp).Magnitude < 30 then
+            table.insert(cauldrons, {cauldron = obj, hitbox = obj.Hitbox})
+        end
+    end
+    return cauldrons
+end
+
+local function teleportToHitbox(hitbox)
+    if not hitbox or not workspace:FindFirstChild("Items") then return end
+    local tp = hitbox.Position + Vector3.new(math.random(-2,2)*0.3, 0.8, math.random(-2,2)*0.3)
+    for _, item in ipairs(workspace.Items:GetChildren()) do
+        local n = item.Name or ""
+        if n:find("Ice Cube") or n:find("Bloodfruit") or n:find("Strawberry") or n:find("Prickly Pear") or n:find("Crystal") or n:find("Cloudberry") or n:find("Adurite") or n:find("Fire Hide") or n:find("Berry") or n:find("Iron") or n:find("Lemon") or n:find("Magnetite") then
+            pcall(function()
+                if item:IsA("BasePart") then item.Position = tp
+                elseif item:IsA("Model") and item.PrimaryPart then item:SetPrimaryPartCFrame(CFrame.new(tp)) end
+            end)
+        end
+    end
+end
+
+local function brewPotions()
+    if isBrewing then return end
+    isBrewing = true
+    local cauldrons = findAllCauldrons()
+    if #cauldrons == 0 then isBrewing = false; return end
+    local recipe = POTIONS[selectedPotion]
+    if not recipe then isBrewing = false; return end
+    for _, ing in ipairs(recipe) do
+        local slot = getInventorySlot(ing.name)
+        if slot then
+            for _, c in ipairs(cauldrons) do dropFromSlot(slot, ing.amount); task.wait(0.5); teleportToHitbox(c.hitbox); task.wait(0.4) end
+        end
+        task.wait(0.8)
+    end
+    task.wait(2)
+    for _, c in ipairs(cauldrons) do
+        local eid = c.cauldron:GetAttribute("EntityID")
+        if eid then pcall(function() packets.SweepPotion.send(eid) end) end
+    end
+    isBrewing = false
+end
+
+Tabs.Potions:AddSection("Mass Potion Crafter")
+Tabs.Potions:AddDropdown("PotionType", {
+    Title = "Select Potion",
+    Values = {"Healing Potion", "Poison Potion", "Swiftness Potion", "Ice Potion", "Harming Potion", "Fire Resistance Potion", "Strength Potion", "Weakness Potion", "Haste Potion"},
+    Default = "Healing Potion", Multi = false,
+    Callback = function(v) selectedPotion = v end
+})
+Tabs.Potions:AddToggle("AutoPotionToggle", {
+    Title = "Auto Craft Selected Potion", Default = false,
+    Callback = function(s)
+        if s then
+            if potionLoop then potionLoop:Disconnect() end
+            potionLoop = runs.Heartbeat:Connect(brewPotions)
+        else
+            if potionLoop then potionLoop:Disconnect(); potionLoop = nil end
+            isBrewing = false
+        end
+    end
+})
+
+-- ==================== AUTO REBIRTH SYSTEM ====================
+local autoRebirthRunning = false
+local hasConfirmedRebirth = false
+
+local function pressBedButton()
+    local spawnGui = plr.PlayerGui:FindFirstChild("SpawnGui")
+    if spawnGui and spawnGui:FindFirstChild("Customization") then
+        local bedButton = spawnGui.Customization:FindFirstChild("BedButton")
+        if bedButton then
+            pcall(function() bedButton.Activated:Fire() end)
+            pcall(function() firesignal(bedButton.Activated) end)
+            return
+        end
+    end
+    for _, gui in ipairs(plr.PlayerGui:GetDescendants()) do
+        if gui.Name == "BedButton" then
+            pcall(function() gui.Activated:Fire() end)
+            pcall(function() firesignal(gui.Activated) end)
+        end
+    end
+    pcall(function()
+        rs.Events.SpawnFirst:InvokeServer(true)
+    end)
+end
+
+local function getPlayerLevel()
+    local success, GameUtilLocal = pcall(function() return require(rs.Modules.GameUtil) end)
+    if success and GameUtilLocal.Data and GameUtilLocal.Data.level then
+        return GameUtilLocal.Data.level
+    end
+    return plr:GetAttribute("Level") or 0
+end
+
+local function doRebirth()
+    local success, packetsLocal = pcall(function() return require(rs.Modules.Packets) end)
+    if success and packetsLocal.Rebirth then
+        pcall(function() packetsLocal.Rebirth.send() end)
+    end
+    task.wait(2.5)
+    pressBedButton()
+end
+
+local function AutoRebirthLoop()
+    while autoRebirthRunning do
+        task.wait(0.5)
+        local spawnGui = plr.PlayerGui:FindFirstChild("SpawnGui")
+        if spawnGui and spawnGui.Enabled then
+            pressBedButton()
+        end
+        local currentLevel = getPlayerLevel()
+        if currentLevel >= 100 then
+            doRebirth()
+            task.wait(6)
+        end
+    end
+end
+
+local function StartAutoRebirth()
+    if autoRebirthRunning then return end
+    autoRebirthRunning = true
+    task.spawn(AutoRebirthLoop)
+end
+
+local function StopAutoRebirth()
+    autoRebirthRunning = false
+end
+
+Tabs.Event:AddSection("Auto Rebirth")
+Tabs.Event:AddToggle("AutoRebirthToggle", {
+    Title = "Auto Rebirth (Level 100 → Rebirth + Reset)",
+    Default = false,
+    Callback = function(state)
+        if state then
+            if not hasConfirmedRebirth then
+                Window:Dialog({
+                    Title = "Confirmation Required",
+                    Content = "Are you sure you want to toggle Auto Rebirth?",
+                    Buttons = {
+                        {
+                            Title = "Confirm",
+                            Callback = function()
+                                hasConfirmedRebirth = true
+                                StartAutoRebirth()
+                            end
+                        },
+                        {
+                            Title = "Cancel",
+                            Callback = function()
+                                Options.AutoRebirthToggle:SetValue(false)
+                            end
+                        }
+                    }
+                })
+            else
+                StartAutoRebirth()
+            end
+        else
+            StopAutoRebirth()
+        end
+    end
+})
+
+-- Final setup
 SaveManager:SetLibrary(Library)
 InterfaceManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
@@ -533,6 +755,6 @@ SaveManager:BuildConfigSection(Tabs.Settings)
 Window:SelectTab(1)
 
 task.wait(0.5)
-Library:Notify{Title = "neverlose", Content = "holy sigma gang - Statistics Added!", Duration = 8}
+Library:Notify{Title = "neverlose", Content = "holy sigma gang", Duration = 8}
 SaveManager:LoadAutoloadConfig()
 print("Done! Enjoy neverlose!")
