@@ -102,7 +102,7 @@ Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Con
 Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees"}, Default = "0 degrees"})
 Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placeSingleSnappedBox() end})
 
--- Farming Tracker UI Components (With Live Per Minute / Per Hour Metrics)
+-- Farming Tracker UI Components
 Tabs.Farming:AddSection("Farming Statistics")
 local PlantedParagraph = Tabs.Farming:AddParagraph("PlantedSeedsStats", { Title = "Total Seeds Planted", Content = "0 (Per Min: 0 | Per Hour: 0)" })
 local HarvestedParagraph = Tabs.Farming:AddParagraph("HarvestedItemsStats", { Title = "Total Items Harvested", Content = "0 (Per Min: 0 | Per Hour: 0)" })
@@ -295,7 +295,6 @@ end)
 local plantedboxes = {}
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
 
--- Optimized to maintain 240 FPS during loop execution
 local function getpbs(range)
     local plantboxes = {}
     if not root then return plantboxes end
@@ -455,14 +454,10 @@ end)
 local function plant(entityid, itemID)
     if packets.InteractStructure and packets.InteractStructure.send then
         packets.InteractStructure.send({ entityID = entityid, itemID = itemID })
-        plantedboxes[entityid] = true
-        
-        -- Tracker logic
-        farmStats.planted = farmStats.planted + 1
     end
 end
 
--- HIGH FPS AUTO PLANT LAYER ONLY (Uses cached instances to stay fast)
+-- HIGH FPS AUTO PLANT LAYER (Fixed double-counting via dynamic replication tracking)
 local plantCache = {}
 local lastPlantCacheUpdate = 0
 
@@ -505,9 +500,15 @@ task.spawn(function()
                     if data.box.Parent == deployablesFolder then
                         if (data.part.Position - myPos).Magnitude <= range then
                             if not data.box:FindFirstChild("Seed") then
-                                plant(data.id, itemID)
+                                -- Only count and packet-send if we haven't locked this empty box yet
+                                if not plantedboxes[data.id] then
+                                    plantedboxes[data.id] = true
+                                    farmStats.planted = farmStats.planted + 1
+                                    plant(data.id, itemID)
+                                end
                             else
-                                plantedboxes[data.id] = true
+                                -- The seed physically replicated, clear the tracking lock so it resets when harvested
+                                plantedboxes[data.id] = false
                             end
                         end
                     end
@@ -518,6 +519,8 @@ task.spawn(function()
     end
 end)
 
+-- HIGH FPS HARVEST LAYER (Fixed multi-counting with temporary layout tracking)
+local harvestedBushes = {}
 task.spawn(function()
     while true do
         if not Options.harvesttoggle.Value then
@@ -529,34 +532,38 @@ task.spawn(function()
         local bushes = getbushes(harvestrange, selectedfruit)
         table.sort(bushes, function(a, b) return a.dist < b.dist end)
         for _, bush in ipairs(bushes) do
-            pickup(bush.entityid)
-            
-            -- Tracker logic
-            farmStats.harvested = farmStats.harvested + 1
+            if not harvestedBushes[bush.entityid] then
+                harvestedBushes[bush.entityid] = true
+                pickup(bush.entityid)
+                
+                farmStats.harvested = farmStats.harvested + 1
+                
+                -- Cleanup local memory block once instance leaves stream space
+                task.delay(7, function()
+                    harvestedBushes[bush.entityid] = nil
+                end)
+            end
         end
         task.wait(0.1)
     end
 end)
 
--- Throttled UI Render Thread (Calculates Per-Minute and Per-Hour dynamically)
+-- Throttled UI Render Thread
 task.spawn(function()
     while true do
         local elapsed = tick() - farmStats.startTime
-        if elapsed < 1 then elapsed = 1 end -- Prevent potential division by zero on quick resets
+        if elapsed < 1 then elapsed = 1 end 
         
-        -- Plant calculations
         local plantedPerMin = math.round((farmStats.planted / elapsed) * 60)
         local plantedPerHour = math.round((farmStats.planted / elapsed) * 3600)
         
-        -- Harvest calculations
         local harvestedPerMin = math.round((farmStats.harvested / elapsed) * 60)
         local harvestedPerHour = math.round((farmStats.harvested / elapsed) * 3600)
         
-        -- Update UI Elements smoothly
         PlantedParagraph:SetContent(string.format("%d (Per Min: %d | Per Hour: %d)", farmStats.planted, plantedPerMin, plantedPerHour))
         HarvestedParagraph:SetContent(string.format("%d (Per Min: %d | Per Hour: %d)", farmStats.harvested, harvestedPerMin, harvestedPerHour))
         
-        task.wait(1) -- Throttled loop update speed to prevent client UI canvas lag
+        task.wait(1) 
     end
 end)
 
