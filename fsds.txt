@@ -27,12 +27,12 @@ local clock = require(rs.Modules.Clock)
 local runs = game:GetService("RunService")
 local Options = Library.Options
 
--- Performance safe statistics memory
+-- Performance safe statistics memory with time tracking
 local farmStats = {
     planted = 0,
-    harvested = 0
+    harvested = 0,
+    startTime = tick()
 }
-local statsUpdated = false
 
 local char, root, hum, wscon, slopecon
 local function updateCharacter()
@@ -102,16 +102,16 @@ Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Con
 Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees"}, Default = "0 degrees"})
 Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placeSingleSnappedBox() end})
 
--- Farming Tracker UI Components (Fixed Fluent-Renewed Table Structuring)
+-- Farming Tracker UI Components (With Live Per Minute / Per Hour Metrics)
 Tabs.Farming:AddSection("Farming Statistics")
-local PlantedParagraph = Tabs.Farming:AddParagraph("PlantedSeedsStats", { Title = "Total Seeds Planted", Content = "0" })
-local HarvestedParagraph = Tabs.Farming:AddParagraph("HarvestedItemsStats", { Title = "Total Items Harvested", Content = "0" })
+local PlantedParagraph = Tabs.Farming:AddParagraph("PlantedSeedsStats", { Title = "Total Seeds Planted", Content = "0 (Per Min: 0 | Per Hour: 0)" })
+local HarvestedParagraph = Tabs.Farming:AddParagraph("HarvestedItemsStats", { Title = "Total Items Harvested", Content = "0 (Per Min: 0 | Per Hour: 0)" })
 Tabs.Farming:AddButton({
     Title = "Reset Tracker Statistics",
     Callback = function()
         farmStats.planted = 0
         farmStats.harvested = 0
-        statsUpdated = true
+        farmStats.startTime = tick()
     end
 })
 
@@ -459,7 +459,6 @@ local function plant(entityid, itemID)
         
         -- Tracker logic
         farmStats.planted = farmStats.planted + 1
-        statsUpdated = true
     end
 end
 
@@ -534,21 +533,30 @@ task.spawn(function()
             
             -- Tracker logic
             farmStats.harvested = farmStats.harvested + 1
-            statsUpdated = true
         end
         task.wait(0.1)
     end
 end)
 
--- Throttled UI Render Thread (Prevents UI threading overload lag)
+-- Throttled UI Render Thread (Calculates Per-Minute and Per-Hour dynamically)
 task.spawn(function()
     while true do
-        if statsUpdated then
-            PlantedParagraph:SetContent(tostring(farmStats.planted))
-            HarvestedParagraph:SetContent(tostring(farmStats.harvested))
-            statsUpdated = false
-        end
-        task.wait(0.4)
+        local elapsed = tick() - farmStats.startTime
+        if elapsed < 1 then elapsed = 1 end -- Prevent potential division by zero on quick resets
+        
+        -- Plant calculations
+        local plantedPerMin = math.round((farmStats.planted / elapsed) * 60)
+        local plantedPerHour = math.round((farmStats.planted / elapsed) * 3600)
+        
+        -- Harvest calculations
+        local harvestedPerMin = math.round((farmStats.harvested / elapsed) * 60)
+        local harvestedPerHour = math.round((farmStats.harvested / elapsed) * 3600)
+        
+        -- Update UI Elements smoothly
+        PlantedParagraph:SetContent(string.format("%d (Per Min: %d | Per Hour: %d)", farmStats.planted, plantedPerMin, plantedPerHour))
+        HarvestedParagraph:SetContent(string.format("%d (Per Min: %d | Per Hour: %d)", farmStats.harvested, harvestedPerMin, harvestedPerHour))
+        
+        task.wait(1) -- Throttled loop update speed to prevent client UI canvas lag
     end
 end)
 
