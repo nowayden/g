@@ -40,31 +40,31 @@ plr.CharacterAdded:Connect(updateCharacter)
 
 -- Main Tab
 Tabs.Main:AddSection("Movement")
-Tabs.Main:CreateToggle("wstoggle", { Title = "Walkspeed", Default = false })
-Tabs.Main:CreateSlider("wsslider", { Title = "Value", Min = 1, Max = 35, Rounding = 1, Default = 16 })
-Tabs.Main:CreateToggle("jptoggle", { Title = "JumpPower", Default = false })
-Tabs.Main:CreateSlider("jpslider", { Title = "Value", Min = 1, Max = 65, Rounding = 1, Default = 50 })
-Tabs.Main:CreateToggle("msatoggle", { Title = "No Mountain Slip", Default = false })
+Tabs.Main:AddToggle("wstoggle", { Title = "Walkspeed", Default = false })
+Tabs.Main:AddSlider("wsslider", { Title = "Value", Min = 1, Max = 35, Rounding = 1, Default = 16 })
+Tabs.Main:AddToggle("jptoggle", { Title = "JumpPower", Default = false })
+Tabs.Main:AddSlider("jpslider", { Title = "Value", Min = 1, Max = 65, Rounding = 1, Default = 50 })
+Tabs.Main:AddToggle("msatoggle", { Title = "No Mountain Slip", Default = false })
 
 -- Map Tab
 Tabs.Map:AddSection("Resource Aura")
-Tabs.Map:CreateToggle("resourceauratoggle", { Title = "Resource Aura", Default = false })
-Tabs.Map:CreateSlider("resourceaurarange", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
-Tabs.Map:CreateDropdown("resourcetargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
-Tabs.Map:CreateSlider("resourcecooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
+Tabs.Map:AddToggle("resourceauratoggle", { Title = "Resource Aura", Default = false })
+Tabs.Map:AddSlider("resourceaurarange", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
+Tabs.Map:AddDropdown("resourcetargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
+Tabs.Map:AddSlider("resourcecooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
 
 Tabs.Map:AddSection("Critter Aura")
-Tabs.Map:CreateToggle("critterauratoggle", { Title = "Critter Aura", Default = false })
-Tabs.Map:CreateSlider("critterrangeslider", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
-Tabs.Map:CreateDropdown("crittertargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
-Tabs.Map:CreateSlider("crittercooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
+Tabs.Map:AddToggle("critterauratoggle", { Title = "Critter Aura", Default = false })
+Tabs.Map:AddSlider("critterrangeslider", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
+Tabs.Map:AddDropdown("crittertargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
+Tabs.Map:AddSlider("crittercooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
 
 -- Pickup Tab
 Tabs.Pickup:AddSection("Auto Pickup")
-Tabs.Pickup:CreateToggle("autopickuptoggle", { Title = "Auto Pickup", Default = false })
-Tabs.Pickup:CreateToggle("chestpickuptoggle", { Title = "Auto Pickup From Chests", Default = false })
-Tabs.Pickup:CreateSlider("pickuprange", { Title = "Pickup Range", Min = 1, Max = 35, Rounding = 1, Default = 20 })
-Tabs.Pickup:CreateDropdown("itemdropdown", {
+Tabs.Pickup:AddToggle("autopickuptoggle", { Title = "Auto Pickup", Default = false })
+Tabs.Pickup:AddToggle("chestpickuptoggle", { Title = "Auto Pickup From Chests", Default = false })
+Tabs.Pickup:AddSlider("pickuprange", { Title = "Pickup Range", Min = 1, Max = 35, Rounding = 1, Default = 20 })
+Tabs.Pickup:AddDropdown("itemdropdown", {
     Title = "Items",
     Values = {"Berry", "Bloodfruit", "Bluefruit", "Lemon", "Strawberry", "Gold", "Raw Gold", "Crystal Chunk", "Coin", "Coins", "Coin2", "Coin Stack", "Essence", "Emerald", "Raw Emerald", "Pink Diamond", "Raw Pink Diamond", "Void Shard", "Jelly", "Magnetite", "Raw Magnetite", "Adurite", "Raw Adurite", "Ice Cube", "Stone", "Iron", "Raw Iron", "Steel", "Hide", "Leaves", "Log", "Wood", "Glass", "Bread", "Cooked Egg", "Grain Mush", "Raw Meat", "Cooked Meat", "Glass Bottle", "Healing Potion", "Strength Potion", "Swiftness Potion"},
     Multi = true, Default = { Leaves = true, Log = true }
@@ -78,19 +78,19 @@ Tabs.Pickup:AddInput("droptextbox", { Title = "Custom Item", Default = "Bloodfru
 
 -- Farming Tab
 Tabs.Farming:AddSection("Farming Settings")
-Tabs.Farming:CreateDropdown("fruitdropdown", {Title = "Select Fruit", Values = {"Bloodfruit", "Bluefruit", "Lemon", "Coconut", "Jelly", "Banana", "Orange", "Oddberry", "Berry", "Strangefruit", "Strawberry", "Sunfruit", "Pumpkin", "Prickly Pear", "Apple", "Barley", "Cloudberry", "Carrot", "Blossom"}, Default = "Bloodfruit"})
+Tabs.Farming:AddDropdown("fruitdropdown", {Title = "Select Fruit", Values = {"Bloodfruit", "Bluefruit", "Lemon", "Coconut", "Jelly", "Banana", "Orange", "Oddberry", "Berry", "Strangefruit", "Strawberry", "Sunfruit", "Pumpkin", "Prickly Pear", "Apple", "Barley", "Cloudberry", "Carrot", "Blossom"}, Default = "Bloodfruit"})
 
--- FIXED SECTION HEADERS & BREAKS (Passing raw string arguments to eradicate 'Title' indexing failures)
 Tabs.Farming:AddSection("Farming Statistics")
-local StatLabelMin = Tabs.Farming:AddParagraph({ Title = "Fruits / Minute", Content = "Calculating rate... (Harvest some fruit)" })
-local StatLabelHr = Tabs.Farming:AddParagraph({ Title = "Fruits / Hour", Content = "Calculating rate..." })
+-- Resolved structural type gaps by matching strictly normalized (ID, Config) tables
+local StatLabelMin = Tabs.Farming:AddParagraph("StatLabelMin", { Title = "Fruits / Minute", Content = "Calculating rate... (Harvest some fruit)" })
+local StatLabelHr = Tabs.Farming:AddParagraph("StatLabelHr", { Title = "Fruits / Hour", Content = "Calculating rate..." })
 
 Tabs.Farming:AddSection("Automation Execution")
-Tabs.Farming:CreateToggle("planttoggle", { Title = "Auto Plant", Default = false })
-Tabs.Farming:CreateSlider("plantrange", { Title = "Plant Range", Min = 1, Max = 100, Rounding = 1, Default = 30 })
-Tabs.Farming:CreateSlider("plantdelay", { Title = "Plant Delay (s)", Min = 0.01, Max = 1, Rounding = 2, Default = 0.1 })
-Tabs.Farming:CreateToggle("harvesttoggle", { Title = "Auto Harvest", Default = false })
-Tabs.Farming:CreateSlider("harvestrange", { Title = "Harvest Range", Min = 1, Max = 30, Rounding = 1, Default = 30 })
+Tabs.Farming:AddToggle("planttoggle", { Title = "Auto Plant", Default = false })
+Tabs.Farming:AddSlider("plantrange", { Title = "Plant Range", Min = 1, Max = 100, Rounding = 1, Default = 30 })
+Tabs.Farming:AddSlider("plantdelay", { Title = "Plant Delay (s)", Min = 0.01, Max = 1, Rounding = 2, Default = 0.1 })
+Tabs.Farming:AddToggle("harvesttoggle", { Title = "Auto Harvest", Default = false })
+Tabs.Farming:AddSlider("harvestrange", { Title = "Harvest Range", Min = 1, Max = 30, Rounding = 1, Default = 30 })
 
 Tabs.Farming:AddSection("Walk Settings")
 Tabs.Farming:AddToggle("tweentoplantbox", { Title = "Walk to Plant Box", Default = false })
@@ -100,7 +100,7 @@ Tabs.Farming:AddSlider("tweenrange", { Title = "Range", Min = 1, Max = 250, Roun
 Tabs.Farming:AddSection("Plant Box Placer")
 Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Continuously", Default = false })
 Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees"}, Default = "0 degrees"})
-Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placeSingleSnappedBox() end})
+Tabs.Farming:AddButton("PlaceSingleSnappedBoxBtn", {Title = "Place Single Plant Box (Snapped)", Callback = function() placeSingleSnappedBox() end})
 
 -- WS/JP handlers
 local function updws()
@@ -162,7 +162,7 @@ end)
 -- ==================== ACTIVE ACCURATE FARMING CALCULATOR ====================
 local fruitHarvestLogs = {} 
 local function getInventoryCount(itemName)
-    local list = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
+    local list = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui:FindFirstChild("MainGui").RightPanel and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
     if not list then return 0 end
     local total = 0
     for _, slot in ipairs(list:GetChildren()) do
@@ -190,8 +190,8 @@ task.spawn(function()
             trackingFruit = currentSelected
             lastKnownCount = getInventoryCount(trackingFruit)
             table.clear(fruitHarvestLogs)
-            StatLabelMin:SetDesc("Switched tracking target to " .. trackingFruit)
-            StatLabelHr:SetDesc("Calculating rate...")
+            StatLabelMin:SetContent("Switched tracking target to " .. trackingFruit)
+            StatLabelHr:SetContent("Calculating rate...")
         end
 
         local currentCount = getInventoryCount(trackingFruit)
@@ -224,8 +224,8 @@ task.spawn(function()
             local perMinute = math.round(perSecond * 60)
             local perHour = math.round(perSecond * 3600)
 
-            StatLabelMin:SetDesc(string.format("%d %s / minute (Current Speed)", perMinute, trackingFruit))
-            StatLabelHr:SetDesc(string.format("%d %s / hour (Est. Output)", perHour, trackingFruit))
+            StatLabelMin:SetContent(string.format("%d %s / minute (Current Speed)", perMinute, trackingFruit))
+            StatLabelHr:SetContent(string.format("%d %s / hour (Est. Output)", perHour, trackingFruit))
         end
     end
 end)
@@ -408,23 +408,21 @@ local function getbushes(range, fruitname)
 end
 
 -- ==================== CHARACTER MOVEMENT PATHING + UNSTUCK LAYER ====================
-local lastPosition = Vector3.new(0, 0, 0)
+local lastPosition = Vector3.new(0,0,0)
 local lastMoveTime = tick()
 
 local function walkToTarget(targetPosition)
     if hum and root and targetPosition then
         hum:MoveTo(targetPosition)
         
-        -- Measure physical distance offset from the last recorded position
         local currentPos = root.Position
         if (currentPos - lastPosition).Magnitude > 1.0 then
             lastPosition = currentPos
             lastMoveTime = tick()
         else
-            -- Force State Modification Jumps to hop over static physics obstacles 
             if tick() - lastMoveTime >= 3.0 then
                 hum:ChangeState(Enum.HumanoidStateType.Jumping)
-                lastMoveTime = tick() -- Reset countdown boundary
+                lastMoveTime = tick()
             end
         end
     end
@@ -467,7 +465,6 @@ local function pathToBushesOrBoxes(range, fruitname)
     end
 end
 
--- Walk Thread Invokers
 task.spawn(function()
     while true do
         if not Options.tweentoplantbox.Value then
@@ -501,7 +498,6 @@ local function plant(entityid, itemID)
     end
 end
 
--- HIGH FPS AUTO PLANT LAYER ONLY
 local plantCache = {}
 local lastPlantCacheUpdate = 0
 
@@ -574,7 +570,6 @@ task.spawn(function()
     end
 end)
 
--- Plant box placement (Tight Edge-to-Edge Snapping)
 function placeSingleSnappedBox()
     local char = plr.Character
     if not (char and char:FindFirstChild("HumanoidRootPart")) then return end
@@ -596,7 +591,6 @@ function placeSingleSnappedBox()
     end
 end
 
--- Continuous placement
 local placementConn
 Options.placeplantboxestoggle:OnChanged(function(v)
     if v then
@@ -622,7 +616,7 @@ local POTIONS = {
 }
 
 local function getInventorySlot(itemName)
-    local list = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
+    local list = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui:FindFirstChild("MainGui").RightPanel and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
     if not list then return nil end
     for _, slot in ipairs(list:GetChildren()) do
         if slot:IsA("ImageLabel") and slot.Name:find(itemName) then return slot.LayoutOrder end
@@ -814,7 +808,7 @@ InterfaceManager:SetFolder("FluentScriptHub")
 SaveManager:SetFolder("FluentScriptHub/specific-game")
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
-Window:SelectTab(4) -- Select farming directly to view statistics instantly on injection
+Window:SelectTab(4)
 
 task.wait(0.5)
 Library:Notify{Title = "neverlose", Content = "holy sigma gang", Duration = 8}
