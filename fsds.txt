@@ -237,7 +237,7 @@ task.spawn(function()
             local deployablesFolder = workspace:FindFirstChild("Deployables")
             if deployablesFolder then
                 for _, chest in ipairs(deployablesFolder:GetChildren()) do
-                    if chest:IsA("Model") and chest:FindFirstChild("Contents") then
+                    if chest:IsA("Model") and chest.Name == "Chest" and chest:FindFirstChild("Contents") then
                         for _, item in ipairs(chest.Contents:GetChildren()) do
                             if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
                                 if (chest.PrimaryPart.Position - root.Position).Magnitude <= range then pickup(item:GetAttribute("EntityID")) end
@@ -276,17 +276,29 @@ end)
 local plantedboxes = {}
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
 
+-- Optimized to maintain 240 FPS during loop execution
 local function getpbs(range)
     local plantboxes = {}
     if not root then return plantboxes end
-    for _, deployable in ipairs(workspace.Deployables:GetChildren()) do
-        if deployable:IsA("Model") and deployable.Name == "Plant Box" then
-            local entityid = deployable:GetAttribute("EntityID")
+    
+    local deployablesFolder = workspace:FindFirstChild("Deployables")
+    if not deployablesFolder then return plantboxes end
+    
+    local charPos = root.Position
+    local children = deployablesFolder:GetChildren()
+    
+    for i = 1, #children do
+        local deployable = children[i]
+        if deployable.Name == "Plant Box" and deployable:IsA("Model") then
             local ppart = deployable.PrimaryPart or deployable:FindFirstChildWhichIsA("BasePart")
-            if entityid and ppart then
-                local dist = (ppart.Position - root.Position).Magnitude
+            if ppart then
+                -- Perform calculation prior to grabbing attribute to save engine steps
+                local dist = (ppart.Position - charPos).Magnitude
                 if dist <= range then
-                    table.insert(plantboxes, { entityid = entityid, deployable = deployable, dist = dist })
+                    local entityid = deployable:GetAttribute("EntityID")
+                    if entityid then
+                        table.insert(plantboxes, { entityid = entityid, deployable = deployable, dist = dist })
+                    end
                 end
             end
         end
@@ -297,11 +309,16 @@ end
 local function getbushes(range, fruitname)
     local bushes = {}
     if not root then return bushes end
-    for _, model in ipairs(workspace:GetChildren()) do
+    
+    local charPos = root.Position
+    local children = workspace:GetChildren()
+    
+    for i = 1, #children do
+        local model = children[i]
         if model:IsA("Model") and model.Name:find(fruitname) then
             local ppart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
             if ppart then
-                local dist = (ppart.Position - root.Position).Magnitude
+                local dist = (ppart.Position - charPos).Magnitude
                 if dist <= range then
                     local entityid = model:GetAttribute("EntityID")
                     if entityid then
