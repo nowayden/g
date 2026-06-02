@@ -22,7 +22,7 @@ local Tabs = {
 
 local rs, plr = game:GetService("ReplicatedStorage"), game.Players.LocalPlayer
 local packets = require(rs.Modules.Packets)
-local GameUtil = require(rs.Modules.GameUtil)
+local GameUtil = require(rs.Modules.Packets).Data or require(rs.Modules.GameUtil) -- Safe fallback
 local clock = require(rs.Modules.Clock)
 local runs = game:GetService("RunService")
 local Options = Library.Options
@@ -79,6 +79,12 @@ Tabs.Pickup:AddInput("droptextbox", { Title = "Custom Item", Default = "Bloodfru
 -- Farming Tab
 Tabs.Farming:AddSection("Farming Settings")
 Tabs.Farming:CreateDropdown("fruitdropdown", {Title = "Select Fruit", Values = {"Bloodfruit", "Bluefruit", "Lemon", "Coconut", "Jelly", "Banana", "Orange", "Oddberry", "Berry", "Strangefruit", "Strawberry", "Sunfruit", "Pumpkin", "Prickly Pear", "Apple", "Barley", "Cloudberry", "Carrot", "Blossom"}, Default = "Bloodfruit"})
+
+-- Real-Time Fruit Statistics Displays
+local StatisticsSection = Tabs.Farming:AddSection("Farming Statistics")
+local StatLabelMin = Tabs.Farming:AddParagraph({ Title = "Fruits / Minute", Content = "Calculating rate... (Harvest some fruit)" })
+local StatLabelHr = Tabs.Farming:AddParagraph({ Title = "Fruits / Hour", Content = "Calculating rate..." })
+
 Tabs.Farming:CreateToggle("planttoggle", { Title = "Auto Plant", Default = false })
 Tabs.Farming:CreateSlider("plantrange", { Title = "Plant Range", Min = 1, Max = 100, Rounding = 1, Default = 30 })
 Tabs.Farming:CreateSlider("plantdelay", { Title = "Plant Delay (s)", Min = 0.01, Max = 1, Rounding = 2, Default = 0.1 })
@@ -151,6 +157,79 @@ Options.itemdropdown:OnChanged(function(v)
     selecteditems = {}
     for item, state in pairs(v) do if state then table.insert(selecteditems, item) end end
 end)
+
+-- ==================== ACTIVE ACCURATE FARMING CALCULATOR ====================
+local fruitHarvestLogs = {} 
+local function getInventoryCount(itemName)
+    local list = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
+    if not list then return 0 end
+    local total = 0
+    for _, slot in ipairs(list:GetChildren()) do
+        if slot:IsA("ImageLabel") and slot.Name == itemName then
+            local amtLabel = slot:FindFirstChild("Amount") or slot:FindFirstChildWhichIsA("TextLabel")
+            if amtLabel then
+                total = total + (tonumber(amtLabel.Text) or 1)
+            else
+                total = total + 1
+            end
+        end
+    end
+    return total
+end
+
+local lastKnownCount = 0
+local trackingFruit = "Bloodfruit"
+
+task.spawn(function()
+    lastKnownCount = getInventoryCount(trackingFruit)
+    while true do
+        task.wait(0.5)
+        local currentSelected = Options.fruitdropdown.Value
+        if currentSelected ~= trackingFruit then
+            trackingFruit = currentSelected
+            lastKnownCount = getInventoryCount(trackingFruit)
+            table.clear(fruitHarvestLogs)
+            StatLabelMin:SetDesc("Switched tracking target to " .. trackingFruit)
+            StatLabelHr:SetDesc("Calculating rate...")
+        end
+
+        local currentCount = getInventoryCount(trackingFruit)
+        if currentCount > lastKnownCount then
+            local gained = currentCount - lastKnownCount
+            table.insert(fruitHarvestLogs, { time = tick(), amount = gained })
+            lastKnownCount = currentCount
+        elseif currentCount < lastKnownCount then
+            lastKnownCount = currentCount -- Handled item drops/crafting without breaking baseline calculations
+        end
+
+        -- Roll off logs older than 5 minutes to keep project rates precise to current speed
+        local now = tick()
+        for i = #fruitHarvestLogs, 1, -1 do
+            if now - fruitHarvestLogs[i].time > 300 then
+                table.remove(fruitHarvestLogs, i)
+            end
+        end
+
+        if #fruitHarvestLogs > 0 then
+            local totalGainedInWindow = 0
+            for _, log in ipairs(fruitHarvestLogs) do
+                totalGainedInWindow = totalGainedInWindow + log.amount
+            end
+            
+            local earliestTime = fruitHarvestLogs[1].time
+            local timespan = now - earliestTime
+            if timespan < 10 then timespan = 10 end -- Bound minimum timeframe sample window size
+
+            local perSecond = totalGainedInWindow / timespan
+            local perMinute = math.round(perSecond * 60)
+            local perHour = math.round(perSecond * 3600)
+
+            StatLabelMin:SetDesc(string.format("%d %s / minute (Current Speed)", perMinute, trackingFruit))
+            StatLabelHr:SetDesc(string.format("%d %s / hour (Est. Output)", perHour, trackingFruit))
+        end
+    end
+end)
+-- ============================================================================
 
 -- Resource Aura
 local resourceActive, resourceConn, lastResourceTime = false, nil, 0
