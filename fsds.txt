@@ -30,8 +30,18 @@ local Options = Library.Options
 -- Farming statistics tracker table
 local farmStats = {
     bloodfruits = 0,
-    startTime = tick()
+    totalAllTime = 0,     -- Tracks all-time collection for the session
+    startTime = tick(),   -- Resets on button click
+    sessionStartTime = tick() -- Persistent session timer
 }
+
+-- Helper function to format seconds into HH:MM:SS
+local function formatTime(seconds)
+    local hours = math.floor(seconds / 3600)
+    local minutes = math.floor((seconds % 3600) / 60)
+    local secs = math.floor(seconds % 60)
+    return string.format("%02d:%02d:%02d", hours, minutes, secs)
+end
 
 local char, root, hum, wscon, slopecon
 local function updateCharacter()
@@ -104,6 +114,7 @@ Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = f
 -- Farming Tracker UI Components (Bloodfruits Only)
 Tabs.Farming:AddSection("Farming Statistics")
 local BloodfruitParagraph = Tabs.Farming:AddParagraph("BloodfruitStats", { Title = "Bloodfruits Harvested", Content = "0 (Per Min: 0 | Per Hour: 0)" })
+local TotalAllTimeParagraph = Tabs.Farming:AddParagraph("TotalAllTimeStats", { Title = "Total Harvested (All Time)", Content = "0 (Time: 00:00:00)" })
 Tabs.Farming:AddButton({
     Title = "Reset Tracker Statistics",
     Callback = function()
@@ -207,7 +218,7 @@ Options.resourceauratoggle:OnChanged(function(s) if s then startResource() else 
 local SchuylerActive, critterConn, lastCritterTime = false, nil, 0
 local function startCritter()
     if SchuylerActive then return end
-    SchuylerActive = true
+    SchuulerActive = true
     critterConn = runs.Heartbeat:Connect(function()
         if not Options.critterauratoggle.Value then critterConn:Disconnect(); critterConn = nil; SchuylerActive = false; return end
         if not root or not GameUtil.Data.equipped then return end
@@ -512,7 +523,7 @@ task.spawn(function()
     end
 end)
 
--- Original loop logic restored completely, with lightweight tracking to count +3 on Bloodfruits
+-- Original loop logic completely restored, tracks +3 for both current stats and all-time session stats
 local harvestedBushes = {}
 task.spawn(function()
     while true do
@@ -529,6 +540,7 @@ task.spawn(function()
             if selectedfruit == "Bloodfruit" and not harvestedBushes[bush.entityid] then
                 harvestedBushes[bush.entityid] = true
                 farmStats.bloodfruits = farmStats.bloodfruits + 3
+                farmStats.totalAllTime = farmStats.totalAllTime + 3 -- Adds +3 to continuous session counter
                 
                 task.delay(5, function()
                     harvestedBushes[bush.entityid] = nil
@@ -545,10 +557,14 @@ task.spawn(function()
         local elapsed = tick() - farmStats.startTime
         if elapsed < 1 then elapsed = 1 end 
         
+        -- Pull global session elapsed time
+        local totalSessionElapsed = tick() - farmStats.sessionStartTime
+        
         local bloodfruitsPerMin = math.round((farmStats.bloodfruits / elapsed) * 60)
         local bloodfruitsPerHour = math.round((farmStats.bloodfruits / elapsed) * 3600)
         
         BloodfruitParagraph:SetContent(string.format("%d (Per Min: %d | Per Hour: %d)", farmStats.bloodfruits, bloodfruitsPerMin, bloodfruitsPerHour))
+        TotalAllTimeParagraph:SetContent(string.format("%d (Time: %s)", farmStats.totalAllTime, formatTime(totalSessionElapsed)))
         task.wait(1) 
     end
 end)
