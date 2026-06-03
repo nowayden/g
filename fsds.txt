@@ -1,14 +1,13 @@
-print("loading")
-print("--------------------------43---------------")
+print("loading neverlose optimized v2")
+print("-----------------------------------------")
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "", SubTitle = "", TabWidth = 160,
+    Title = "neverlose", SubTitle = ":)", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
-    Acrylic = false, -- Disabled for performance boost on low/mid-end devices
-    Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
+    Acrylic = false, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
 
 local Tabs = {
@@ -44,33 +43,34 @@ local function formatTime(seconds)
     return string.format("%02d:%02d:%02d", hours, minutes, secs)
 end
 
--- Caching inventory lookups to prevent UI tree traversal lag
+-- Secured Real-Time Inventory Value Grabber
 local cachedInventoryCount = 0
-task.spawn(function()
-    while true do
-        task.wait(0.3) -- Pull inventory data 3 times a second instead of every frame
-        local targetFruit = Options.fruitdropdown and Options.fruitdropdown.Value
-        if not targetFruit then continue end
-        
-        local count = 0
-        if GameUtil and GameUtil.Data then
-            local inv = GameUtil.Data.inventory or GameUtil.Data.Inventory or GameUtil.Data.bag or GameUtil.Data.Bag
-            if type(inv) == "table" then
-                if inv[targetFruit] then 
-                    count = tonumber(inv[targetFruit]) or 0 
-                else
-                    for k, v in pairs(inv) do
-                        if k == targetFruit then count = tonumber(v) or 0; break end
-                        if type(v) == "table" and (v.name == targetFruit or v.Name == targetFruit) then
-                            count = tonumber(v.amount or v.Amount or v.count or v.Count or 1) or 0
-                            break
-                        end
+local function getActualInventoryCount()
+    local targetFruit = Options.fruitdropdown and Options.fruitdropdown.Value
+    if not targetFruit then return 0 end
+    
+    if GameUtil and GameUtil.Data then
+        local inv = GameUtil.Data.inventory or GameUtil.Data.Inventory or GameUtil.Data.bag or GameUtil.Data.Bag
+        if type(inv) == "table" then
+            if inv[targetFruit] then 
+                return tonumber(inv[targetFruit]) or 0 
+            else
+                for k, v in pairs(inv) do
+                    if k == targetFruit then return tonumber(v) or 0 end
+                    if type(v) == "table" and (v.name == targetFruit or v.Name == targetFruit) then
+                        return tonumber(v.amount or v.Amount or v.count or v.Count or 1) or 0
                     end
                 end
             end
         end
-        cachedInventoryCount = count
     end
+    return 0
+end
+
+-- Initialize the base count so calculation logic doesn't inflate on startup
+task.spawn(function()
+    task.wait(1)
+    cachedInventoryCount = getActualInventoryCount()
 end)
 
 local char, root, hum, wscon, slopecon
@@ -154,11 +154,11 @@ Tabs.Farming:AddButton({
     end
 })
 
--- Fully Optimized WalkSpeed/JumpPower Handler (Removes RenderStepped strain)
+-- WalkSpeed Loop Fix
 local function updws()
     if wscon then wscon:Disconnect(); wscon = nil end
     if Options.wstoggle.Value or Options.jptoggle.Value then
-        wscon = runs.Heartbeat:Connect(function() -- Shifted from RenderStepped to Heartbeat
+        wscon = runs.Heartbeat:Connect(function()
             if hum then
                 local tWS = Options.wstoggle.Value and Options.wsslider.Value or 16
                 local tJP = Options.jptoggle.Value and Options.jpslider.Value or 50
@@ -181,7 +181,6 @@ local function updmsa()
 end
 Options.msatoggle:OnChanged(updmsa)
 
--- Network helpers
 local function swingtool(entityIds)
     if not (packets.SwingTool and packets.SwingTool.send) then return end
     local arr = table.create(#entityIds)
@@ -210,7 +209,7 @@ Options.itemdropdown:OnChanged(function(v)
     for item, state in pairs(v) do if state then table.insert(selecteditems, item) end end
 end)
 
--- Optimized Resource Aura
+-- Resource Aura
 local resourceActive, resourceConn, lastResourceTime = false, nil, 0
 local function startResource()
     if resourceActive then return end
@@ -246,7 +245,7 @@ local function startResource()
         end
 
         checkFolder(workspace.Resources)
-        checkFolder(workspace) -- Captures manual loose nodes like Gold Node models
+        checkFolder(workspace)
 
         if #targets > 0 then
             table.sort(targets, function(a,b) return a.dist < b.dist end)
@@ -259,7 +258,7 @@ local function startResource()
 end
 Options.resourceauratoggle:OnChanged(function(s) if s then startResource() else resourceActive = false; if resourceConn then resourceConn:Disconnect(); resourceConn = nil end end end)
 
--- Optimized Critter Aura
+-- Critter Aura
 local SchuylerActive, critterConn, lastCritterTime = false, nil, 0
 local function startCritter()
     if SchuylerActive then return end
@@ -303,7 +302,7 @@ local function startCritter()
 end
 Options.critterauratoggle:OnChanged(function(s) if s then startCritter() else SchuylerActive = false; if critterConn then critterConn:Disconnect(); critterConn = nil end end end)
 
--- Decoupled Throttled Pickup Loop (Runs every 0.1s instead of every frame)
+-- Optimized Pickup Loop
 task.spawn(function()
     while true do
         task.wait(0.1)
@@ -347,33 +346,27 @@ task.spawn(function()
     end
 end)
 
--- Decoupled Custom Auto-Drop Thread
 task.spawn(function()
     while true do
         task.wait(0.4)
-        if Options.droptoggle.Value then
-            drop(Options.dropdropdown.Value)
-        end
-        if Options.droptogglemanual.Value then
-            drop(Options.droptextbox.Value)
-        end
+        if Options.droptoggle.Value then drop(Options.dropdropdown.Value) end
+        if Options.droptogglemanual.Value then drop(Options.droptextbox.Value) end
     end
 end)
 
--- Shared Caching Structures for Farming Paths to prevent performance leaks
 local plantBoxesCache = {}
 local fruitBushesCache = {}
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
 
+-- Static Path Cache Engine (Stops frame choking)
 task.spawn(function()
     while true do
-        task.wait(0.3) -- Build path targets cache every 300ms 
+        task.wait(0.25) 
         if not root then continue end
         local rPos = root.Position
         local range = tonumber(Options.tweenrange.Value) or 250
         local targetFruit = Options.fruitdropdown.Value
         
-        -- Plantbox Scanner Cache
         table.clear(plantBoxesCache)
         local deployables = workspace:FindFirstChild("Deployables")
         if deployables then
@@ -394,7 +387,6 @@ task.spawn(function()
             table.sort(plantBoxesCache, function(a,b) return a.dist < b.dist end)
         end
 
-        -- Fruit Bush Scanner Cache
         table.clear(fruitBushesCache)
         local scanTargets = {}
         local wChildren = workspace:GetChildren()
@@ -432,7 +424,6 @@ task.spawn(function()
     end
 end)
 
--- Character Character Position Walk Managers
 local function walkToTarget(targetPosition)
     if hum and targetPosition then hum:MoveTo(targetPosition) end
 end
@@ -462,7 +453,7 @@ task.spawn(function()
     end
 end)
 
--- Highly Optimized Autoplant Thread
+-- Auto Plant Loop
 local plantedboxes = {}
 task.spawn(function()
     while true do
@@ -496,66 +487,42 @@ task.spawn(function()
     end
 end)
 
--- Highly Optimized Auto Harvest Layer
-local activelyHarvestedBushes = {}
+-- Auto Harvest Loop (Purely sends packets, no longer guesses or alters stat logic counters)
 task.spawn(function()
     while true do
         if not Options.harvesttoggle.Value then task.wait(0.1) continue end
         local hRange = tonumber(Options.harvestrange.Value) or 30
-        
         for i = 1, #fruitBushesCache do
             local bush = fruitBushesCache[i]
             if bush.dist <= hRange then
                 pickup(bush.entityid)
-                
-                if not activelyHarvestedBushes[bush.entityid] then
-                    activelyHarvestedBushes[bush.entityid] = true
-                    task.spawn(function()
-                        local tModel = bush.model
-                        while tModel and tModel.Parent do task.wait(0.1) end
-                        if root and (bush.pos - root.Position).Magnitude <= hRange + 5 then
-                            if not farmStats.timerStarted then
-                                farmStats.timerStarted = true
-                                farmStats.startTime = tick()
-                                farmStats.sessionStartTime = tick()
-                            end
-                            farmStats.harvestedCount = farmStats.harvestedCount + 3
-                            farmStats.totalAllTime = farmStats.totalAllTime + 3
-                        end
-                        activelyHarvestedBushes[bush.entityid] = nil
-                    end)
-                end
             end
         end
         task.wait(0.1)
     end
 end)
 
--- Non-Blocking Statistics Rendering Thread (Fires every 400ms instead of frame render)
+-- FIXED TRACKER SYSTEM: Pure Inventory Shift Delta Processing Loop
 task.spawn(function()
-    local lastCount = cachedInventoryCount
     while true do
-        task.wait(0.4)
-        local currentCount = cachedInventoryCount
-        local delta = 0
+        task.wait(0.3) -- Read inventory variations 3 times a second
+        local currentCount = getActualInventoryCount()
         
-        if currentCount and currentCount > 0 then
-            if currentCount > lastCount then
-                delta = currentCount - lastCount
-                lastCount = currentCount
-            elseif currentCount < lastCount then
-                lastCount = currentCount
+        if currentCount ~= cachedInventoryCount then
+            if currentCount > cachedInventoryCount then
+                local realDelta = currentCount - cachedInventoryCount
+                
+                if not farmStats.timerStarted then
+                    farmStats.timerStarted = true
+                    farmStats.startTime = tick()
+                    farmStats.sessionStartTime = tick()
+                end
+                
+                -- Increments accurately by the precise amount given to you by the game (+2, +3, etc)
+                farmStats.harvestedCount = farmStats.harvestedCount + realDelta
+                farmStats.totalAllTime = farmStats.totalAllTime + realDelta
             end
-        end
-        
-        if delta > 0 then
-            if not farmStats.timerStarted then
-                farmStats.timerStarted = true
-                farmStats.startTime = tick()
-                farmStats.sessionStartTime = tick()
-            end
-            farmStats.harvestedCount = farmStats.harvestedCount + delta
-            farmStats.totalAllTime = farmStats.totalAllTime + delta
+            cachedInventoryCount = currentCount
         end
 
         local runElapsed = farmStats.timerStarted and (tick() - farmStats.startTime) or 1
@@ -580,7 +547,6 @@ task.spawn(function()
     end
 end)
 
--- Snapped Plantbox Placement Code Engine 
 function placeSingleSnappedBox()
     if not (root and workspace.CurrentCamera) then return end
     local pos = root.Position
@@ -607,7 +573,7 @@ Options.placeplantboxestoggle:OnChanged(function(v)
     end
 end)
 
--- Optimized Mass Potions Core
+-- Potions Loop
 local potionLoop, isBrewing, selectedPotion = nil, false, "Healing Potion"
 local POTIONS = {
     ["Healing Potion"] = {{name = "Ice Cube", amount = 3}, {name = "Bloodfruit", amount = 5}, {name = "Strawberry", amount = 2}},
@@ -696,7 +662,7 @@ Tabs.Potions:AddToggle("AutoPotionToggle", {
     end
 })
 
--- ==================== AUTO REBIRTH SYSTEM ====================
+-- Auto Rebirth System
 local autoRebirthRunning = false
 local hasConfirmedRebirth = false
 
@@ -750,7 +716,7 @@ Tabs.Event:AddToggle("AutoRebirthToggle", {
     end
 })
 
--- Soul Minion Engine Teleport Exploit 
+-- Soul Minion Teleport Exploit
 task.spawn(function()
     while true do
         task.wait(0.2)
@@ -773,7 +739,7 @@ end)
 Tabs.Event:AddSection("Combat Exploit")
 Tabs.Event:AddToggle("tpsoulminionstoggle", { Title = "Tp Soul Minions", Default = false })
 
--- Final configuration builders
+-- Setup Managers
 SaveManager:SetLibrary(Library)
 InterfaceManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
