@@ -21,13 +21,13 @@ local Tabs = {
 }
 
 -- =============================================================================
--- CRITICAL HOT-PATCH: Fixes the library's broken internal AddParagraph method
+-- CRITICAL HOT-PATCH: Correctly invokes the paragraph creator as a direct function
 -- =============================================================================
 local TabPrototype = getmetatable(Tabs.Main) or Tabs.Main
 if TabPrototype and Library.Elements and Library.Elements.Paragraph then
     function TabPrototype:AddParagraph(Config)
-        -- Manually supplying the missing Library and Tab references the fork forgot
-        return Library.Elements.Paragraph:New(self.Library, self, Config)
+        -- Call the element function directly instead of using :New()
+        return Library.Elements.Paragraph(self.Library, self, Config)
     end
 end
 -- =============================================================================
@@ -162,7 +162,6 @@ Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Valu
 Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placeSingleSnappedBox() end})
 
 Tabs.Farming:AddSection("Farming Statistics")
--- Now clean, standard Fluent tables work flawlessly thanks to the hot-patch above
 local HarvestedParagraph = Tabs.Farming:AddParagraph({ Title = "Items Harvested (Session)", Content = "0 (Per Min: 0 | Per Hour: 0)" })
 local TotalAllTimeParagraph = Tabs.Farming:AddParagraph({ Title = "Total Harvested (All Time)", Content = "0 (Time: 00:00:00 (Waiting for harvest...))" })
 
