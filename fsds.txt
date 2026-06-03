@@ -27,6 +27,60 @@ local clock = require(rs.Modules.Clock)
 local runs = game:GetService("RunService")
 local Options = Library.Options
 
+-- Farming stats tracking storage
+local farmStats = {
+    harvestedCount = 0,
+    totalAllTime = 0,
+    startTime = tick(),
+    sessionStartTime = tick(),
+    timerStarted = false
+}
+
+local function formatTime(seconds)
+    local hours = math.floor(seconds / 3600)
+    local minutes = math.floor((seconds % 3600) / 60)
+    local secs = math.floor(seconds % 60)
+    return string.format("%02d:%02d:%02d", hours, minutes, secs)
+end
+
+-- Safer UI component updater to handle Fluent variations
+local function updateParagraph(obj, title, desc)
+    if not obj then return end
+    if obj.SetDesc then obj:SetDesc(desc) end
+    if obj.SetContent then obj:SetContent(desc) end
+    if obj.SetTitle then obj:SetTitle(title) end
+end
+
+-- Background inventory reader
+local function getInventoryCount(itemName)
+    if GameUtil and GameUtil.Data then
+        local inv = GameUtil.Data.inventory or GameUtil.Data.Inventory or GameUtil.Data.bag or GameUtil.Data.Bag
+        if type(inv) == "table" then
+            if inv[itemName] then return tonumber(inv[itemName]) or 0 end
+            for k, v in pairs(inv) do
+                if k == itemName then return tonumber(v) or 0 end
+                if type(v) == "table" and (v.name == itemName or v.Name == itemName) then
+                    return tonumber(v.amount or v.Amount or v.count or v.Count or 1) or 0
+                end
+            end
+        end
+    end
+    
+    local list = plr.PlayerGui:FindFirstChild("MainGui") 
+        and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") 
+        and plr.PlayerGui.MainGui:FindFirstChild("Inventory") 
+        and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
+    if list then
+        for _, slot in ipairs(list:GetChildren()) do
+            if slot:IsA("GuiObject") and (slot.Name == itemName or slot.Name:find(itemName)) then
+                local textObj = slot:FindFirstChild("Amount") or slot:FindFirstChild("Count") or slot:FindFirstChildWhichIsA("TextLabel")
+                if textObj then return tonumber(textObj.Text:match("%d+")) or 0 end
+            end
+        end
+    end
+    return 0
+end
+
 local char, root, hum, wscon, slopecon
 local function updateCharacter()
     char = plr.Character
@@ -94,6 +148,18 @@ Tabs.Farming:AddSection("Plant Box Placer")
 Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Continuously", Default = false })
 Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees"}, Default = "0 degrees"})
 Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placeSingleSnappedBox() end})
+
+-- RESTORED: Farming Statistics Interface Elements
+Tabs.Farming:AddSection("Farming Statistics")
+local HarvestedParagraph = Tabs.Farming:AddParagraph({ Title = "Items Harvested (Session)", Content = "0 (Per Min: 0 | Per Hour: 0)" })
+local TotalAllTimeParagraph = Tabs.Farming:AddParagraph({ Title = "Total Harvested (All Time)", Content = "0 (Time: 00:00:00 (Waiting for harvest...))" })
+Tabs.Farming:AddButton({
+    Title = "Reset Tracker Statistics",
+    Callback = function()
+        farmStats.harvestedCount = 0
+        farmStats.startTime = tick()
+    end
+})
 
 -- WS/JP handlers
 local function updws()
@@ -301,7 +367,6 @@ local function getpbs(range)
     return plantboxes
 end
 
--- FIXED: Now scans both wild instances and items grown within plant box deployables
 local function getbushes(range, fruitname)
     local bushes = {}
     if not root then return bushes end
@@ -481,7 +546,6 @@ task.spawn(function()
                     local data = plantCache[i]
                     if data.box.Parent == deployablesFolder then
                         if (data.part.Position - myPos).Magnitude <= range then
-                            -- FIXED: Added local structural tracking step to prevent packet rate-limit drops before remote updates
                             if not data.box:FindFirstChild("Seed") and not plantedboxes[data.id] then
                                 plant(data.id, itemID)
                                 task.spawn(function()
@@ -502,6 +566,9 @@ task.spawn(function()
     end
 end)
 
+-- Track physical bushes actively target-locked by our processing thread
+local activelyHarvestedBushes = {}
+
 task.spawn(function()
     while true do
         if not Options.harvesttoggle.Value then task.wait(0.1) continue end
@@ -509,10 +576,91 @@ task.spawn(function()
         local selectedfruit = Options.fruitdropdown.Value
         local bushes = getbushes(harvestrange, selectedfruit)
         table.sort(bushes, function(a, b) return a.dist < b.dist end)
+        
         for _, bush in ipairs(bushes) do
             pickup(bush.entityid)
+            
+            -- Absolute physical fallback tracking: Listen directly for instance removal
+            if bush.entityid and not activelyHarvestedBushes[bush.entityid] then
+                activelyHarvestedBushes[bush.entityid] = true
+                task.spawn(function()
+                    local targetModel = bush.model
+                    while targetModel and targetModel.Parent do
+                        task.wait(0.05)
+                    end
+                    -- Bush was removed from workspace (successful pickup remote delivery)
+                    if root and bush.model then
+                        local pivot = bush.model:GetPivot().Position
+                        if (pivot - root.Position).Magnitude <= harvestrange + 8 then
+                            -- Force an update delta manually if background memory modules stall out
+                            if not farmStats.timerStarted then
+                                farmStats.timerStarted = true
+                                farmStats.startTime = tick()
+                                farmStats.sessionStartTime = tick()
+                            end
+                            farmStats.harvestedCount = farmStats.harvestedCount + 3
+                            farmStats.totalAllTime = farmStats.totalAllTime + 3
+                        end
+                    end
+                    activelyHarvestedBushes[bush.entityid] = nil
+                end)
+            end
         end
         task.wait(0.1)
+    end
+end)
+
+-- RESTORED: Rock Solid Real-Time Statistics Engine Loop
+task.spawn(function()
+    local lastCount = 0
+    task.wait(2) -- Allow data layers to map smoothly
+    lastCount = getInventoryCount(Options.fruitdropdown.Value)
+    
+    while true do
+        local targetFruit = Options.fruitdropdown.Value
+        local currentCount = getInventoryCount(targetFruit)
+        local delta = 0
+        
+        if currentCount and currentCount > 0 then
+            if currentCount > lastCount then
+                delta = currentCount - lastCount
+                lastCount = currentCount
+            elseif currentCount < lastCount then
+                lastCount = currentCount -- Handled item splitting or drop conditions cleanly
+            end
+        end
+        
+        -- Apply slot updates to runtime configurations
+        if delta > 0 then
+            if not farmStats.timerStarted then
+                farmStats.timerStarted = true
+                farmStats.startTime = tick()
+                farmStats.sessionStartTime = tick()
+            end
+            farmStats.harvestedCount = farmStats.harvestedCount + delta
+            farmStats.totalAllTime = farmStats.totalAllTime + delta
+        end
+
+        local runElapsed = 0
+        local allTimeSessionElapsed = 0
+        if farmStats.timerStarted then
+            runElapsed = tick() - farmStats.startTime
+            allTimeSessionElapsed = tick() - farmStats.sessionStartTime
+        end
+        if runElapsed < 1 then runElapsed = 1 end 
+        
+        local itemsPerMin = farmStats.timerStarted and math.round((farmStats.harvestedCount / runElapsed) * 60) or 0
+        local itemsPerHour = farmStats.timerStarted and math.round((farmStats.harvestedCount / runElapsed) * 3600) or 0
+        
+        updateParagraph(HarvestedParagraph, string.format("%s Harvested (Session)", targetFruit), string.format("%d (Per Min: %d | Per Hour: %d)", farmStats.harvestedCount, itemsPerMin, itemsPerHour))
+        
+        if farmStats.timerStarted then
+            updateParagraph(TotalAllTimeParagraph, "Total Harvested (All Time)", string.format("%d (Time: %s)", farmStats.totalAllTime, formatTime(allTimeSessionElapsed)))
+        else
+            updateParagraph(TotalAllTimeParagraph, "Total Harvested (All Time)", string.format("%d (Time: 00:00:00 (Waiting for harvest...))", farmStats.totalAllTime))
+        end
+        
+        task.wait(0.3)
     end
 end)
 
@@ -744,7 +892,45 @@ Tabs.Event:AddToggle("AutoRebirthToggle", {
     end
 })
 
--- Final interface setup
+-- RESTORED: Soul Minion Exploit Components
+local function getClosestSoulMinion()
+    local critters = workspace:FindFirstChild("Critters")
+    if not critters or not root then return nil end
+    local closest, minDist = nil, math.huge
+    for _, c in ipairs(critters:GetChildren()) do
+        if c.Name == "Soul Minion" and c:IsA("Model") then
+            local pp = c.PrimaryPart or c:FindFirstChildWhichIsA("BasePart")
+            if pp then
+                local dist = (pp.Position - root.Position).Magnitude
+                if dist < minDist then
+                    minDist = dist
+                    closest = pp
+                end
+            end
+        end
+    end
+    return closest
+end
+
+task.spawn(function()
+    while true do
+        if Options.tpsoulminionstoggle and Options.tpsoulminionstoggle.Value and root then
+            local targetPart = getClosestSoulMinion()
+            if targetPart then
+                root.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
+            end
+        end
+        task.wait(0.15)
+    end
+end)
+
+Tabs.Event:AddSection("Combat Exploit")
+Tabs.Event:AddToggle("tpsoulminionstoggle", {
+    Title = "Tp Soul Minions",
+    Default = false
+})
+
+-- Final setup
 SaveManager:SetLibrary(Library)
 InterfaceManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
