@@ -791,8 +791,8 @@ end
 
 local function StopAutoRebirth() autoRebirthRunning = false end
 
--- 3-Tier Dynamic Priority Target Finder
-local function getClosestPrioritizedTarget()
+-- Tiered Target Verification Helper
+local function getPrioritizedTarget()
     local critters = workspace:FindFirstChild("Critters")
     if not critters or not root then return nil end
     
@@ -802,7 +802,7 @@ local function getClosestPrioritizedTarget()
     local children = critters:GetChildren()
     for i = 1, #children do
         local c = children[i]
-        if c:IsA("Model") then
+        if c:IsA("Model") and c:GetAttribute("EntityID") then
             local pp = c.PrimaryPart or c:FindFirstChildWhichIsA("BasePart")
             if pp then
                 local humCheck = c:FindFirstChildWhichIsA("Humanoid")
@@ -833,50 +833,65 @@ local function getClosestPrioritizedTarget()
         end
     end
     
-    -- Absolute prioritization cascade order
     if queenInstance then return queenInstance end
     if minionInstance then return minionInstance end
     if antInstance then return antInstance end
     return nil
 end
 
--- Teleport and Strict Target Validation Loop
+-- Completely Rewritten Lockout Execution Loop
 task.spawn(function()
-    local trackedTargetInstance = nil
+    local currentlyLockedID = nil
     local targetExpiryDelay = 0
     
     while true do
         if Options.tpsoulminionstoggle and Options.tpsoulminionstoggle.Value and root then
             local rightNow = tick()
             
-            -- If we are serving the 3-second delay period, hold execution
+            -- Firmly enforce the 3-second delay period after any target vanishes
             if rightNow < targetExpiryDelay then
-                trackedTargetInstance = nil
                 task.wait(0.05)
                 continue
             end
             
-            local selectedTarget = getClosestPrioritizedTarget()
-            
-            if selectedTarget then
-                -- Track the current target configuration
-                trackedTargetInstance = selectedTarget
-                local targetPart = selectedTarget.PrimaryPart or selectedTarget:FindFirstChildWhichIsA("BasePart")
-                
-                if targetPart then
-                    -- Execute structural teleport coordinate lock
-                    root.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
+            -- If we are currently tracking an ID, make sure it still exists in workspace
+            local activeTargetStillAlive = false
+            if currentlyLockedID then
+                local critters = workspace:FindFirstChild("Critters")
+                if critters then
+                    for _, c in ipairs(critters:GetChildren()) do
+                        if c:GetAttribute("EntityID") == currentlyLockedID then
+                            local humCheck = c:FindFirstChildWhichIsA("Humanoid")
+                            if not humCheck or humCheck.Health > 0 then
+                                activeTargetStillAlive = true
+                                local targetPart = c.PrimaryPart or c:FindFirstChildWhichIsA("BasePart")
+                                if targetPart then
+                                    -- Continuous strict position lock teleportation
+                                    root.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
+                                end
+                                break
+                            end
+                        end
+                    end
                 end
-            else
-                -- If we were attacking a target, but it died or vanished, log the 3-second delay window
-                if trackedTargetInstance then
-                    print("[Exploit Engine] Target eliminated! Initializing 3-second swap delay configuration.")
+                
+                -- TARGET ELIMINATED: If it was alive last frame but is now gone/dead, initiate the 3-second lockout delay
+                if not activeTargetStillAlive then
+                    print("[Exploit Engine] Target eliminated! Triggering strict 3-second swap delay.")
                     targetExpiryDelay = rightNow + 3.0
-                    trackedTargetInstance = nil
+                    currentlyLockedID = nil
+                end
+            end
+            
+            -- If we aren't tracking anything, look for the next prioritized target
+            if not currentlyLockedID and rightNow >= targetExpiryDelay then
+                local nextTarget = getPrioritizedTarget()
+                if nextTarget then
+                    currentlyLockedID = nextTarget:GetAttribute("EntityID")
                 end
             end
         else
-            trackedTargetInstance = nil
+            currentlyLockedID = nil
         end
         task.wait(0.02)
     end
