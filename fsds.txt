@@ -21,13 +21,24 @@ local Tabs = {
 }
 
 -- =============================================================================
--- CRITICAL HOT-PATCH: Correctly invokes the paragraph creator as a direct function
+-- ULTRA-DEFENSIVE HOT-PATCH: Dynamically handles both function & table styles
 -- =============================================================================
 local TabPrototype = getmetatable(Tabs.Main) or Tabs.Main
 if TabPrototype and Library.Elements and Library.Elements.Paragraph then
     function TabPrototype:AddParagraph(Config)
-        -- Call the element function directly instead of using :New()
-        return Library.Elements.Paragraph(self.Library, self, Config)
+        local target = Library.Elements.Paragraph
+        if type(target) == "function" then
+            return target(self.Library, self, Config)
+        elseif type(target) == "table" and type(target.New) == "function" then
+            return target:New(self.Library, self, Config)
+        end
+        
+        -- Absolute fallback: Safe mock component to completely prevent startup crashes
+        return {
+            SetTitle = function() end,
+            SetDesc = function() end,
+            SetContent = function() end
+        }
     end
 end
 -- =============================================================================
