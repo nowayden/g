@@ -20,6 +20,18 @@ local Tabs = {
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
 }
 
+-- =============================================================================
+-- CRITICAL HOT-PATCH: Fixes the library's broken internal AddParagraph method
+-- =============================================================================
+local TabPrototype = getmetatable(Tabs.Main) or Tabs.Main
+if TabPrototype and Library.Elements and Library.Elements.Paragraph then
+    function TabPrototype:AddParagraph(Config)
+        -- Manually supplying the missing Library and Tab references the fork forgot
+        return Library.Elements.Paragraph:New(self.Library, self, Config)
+    end
+end
+-- =============================================================================
+
 local rs, plr = game:GetService("ReplicatedStorage"), game.Players.LocalPlayer
 local packets = require(rs.Modules.Packets)
 local GameUtil = require(rs.Modules.GameUtil)
@@ -43,7 +55,7 @@ local function formatTime(seconds)
     return string.format("%02d:%02d:%02d", hours, minutes, secs)
 end
 
--- Safer UI component updater to handle Fluent variations
+-- Safer UI component updater
 local function updateParagraph(obj, title, desc)
     if not obj then return end
     if obj.SetDesc then obj:SetDesc(desc) end
@@ -149,10 +161,11 @@ Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Con
 Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees"}, Default = "0 degrees"})
 Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placeSingleSnappedBox() end})
 
--- FIXED: Added unified internal tracking ID keys to completely bypass the 'index nil with Title' crash
 Tabs.Farming:AddSection("Farming Statistics")
-local HarvestedParagraph = Tabs.Farming:AddParagraph("HarvestedSessionPara", { Title = "Items Harvested (Session)", Content = "0 (Per Min: 0 | Per Hour: 0)" })
-local TotalAllTimeParagraph = Tabs.Farming:AddParagraph("TotalAllTimePara", { Title = "Total Harvested (All Time)", Content = "0 (Time: 00:00:00 (Waiting for harvest...))" })
+-- Now clean, standard Fluent tables work flawlessly thanks to the hot-patch above
+local HarvestedParagraph = Tabs.Farming:AddParagraph({ Title = "Items Harvested (Session)", Content = "0 (Per Min: 0 | Per Hour: 0)" })
+local TotalAllTimeParagraph = Tabs.Farming:AddParagraph({ Title = "Total Harvested (All Time)", Content = "0 (Time: 00:00:00 (Waiting for harvest...))" })
+
 Tabs.Farming:AddButton({
     Title = "Reset Tracker Statistics",
     Callback = function()
@@ -204,7 +217,7 @@ local function drop(itemname)
     local inv = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
     if not inv then return end
     for _, child in ipairs(inv:GetChildren()) do
-        if child:IsA("ImageLabel") and child.Name == name then
+        if child:IsA("ImageLabel") and child.Name == itemname then
             if packets.DropBagItem and packets.DropBagItem.send then
                 packets.DropBagItem.send(child.LayoutOrder)
             end
@@ -580,7 +593,7 @@ task.spawn(function()
         for _, bush in ipairs(bushes) do
             pickup(bush.entityid)
             
-            -- Absolute physical fallback tracking: Listen directly for instance removal
+            -- Absolute physical fallback tracking
             if bush.entityid and not activelyHarvestedBushes[bush.entityid] then
                 activelyHarvestedBushes[bush.entityid] = true
                 task.spawn(function()
@@ -588,11 +601,9 @@ task.spawn(function()
                     while targetModel and targetModel.Parent do
                         task.wait(0.05)
                     end
-                    -- Bush was removed from workspace (successful pickup remote delivery)
                     if root and bush.model then
                         local pivot = bush.model:GetPivot().Position
                         if (pivot - root.Position).Magnitude <= harvestrange + 8 then
-                            -- Force an update delta manually if background memory modules stall out
                             if not farmStats.timerStarted then
                                 farmStats.timerStarted = true
                                 farmStats.startTime = tick()
@@ -610,10 +621,10 @@ task.spawn(function()
     end
 end)
 
--- RESTORED: Rock Solid Real-Time Statistics Engine Loop
+-- Statistics Engine Loop
 task.spawn(function()
     local lastCount = 0
-    task.wait(2) -- Allow data layers to map smoothly
+    task.wait(2)
     lastCount = getInventoryCount(Options.fruitdropdown.Value)
     
     while true do
@@ -626,11 +637,10 @@ task.spawn(function()
                 delta = currentCount - lastCount
                 lastCount = currentCount
             elseif currentCount < lastCount then
-                lastCount = currentCount -- Handled item splitting or drop conditions cleanly
+                lastCount = currentCount
             end
         end
         
-        -- Apply slot updates to runtime configurations
         if delta > 0 then
             if not farmStats.timerStarted then
                 farmStats.timerStarted = true
@@ -892,7 +902,7 @@ Tabs.Event:AddToggle("AutoRebirthToggle", {
     end
 })
 
--- RESTORED: Soul Minion Exploit Components
+-- Soul Minion Exploit Components
 local function getClosestSoulMinion()
     local critters = workspace:FindFirstChild("Critters")
     if not critters or not root then return nil end
