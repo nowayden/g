@@ -1,5 +1,5 @@
 print("loading neverlose")
-print("-------------dddd----------------------------")
+print("-----------------------------------------")
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
@@ -19,50 +19,6 @@ local Tabs = {
     Potions = Window:AddTab({ Title = "Flask", Icon = "flask" }),
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
 }
-
--- =============================================================================
--- AUTOMATIC SIGNATURE SCANNING HOT-PATCH (Fixes Container Nil Error)
--- =============================================================================
-local TabPrototype = getmetatable(Tabs.Main) or Tabs.Main
-if TabPrototype and Library.Elements and Library.Elements.Paragraph then
-    function TabPrototype:AddParagraph(Config)
-        local target = Library.Elements.Paragraph
-        
-        -- 1. Try treating it as a standard function (Tab, Config)
-        if type(target) == "function" then
-            local success, result = pcall(function()
-                return target(self, Config)
-            end)
-            if success and result then return result end
-            
-            -- Alternative function signature fallback (Config, Tab)
-            success, result = pcall(function()
-                return target(Config, self)
-            end)
-            if success and result then return result end
-            
-        -- 2. Try treating it as a standard OOP class table
-        elseif type(target) == "table" and type(target.New) == "function" then
-            local success, result = pcall(function()
-                return target:New(self, Config)
-            end)
-            if success and result then return result end
-            
-            success, result = pcall(function()
-                return target:New(Config, self)
-            end)
-            if success and result then return result end
-        end
-        
-        -- 3. Absolute safety fallback: Returns a mock object to prevent stats loop crashes
-        return {
-            SetTitle = function() end,
-            SetDesc = function() end,
-            SetContent = function() end
-        }
-    end
-end
--- =============================================================================
 
 local rs, plr = game:GetService("ReplicatedStorage"), game.Players.LocalPlayer
 local packets = require(rs.Modules.Packets)
@@ -85,14 +41,6 @@ local function formatTime(seconds)
     local minutes = math.floor((seconds % 3600) / 60)
     local secs = math.floor(seconds % 60)
     return string.format("%02d:%02d:%02d", hours, minutes, secs)
-end
-
--- Safer UI component updater
-local function updateParagraph(obj, title, desc)
-    if not obj then return end
-    if obj.SetDesc then obj:SetDesc(desc) end
-    if obj.SetContent then obj:SetContent(desc) end
-    if obj.SetTitle then obj:SetTitle(title) end
 end
 
 -- Background inventory reader
@@ -193,9 +141,10 @@ Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Con
 Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees"}, Default = "0 degrees"})
 Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placeSingleSnappedBox() end})
 
+-- Bulletproof Visual Stat Elements using Labels/Buttons
 Tabs.Farming:AddSection("Farming Statistics")
-local HarvestedParagraph = Tabs.Farming:AddParagraph({ Title = "Items Harvested (Session)", Content = "0 (Per Min: 0 | Per Hour: 0)" })
-local TotalAllTimeParagraph = Tabs.Farming:AddParagraph({ Title = "Total Harvested (All Time)", Content = "0 (Time: 00:00:00 (Waiting for harvest...))" })
+local HarvestedStats = Tabs.Farming:AddButton({ Title = "Harvested (Session): 0 (Per Min: 0 | Per Hour: 0)", Callback = function() end })
+local TotalStats = Tabs.Farming:AddButton({ Title = "Total Harvested (All Time): 0 (Time: 00:00:00 (Waiting...))", Callback = function() end })
 
 Tabs.Farming:AddButton({
     Title = "Reset Tracker Statistics",
@@ -693,12 +642,17 @@ task.spawn(function()
         local itemsPerMin = farmStats.timerStarted and math.round((farmStats.harvestedCount / runElapsed) * 60) or 0
         local itemsPerHour = farmStats.timerStarted and math.round((farmStats.harvestedCount / runElapsed) * 3600) or 0
         
-        updateParagraph(HarvestedParagraph, string.format("%s Harvested (Session)", targetFruit), string.format("%d (Per Min: %d | Per Hour: %d)", farmStats.harvestedCount, itemsPerMin, itemsPerHour))
+        -- Safe execution engine directly hitting the UI labels
+        if HarvestedStats and HarvestedStats.SetTitle then
+            HarvestedStats:SetTitle(string.format("%s Harvested (Session): %d (Per Min: %d | Per Hour: %d)", targetFruit, farmStats.harvestedCount, itemsPerMin, itemsPerHour))
+        end
         
-        if farmStats.timerStarted then
-            updateParagraph(TotalAllTimeParagraph, "Total Harvested (All Time)", string.format("%d (Time: %s)", farmStats.totalAllTime, formatTime(allTimeSessionElapsed)))
-        else
-            updateParagraph(TotalAllTimeParagraph, "Total Harvested (All Time)", string.format("%d (Time: 00:00:00 (Waiting for harvest...))", farmStats.totalAllTime))
+        if TotalStats and TotalStats.SetTitle then
+            if farmStats.timerStarted then
+                TotalStats:SetTitle(string.format("Total Harvested (All Time): %d (Time: %s)", farmStats.totalAllTime, formatTime(allTimeSessionElapsed)))
+            else
+                TotalStats:SetTitle(string.format("Total Harvested (All Time): %d (Time: 00:00:00 (Waiting for harvest...))", farmStats.totalAllTime))
+            end
         end
         
         task.wait(0.3)
