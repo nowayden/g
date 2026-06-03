@@ -149,10 +149,10 @@ Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Con
 Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees"}, Default = "0 degrees"})
 Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placeSingleSnappedBox() end})
 
--- RESTORED: Farming Statistics Interface Elements
+-- FIXED: Added unified internal tracking ID keys to completely bypass the 'index nil with Title' crash
 Tabs.Farming:AddSection("Farming Statistics")
-local HarvestedParagraph = Tabs.Farming:AddParagraph({ Title = "Items Harvested (Session)", Content = "0 (Per Min: 0 | Per Hour: 0)" })
-local TotalAllTimeParagraph = Tabs.Farming:AddParagraph({ Title = "Total Harvested (All Time)", Content = "0 (Time: 00:00:00 (Waiting for harvest...))" })
+local HarvestedParagraph = Tabs.Farming:AddParagraph("HarvestedSessionPara", { Title = "Items Harvested (Session)", Content = "0 (Per Min: 0 | Per Hour: 0)" })
+local TotalAllTimeParagraph = Tabs.Farming:AddParagraph("TotalAllTimePara", { Title = "Total Harvested (All Time)", Content = "0 (Time: 00:00:00 (Waiting for harvest...))" })
 Tabs.Farming:AddButton({
     Title = "Reset Tracker Statistics",
     Callback = function()
@@ -204,7 +204,7 @@ local function drop(itemname)
     local inv = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
     if not inv then return end
     for _, child in ipairs(inv:GetChildren()) do
-        if child:IsA("ImageLabel") and child.Name == itemname then
+        if child:IsA("ImageLabel") and child.Name == name then
             if packets.DropBagItem and packets.DropBagItem.send then
                 packets.DropBagItem.send(child.LayoutOrder)
             end
