@@ -1,11 +1,11 @@
-print("loading neverlose")
-print("-----------------------------------------!")
+print("loading")
+print("-----------------------------------------")
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "neverlose", SubTitle = ":)", TabWidth = 160,
+    Title = "", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -30,9 +30,10 @@ local Options = Library.Options
 -- Farming statistics tracker table
 local farmStats = {
     bloodfruits = 0,
-    totalAllTime = 0,     -- Tracks all-time collection for the session
-    startTime = tick(),   -- Resets on button click
-    sessionStartTime = tick() -- Persistent session timer
+    totalAllTime = 0,
+    startTime = tick(),
+    sessionStartTime = tick(),
+    timerStarted = false -- Gated until the first actual harvest drops
 }
 
 -- Helper function to format seconds into HH:MM:SS
@@ -41,6 +42,29 @@ local function formatTime(seconds)
     local minutes = math.floor((seconds % 3600) / 60)
     local secs = math.floor(seconds % 60)
     return string.format("%02d:%02d:%02d", hours, minutes, secs)
+end
+
+-- Reads accurate item quantities straight from your live inventory slots
+local function getActualBloodfruitCount()
+    local list = plr.PlayerGui:FindFirstChild("MainGui") 
+        and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") 
+        and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") 
+        and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
+    if not list then return 0 end
+    
+    local total = 0
+    for _, slot in ipairs(list:GetChildren()) do
+        if slot:IsA("ImageLabel") and slot.Name == "Bloodfruit" then
+            local textObj = slot:FindFirstChild("Amount") or slot:FindFirstChild("Count") or slot:FindFirstChildWhichIsA("TextLabel")
+            if textObj then
+                local num = tonumber(textObj.Text:match("%d+"))
+                total = total + (num or 1)
+            else
+                total = total + 1
+            end
+        end
+    end
+    return total
 end
 
 local char, root, hum, wscon, slopecon
@@ -114,7 +138,7 @@ Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = f
 -- Farming Tracker UI Components (Bloodfruits Only)
 Tabs.Farming:AddSection("Farming Statistics")
 local BloodfruitParagraph = Tabs.Farming:AddParagraph("BloodfruitStats", { Title = "Bloodfruits Harvested", Content = "0 (Per Min: 0 | Per Hour: 0)" })
-local TotalAllTimeParagraph = Tabs.Farming:AddParagraph("TotalAllTimeStats", { Title = "Total Harvested (All Time)", Content = "0 (Time: 00:00:00)" })
+local TotalAllTimeParagraph = Tabs.Farming:AddParagraph("TotalAllTimeStats", { Title = "Total Harvested (All Time)", Content = "0 (Time: 00:00:00 (Waiting for harvest...))" })
 Tabs.Farming:AddButton({
     Title = "Reset Tracker Statistics",
     Callback = function()
@@ -523,8 +547,7 @@ task.spawn(function()
     end
 end)
 
--- Original loop logic completely restored, tracks +3 for both current stats and all-time session stats
-local harvestedBushes = {}
+-- The original auto harvest packet processing loop (Manual addition removed to allow live inventory tracking delta verification)
 task.spawn(function()
     while true do
         if not Options.harvesttoggle.Value then
@@ -537,35 +560,57 @@ task.spawn(function()
         table.sort(bushes, function(a, b) return a.dist < b.dist end)
         for _, bush in ipairs(bushes) do
             pickup(bush.entityid)
-            if selectedfruit == "Bloodfruit" and not harvestedBushes[bush.entityid] then
-                harvestedBushes[bush.entityid] = true
-                farmStats.bloodfruits = farmStats.bloodfruits + 3
-                farmStats.totalAllTime = farmStats.totalAllTime + 3 -- Adds +3 to continuous session counter
-                
-                task.delay(5, function()
-                    harvestedBushes[bush.entityid] = nil
-                end)
-            end
         end
         task.wait(0.1)
     end
 end)
 
--- Statistics update thread
+-- Live delta tracking loop & statistics updater thread
 task.spawn(function()
+    -- Create baseline value from existing items in inventory so old assets aren't miscounted as fresh harvests
+    local lastBloodfruitCount = getActualBloodfruitCount()
+    
     while true do
-        local elapsed = tick() - farmStats.startTime
+        local currentCount = getActualBloodfruitCount()
+        
+        -- Detect accurate inventory additions
+        if currentCount > lastBloodfruitCount then
+            local gained = currentCount - lastBloodfruitCount
+            
+            -- If this is the absolute first drop harvested, activate your timers!
+            if not farmStats.timerStarted then
+                farmStats.timerStarted = true
+                farmStats.startTime = tick()
+                farmStats.sessionStartTime = tick()
+            end
+            
+            farmStats.bloodfruits = farmStats.bloodfruits + gained
+            farmStats.totalAllTime = farmStats.totalAllTime + gained
+        end
+        lastBloodfruitCount = currentCount
+
+        -- Compute elapsed updates safely
+        local elapsed = 0
+        local totalSessionElapsed = 0
+        if farmStats.timerStarted then
+            elapsed = tick() - farmStats.startTime
+            totalSessionElapsed = tick() - farmStats.sessionStartTime
+        end
         if elapsed < 1 then elapsed = 1 end 
         
-        -- Pull global session elapsed time
-        local totalSessionElapsed = tick() - farmStats.sessionStartTime
-        
-        local bloodfruitsPerMin = math.round((farmStats.bloodfruits / elapsed) * 60)
-        local bloodfruitsPerHour = math.round((farmStats.bloodfruits / elapsed) * 3600)
+        local bloodfruitsPerMin = farmStats.timerStarted and math.round((farmStats.bloodfruits / elapsed) * 60) or 0
+        local bloodfruitsPerHour = farmStats.timerStarted and math.round((farmStats.bloodfruits / elapsed) * 3600) or 0
         
         BloodfruitParagraph:SetContent(string.format("%d (Per Min: %d | Per Hour: %d)", farmStats.bloodfruits, bloodfruitsPerMin, bloodfruitsPerHour))
-        TotalAllTimeParagraph:SetContent(string.format("%d (Time: %s)", farmStats.totalAllTime, formatTime(totalSessionElapsed)))
-        task.wait(1) 
+        
+        -- Display clean text parameters based on whether farming state has gone live
+        if farmStats.timerStarted then
+            TotalAllTimeParagraph:SetContent(string.format("%d (Time: %s)", farmStats.totalAllTime, formatTime(totalSessionElapsed)))
+        else
+            TotalAllTimeParagraph:SetContent(string.format("%d (Time: 00:00:00 (Waiting for harvest...))", farmStats.totalAllTime))
+        end
+        
+        task.wait(0.3) -- Tight calculation checks for snappy feedback
     end
 end)
 
