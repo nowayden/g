@@ -936,6 +936,6 @@ SaveManager:BuildConfigSection(Tabs.Settings)
 Window:SelectTab(1)
 
 task.wait(0.5)
-Library:Notify{Title = "sonion.", Content = "", Duration = 8}
+Library:Notify{Title = "wa wa wa.", Content = "", Duration = 8}
 SaveManager:LoadAutoloadConfig()
 print("Done!")
