@@ -540,7 +540,7 @@ task.spawn(function()
         local currentCount = getInventoryCount(targetFruit) or 0
         local gained = 0
         
-        -- 1. Inventory Delta Processing (Runs constantly, even if count is 0)
+        -- 1. Inventory Delta Processing
         if lastCount == nil then
             lastCount = currentCount
             print("[Tracker] Context Engine Init baseline total for " .. targetFruit .. ": " .. tostring(lastCount))
@@ -555,14 +555,13 @@ task.spawn(function()
             end
         end
         
-        -- 2. Bush Deletion Fallback Processing (Runs concurrently instead of locked in an else block)
+        -- 2. Bush Deletion Fallback Processing
         if Options.harvesttoggle.Value and targetFruit == "Bloodfruit" and root then
             local harvestrange = tonumber(Options.harvestrange.Value) or 30
             local bushes = getbushes(harvestrange, "Bloodfruit")
             
             for id, data in pairs(trackedBushes) do
                 if not workspace:FindFirstChild(data.name) and (data.pos - root.Position).Magnitude <= harvestrange then
-                    -- If inventory tracking missed it, pick it up here
                     if gained == 0 then
                         gained = 3
                         print("[Tracker Fallback Match] Bush deletion registered within radius! Force-adding +3 fruits.")
@@ -792,30 +791,90 @@ end
 
 local function StopAutoRebirth() autoRebirthRunning = false end
 
--- Soul Minions & Event Tab
-local function getClosestSoulMinion()
+-- 3-Tier Prioritized 24/7 Exploit Engine Layout
+local function getClosestPrioritizedTarget()
     local critters = workspace:FindFirstChild("Critters")
     if not critters or not root then return nil end
-    local closest, minDist = nil, math.huge
-    for _, c in ipairs(critters:GetChildren()) do
-        if c.Name == "Soul Minion" and c:IsA("Model") then
+    
+    local queenInstance, minionInstance, antInstance = nil, nil, nil
+    local queenMinDist, minionMinDist, antMinDist = math.huge, math.huge, math.huge
+    
+    local children = critters:GetChildren()
+    for i = 1, #children do
+        local c = children[i]
+        if c:IsA("Model") then
             local pp = c.PrimaryPart or c:FindFirstChildWhichIsA("BasePart")
             if pp then
-                local dist = (pp.Position - root.Position).Magnitude
-                if dist < minDist then minDist = dist; closest = pp end
+                local humCheck = c:FindFirstChildWhichIsA("Humanoid")
+                if not humCheck or humCheck.Health > 0 then
+                    local dist = (pp.Position - root.Position).Magnitude
+                    
+                    -- Priority 1: The Voodoo Spider Queen
+                    if c.Name == "Voodoo Spider Queen" then
+                        if dist < queenMinDist then
+                            queenMinDist = dist
+                            queenInstance = c
+                        end
+                    -- Priority 2: Soul Minion
+                    elseif c.Name == "Soul Minion" and not queenInstance then
+                        if dist < minionMinDist then
+                            minionMinDist = dist
+                            minionInstance = c
+                        end
+                    -- Priority 3: Void Ant
+                    elseif c.Name == "Void Ant" and not queenInstance and not minionInstance then
+                        if dist < antMinDist then
+                            antMinDist = dist
+                            antInstance = c
+                        end
+                    end
+                end
             end
         end
     end
-    return closest
+    
+    -- Cascade return based strictly on priority
+    if queenInstance then return queenInstance end
+    if minionInstance then return minionInstance end
+    return antInstance
 end
 
 task.spawn(function()
+    local lastLockedTarget = nil
+    local deadTargetCooldown = 0
+    
     while true do
         if Options.tpsoulminionstoggle and Options.tpsoulminionstoggle.Value and root then
-            local targetPart = getClosestSoulMinion()
-            if targetPart then root.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0) end
+            local currentTimestamp = tick()
+            
+            -- Keep enforcing the 2-second cooldown delay post-kill
+            if currentTimestamp < deadTargetCooldown then
+                task.wait(0.05)
+                continue
+            end
+            
+            local activeTarget = getClosestPrioritizedTarget()
+            
+            if activeTarget then
+                lastLockedTarget = activeTarget
+                local targetPart = activeTarget.PrimaryPart or activeTarget:FindFirstChildWhichIsA("BasePart")
+                
+                if targetPart then
+                    -- 24/7 continuous teleport structural lock
+                    root.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
+                end
+            else
+                -- Target was killed or missing: trigger 2-second delay before locking the next target
+                if lastLockedTarget then
+                    print("[Exploit Engine] Target eliminated! Triggering 2-second swap cooldown.")
+                    deadTargetCooldown = currentTimestamp + 2.0
+                    lastLockedTarget = nil
+                end
+            end
+        else
+            lastLockedTarget = nil
         end
-        task.wait(0.15)
+        task.wait(0.02)
     end
 end)
 
@@ -844,9 +903,9 @@ Tabs.Event:AddToggle("AutoRebirthToggle", {
 })
 
 Tabs.Event:AddSection("Combat Exploit")
-Tabs.Event:AddToggle("tpsoulminionstoggle", { Title = "Tp Soul Minions", Default = false })
+Tabs.Event:AddToggle("tpsoulminionstoggle", { Title = "Tp Prioritized Targets", Default = false })
 
--- Final setup
+-- Final interface arrangement
 SaveManager:SetLibrary(Library)
 InterfaceManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
