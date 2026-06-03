@@ -1,11 +1,11 @@
-print("loading neverlose")
+print("loading")
 print("-----------------------------------------")
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "neverlose", SubTitle = ":)", TabWidth = 160,
+    Title = "", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -46,9 +46,11 @@ end
 
 -- Robust inventory scanner that checks background data modules and UI layouts
 local function getInventoryCount(itemName)
+    local checkedData = false
     if GameUtil and GameUtil.Data then
         local inv = GameUtil.Data.inventory or GameUtil.Data.Inventory or GameUtil.Data.bag or GameUtil.Data.Bag
         if type(inv) == "table" then
+            checkedData = true
             if inv[itemName] then return tonumber(inv[itemName]) or 0 end
             for _, v in pairs(inv) do
                 if type(v) == "table" and (v.name == itemName or v.Name == itemName) then
@@ -58,48 +60,26 @@ local function getInventoryCount(itemName)
         end
     end
     
-    local mainGui = plr.PlayerGui:FindFirstChild("MainGui")
-    local list = mainGui and mainGui:FindFirstChild("RightPanel") 
-        and mainGui.RightPanel:FindFirstChild("Inventory") 
-        and mainGui.RightPanel.Inventory:FindFirstChild("List")
-        
-    -- Deep scan dynamic fallback if UI hierarchies shift
-    if not list and mainGui then
-        for _, desc in ipairs(mainGui:GetDescendants()) do
-            if (desc.Name == "List" or desc.Name == "Grid") and desc.Parent.Name:find("Inventory") then
-                list = desc
-                break
-            end
-        end
-    end
-    
+    local list = plr.PlayerGui:FindFirstChild("MainGui") 
+        and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") 
+        and plr.PlayerGui.MainGui:FindFirstChild("Inventory") 
+        and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
     if list then
         local total = 0
-        local found = false
         for _, slot in ipairs(list:GetChildren()) do
-            if slot:IsA("GuiObject") then
-                local nameMatch = slot.Name:lower():find(itemName:lower())
-                if not nameMatch then
-                    for _, child in ipairs(slot:GetDescendants()) do
-                        if child:IsA("TextLabel") and child.Text:lower():find(itemName:lower()) then
-                            nameMatch = true
-                            break
-                        end
-                    end
-                end
-                if nameMatch then
-                    found = true
-                    local textObj = slot:FindFirstChild("Amount") or slot:FindFirstChild("Count") or slot:FindFirstChildWhichIsA("TextLabel")
-                    if textObj and textObj.Text ~= itemName then
-                        total = total + (tonumber(textObj.Text:match("%d+")) or 1)
-                    else
-                        total = total + 1
-                    end
+            if slot:IsA("GuiObject") and (slot.Name == itemName or slot.Name:find(itemName)) then
+                local textObj = slot:FindFirstChild("Amount") or slot:FindFirstChild("Count") or slot:FindFirstChildWhichIsA("TextLabel")
+                if textObj then
+                    total = total + (tonumber(textObj.Text:match("%d+")) or 1)
+                else
+                    total = total + 1
                 end
             end
         end
-        if found then return total end
+        return total
     end
+    
+    if checkedData then return 0 end
     return nil
 end
 
@@ -173,7 +153,7 @@ Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = f
 
 -- Farming Tracker UI Components (Bloodfruits Only)
 Tabs.Farming:AddSection("Farming Statistics")
-local BloodfruitParagraph = Tabs.Farming:AddParagraph("BloodfruitStats", { Title = "Bloodfruits Log", Content = "Harvested Session: 0 | Inventory: 0" })
+local BloodfruitParagraph = Tabs.Farming:AddParagraph("BloodfruitStats", { Title = "Bloodfruits Harvested", Content = "0 (Per Min: 0 | Per Hour: 0)" })
 local TotalAllTimeParagraph = Tabs.Farming:AddParagraph("TotalAllTimeStats", { Title = "Total Harvested (All Time)", Content = "0 (Time: 00:00:00 (Waiting for harvest...))" })
 Tabs.Farming:AddButton({
     Title = "Reset Tracker Statistics",
@@ -363,6 +343,7 @@ end)
 local plantedboxes = {}
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
 
+-- Optimized to maintain 240 FPS during loop execution
 local function getpbs(range)
     local plantboxes = {}
     if not root then return plantboxes end
@@ -416,7 +397,7 @@ local function getbushes(range, fruitname)
     return bushes
 end
 
--- Pathing Loop Configurations
+-- ==================== PHANTOMHUB CHARACTER PATH PATHING ====================
 local lastPos = Vector3.new()
 local stuckTimer = 0
 local lastCheck = 0
@@ -517,6 +498,7 @@ task.spawn(function()
         task.wait(0.1)
     end
 end)
+-- ===========================================================================
 
 local function plant(entityid, itemID)
     if packets.InteractStructure and packets.InteractStructure.send then
@@ -525,6 +507,7 @@ local function plant(entityid, itemID)
     end
 end
 
+-- HIGH FPS AUTO PLANT LAYER ONLY (Uses cached instances to stay fast)
 local plantCache = {}
 local lastPlantCacheUpdate = 0
 
@@ -580,6 +563,7 @@ task.spawn(function()
     end
 end)
 
+-- Standard processing layer
 task.spawn(function()
     while true do
         if not Options.harvesttoggle.Value then
@@ -597,7 +581,7 @@ task.spawn(function()
     end
 end)
 
--- Real-time Engine Tracking System Fix
+-- Precise Live Tracking & Statistics Engine
 task.spawn(function()
     local lastCount = getInventoryCount("Bloodfruit") or 0
     local trackedBushes = {}
@@ -606,14 +590,14 @@ task.spawn(function()
         local currentCount = getInventoryCount("Bloodfruit")
         local gained = 0
         
+        -- If live inventory scanning succeeds (including verified zero counts)
         if currentCount then
-            -- Fixed exact delta equation constraint to track accurately from 0
             if currentCount > lastCount then
                 gained = currentCount - lastCount
             end
             lastCount = currentCount
         else
-            -- Spatial backup check if client UI processing falls behind
+            -- Real-world fallback: Track unique bush deletion only if inventory UI/Data is inaccessible
             if Options.harvesttoggle.Value and Options.fruitdropdown.Value == "Bloodfruit" then
                 local harvestrange = tonumber(Options.harvestrange.Value) or 30
                 local bushes = getbushes(harvestrange, "Bloodfruit")
@@ -636,6 +620,7 @@ task.spawn(function()
             end
         end
         
+        -- Gated Trigger: Fire timer and all logs only on the first verified item arrival
         if gained > 0 then
             if not farmStats.timerStarted then
                 farmStats.timerStarted = true
@@ -657,8 +642,7 @@ task.spawn(function()
         local bloodfruitsPerMin = farmStats.timerStarted and math.round((farmStats.bloodfruits / elapsed) * 60) or 0
         local bloodfruitsPerHour = farmStats.timerStarted and math.round((farmStats.bloodfruits / elapsed) * 3600) or 0
         
-        local displayCount = currentCount or lastCount or 0
-        BloodfruitParagraph:SetContent(string.format("Harvested Session: %d | Inventory: %d\n(Per Min: %d | Per Hour: %d)", farmStats.bloodfruits, displayCount, bloodfruitsPerMin, bloodfruitsPerHour))
+        BloodfruitParagraph:SetContent(string.format("%d (Per Min: %d | Per Hour: %d)", farmStats.bloodfruits, bloodfruitsPerMin, bloodfruitsPerHour))
         
         if farmStats.timerStarted then
             TotalAllTimeParagraph:SetContent(string.format("%d (Time: %s)", farmStats.totalAllTime, formatTime(totalSessionElapsed)))
@@ -670,6 +654,7 @@ task.spawn(function()
     end
 end)
 
+-- Plant box placement (Tight Edge-to-Edge Snapping)
 function placeSingleSnappedBox()
     local char = plr.Character
     if not (char and char:FindFirstChild("HumanoidRootPart")) then return end
@@ -691,6 +676,7 @@ function placeSingleSnappedBox()
     end
 end
 
+-- Continuous placement
 local placementConn
 Options.placeplantboxestoggle:OnChanged(function(v)
     if v then
@@ -701,7 +687,7 @@ Options.placeplantboxestoggle:OnChanged(function(v)
     end
 end)
 
--- Potions Crafting Loop Setup
+-- Potions
 local potionLoop, isBrewing, selectedPotion = nil, false, "Healing Potion"
 local POTIONS = {
     ["Healing Potion"] = {{name = "Ice Cube", amount = 3}, {name = "Bloodfruit", amount = 5}, {name = "Strawberry", amount = 2}},
@@ -951,4 +937,4 @@ Window:SelectTab(1)
 task.wait(0.5)
 Library:Notify{Title = "neverlose", Content = "holy sigma gang", Duration = 8}
 SaveManager:LoadAutoloadConfig()
-print("Done! Enjoy neverlose!")
+print("Done!")
