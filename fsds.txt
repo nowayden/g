@@ -791,7 +791,7 @@ end
 
 local function StopAutoRebirth() autoRebirthRunning = false end
 
--- 3-Tier Prioritized 24/7 Exploit Engine Layout
+-- 3-Tier Dynamic Priority Target Finder
 local function getClosestPrioritizedTarget()
     local critters = workspace:FindFirstChild("Critters")
     if not critters or not root then return nil end
@@ -810,7 +810,7 @@ local function getClosestPrioritizedTarget()
                     local dist = (pp.Position - root.Position).Magnitude
                     
                     -- Priority 1: The Voodoo Spider Queen
-                    if c.Name == "Voodoo Spider Queen" then
+                    if c.Name == "The Voodoo Spider Queen" then
                         if dist < queenMinDist then
                             queenMinDist = dist
                             queenInstance = c
@@ -833,46 +833,50 @@ local function getClosestPrioritizedTarget()
         end
     end
     
-    -- Cascade return based strictly on priority
+    -- Absolute prioritization cascade order
     if queenInstance then return queenInstance end
     if minionInstance then return minionInstance end
-    return antInstance
+    if antInstance then return antInstance end
+    return nil
 end
 
+-- Teleport and Strict Target Validation Loop
 task.spawn(function()
-    local lastLockedTarget = nil
-    local deadTargetCooldown = 0
+    local trackedTargetInstance = nil
+    local targetExpiryDelay = 0
     
     while true do
         if Options.tpsoulminionstoggle and Options.tpsoulminionstoggle.Value and root then
-            local currentTimestamp = tick()
+            local rightNow = tick()
             
-            -- Keep enforcing the 2-second cooldown delay post-kill
-            if currentTimestamp < deadTargetCooldown then
+            -- If we are serving the 3-second delay period, hold execution
+            if rightNow < targetExpiryDelay then
+                trackedTargetInstance = nil
                 task.wait(0.05)
                 continue
             end
             
-            local activeTarget = getClosestPrioritizedTarget()
+            local selectedTarget = getClosestPrioritizedTarget()
             
-            if activeTarget then
-                lastLockedTarget = activeTarget
-                local targetPart = activeTarget.PrimaryPart or activeTarget:FindFirstChildWhichIsA("BasePart")
+            if selectedTarget then
+                -- Track the current target configuration
+                trackedTargetInstance = selectedTarget
+                local targetPart = selectedTarget.PrimaryPart or selectedTarget:FindFirstChildWhichIsA("BasePart")
                 
                 if targetPart then
-                    -- 24/7 continuous teleport structural lock
+                    -- Execute structural teleport coordinate lock
                     root.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
                 end
             else
-                -- Target was killed or missing: trigger 2-second delay before locking the next target
-                if lastLockedTarget then
-                    print("[Exploit Engine] Target eliminated! Triggering 2-second swap cooldown.")
-                    deadTargetCooldown = currentTimestamp + 2.0
-                    lastLockedTarget = nil
+                -- If we were attacking a target, but it died or vanished, log the 3-second delay window
+                if trackedTargetInstance then
+                    print("[Exploit Engine] Target eliminated! Initializing 3-second swap delay configuration.")
+                    targetExpiryDelay = rightNow + 3.0
+                    trackedTargetInstance = nil
                 end
             end
         else
-            lastLockedTarget = nil
+            trackedTargetInstance = nil
         end
         task.wait(0.02)
     end
