@@ -1,4 +1,4 @@
-print("loading 43")
+print("loading neverlose")
 print("-----------------------------------------")
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
@@ -21,19 +21,40 @@ local Tabs = {
 }
 
 -- =============================================================================
--- ULTRA-DEFENSIVE HOT-PATCH: Dynamically handles both function & table styles
+-- AUTOMATIC SIGNATURE SCANNING HOT-PATCH (Fixes Container Nil Error)
 -- =============================================================================
 local TabPrototype = getmetatable(Tabs.Main) or Tabs.Main
 if TabPrototype and Library.Elements and Library.Elements.Paragraph then
     function TabPrototype:AddParagraph(Config)
         local target = Library.Elements.Paragraph
+        
+        -- 1. Try treating it as a standard function (Tab, Config)
         if type(target) == "function" then
-            return target(self.Library, self, Config)
+            local success, result = pcall(function()
+                return target(self, Config)
+            end)
+            if success and result then return result end
+            
+            -- Alternative function signature fallback (Config, Tab)
+            success, result = pcall(function()
+                return target(Config, self)
+            end)
+            if success and result then return result end
+            
+        -- 2. Try treating it as a standard OOP class table
         elseif type(target) == "table" and type(target.New) == "function" then
-            return target:New(self.Library, self, Config)
+            local success, result = pcall(function()
+                return target:New(self, Config)
+            end)
+            if success and result then return result end
+            
+            success, result = pcall(function()
+                return target:New(Config, self)
+            end)
+            if success and result then return result end
         end
         
-        -- Absolute fallback: Safe mock component to completely prevent startup crashes
+        -- 3. Absolute safety fallback: Returns a mock object to prevent stats loop crashes
         return {
             SetTitle = function() end,
             SetDesc = function() end,
