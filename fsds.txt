@@ -878,7 +878,7 @@ task.spawn(function()
                 -- TARGET ELIMINATED: If it was alive last frame but is now gone/dead, initiate the 3-second lockout delay
                 if not activeTargetStillAlive then
                     print("[Exploit Engine] Target eliminated! Triggering strict 3-second swap delay.")
-                    targetExpiryDelay = rightNow + 3.0
+                    targetExpiryDelay = rightNow + 1.5
                     currentlyLockedID = nil
                 end
             end
