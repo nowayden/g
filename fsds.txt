@@ -1014,7 +1014,7 @@ Tabs.Event:AddToggle("AutoRebirthToggle", {
     end
 })
 
-Tabs.Event:AddSection("Combat Exploit")
+Tabs.Event:AddSection("Soul Minion")
 Tabs.Event:AddToggle("tpsoulminionstoggle", { Title = "Tp Prioritized Targets", Default = false })
 
 -- Final interface arrangement
