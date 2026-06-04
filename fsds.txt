@@ -5,7 +5,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "yap", SubTitle = "", TabWidth = 160,
+    Title = "", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -49,7 +49,7 @@ local function getInventoryCount(itemName)
     if GameUtil and GameUtil.Data then
         local inv = GameUtil.Data.inventory or GameUtil.Data.Inventory or GameUtil.Data.bag or GameUtil.Data.Bag
         if type(inv) == "table" then
-            if inv[itemName] then return tonumber(inv[itemName]) or 0 end
+             if inv[itemName] then return tonumber(inv[itemName]) or 0 end
             for _, v in pairs(inv) do
                 if type(v) == "table" and (v.name == itemName or v.Name == itemName) then
                     return tonumber(v.quantity or v.amount or v.Amount or v.count or v.Count or 1) or 0
@@ -69,7 +69,7 @@ local function getInventoryCount(itemName)
                 local quantityImg = slot:FindFirstChild("QuantityImage")
                 local textObj = (quantityImg and quantityImg:FindFirstChild("QuantityText")) or slot:FindFirstChild("Amount") or slot:FindFirstChild("Count") or slot:FindFirstChildWhichIsA("TextLabel")
                 if textObj then
-                    total = total + (tonumber(textObj.Text:match("%d+")) or 1)
+                     total = total + (tonumber(textObj.Text:match("%d+")) or 1)
                 else
                     total = total + 1
                 end
@@ -150,7 +150,7 @@ Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = f
 
 -- Farming Tracker UI Components
 Tabs.Farming:AddSection("Farming Statistics")
-local BloodfruitParagraph = Tabs.Farming:AddParagraph("BloodfruitStats", { Title = "Bloodfruits Harvested", Content = "0 (Per Min: 0 | Per Hour: 0)" })
+local BloodfruitParagraph = Tabs.Farming:AddParagraph("BloodfruitStats", { Title = "Bloodfruits Harvested", Content = "0 (Per Min: 0 |\nPer Hour: 0)" })
 local TotalAllTimeParagraph = Tabs.Farming:AddParagraph("TotalAllTimeStats", { Title = "Total Harvested (All Time)", Content = "0 (Time: 00:00:00 (Waiting for harvest...))" })
 Tabs.Farming:AddButton({
     Title = "Reset Tracker Statistics",
@@ -165,7 +165,7 @@ local function updws()
     if wscon then wscon:Disconnect(); wscon = nil end
     if Options.wstoggle.Value or Options.jptoggle.Value then
         wscon = runs.RenderStepped:Connect(function()
-            if hum then
+             if hum then
                 hum.WalkSpeed = Options.wstoggle.Value and Options.wsslider.Value or 16
                 hum.JumpPower = Options.jptoggle.Value and Options.jpslider.Value or 50
             end
@@ -178,7 +178,7 @@ Options.jptoggle:OnChanged(updws)
 local function updmsa()
     if slopecon then slopecon:Disconnect(); slopecon = nil end
     if Options.msatoggle.Value then
-        slopecon = runs.RenderStepped:Connect(function()
+         slopecon = runs.RenderStepped:Connect(function()
             if hum then hum.MaxSlopeAngle = 90 end
         end)
     elseif hum then hum.MaxSlopeAngle = 46 end
@@ -206,7 +206,7 @@ local function drop(itemname)
         if child:IsA("ImageLabel") and child.Name == itemname then
             if packets.DropBagItem and packets.DropBagItem.send then
                 packets.DropBagItem.send(child.LayoutOrder)
-            end
+             end
         end
     end
 end
@@ -217,7 +217,7 @@ Options.itemdropdown:OnChanged(function(v)
     for item, state in pairs(v) do if state then table.insert(selecteditems, item) end end
 end)
 
--- Resource Aura
+-- Resource Aura (FIXED FOR ALL NODES/NESTED CONTAINERS)
 local resourceActive, resourceConn, lastResourceTime = false, nil, 0
 local function startResource()
     if resourceActive then return end
@@ -230,8 +230,34 @@ local function startResource()
         local range = tonumber(Options.resourceaurarange.Value) or 20
         local tc = tonumber(Options.resourcetargetdropdown.Value) or 1
         local targets, all = {}, {}
-        for _, r in pairs(workspace.Resources:GetChildren()) do table.insert(all, r) end
-        for _, r in pairs(workspace:GetChildren()) do if r:IsA("Model") and r.Name == "Gold Node" then table.insert(all, r) end end
+        
+        -- Pulls nodes inside nested resource sub-folders recursively
+        if workspace:FindFirstChild("Resources") then
+            for _, r in pairs(workspace.Resources:GetDescendants()) do 
+                if r:IsA("Model") then 
+                    table.insert(all, r) 
+                end 
+            end
+        end
+        
+        -- Captures anything structural in top-level workspace with valid resource keywords
+        local resourceKeywords = {"Node", "Stone", "Lode", "Rock", "Coal", "Guardian"}
+        for _, r in pairs(workspace:GetChildren()) do 
+            if r:IsA("Model") then
+                local matchFound = false
+                for _, kw in ipairs(resourceKeywords) do
+                    if string.find(r.Name, kw) then
+                        matchFound = true
+                        break
+                    end
+                end
+                if matchFound then
+                    table.insert(all, r)
+                end
+            end 
+        end
+        
+        -- Validates position distance and checks for accurate attribute EntityIDs
         for _, res in pairs(all) do
             if res:IsA("Model") and res:GetAttribute("EntityID") then
                 local pp = res.PrimaryPart or res:FindFirstChildWhichIsA("BasePart")
@@ -271,7 +297,7 @@ local function startCritter()
                     local pp = c.PrimaryPart or c:FindFirstChildWhichIsA("BasePart")
                     if pp and (pp.Position - root.Position).Magnitude <= range then
                         table.insert(targets, {eid = c:GetAttribute("EntityID"), dist = (pp.Position - root.Position).Magnitude})
-                    end
+                     end
                 end
             end
         end
@@ -293,21 +319,21 @@ task.spawn(function()
         if Options.autopickuptoggle.Value and root then
             for _, item in ipairs(workspace.Items:GetChildren()) do
                 if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
-                    if (item.Position - root.Position).Magnitude <= range then pickup(item:GetAttribute("EntityID")) end
+                     if (item.Position - root.Position).Magnitude <= range then pickup(item:GetAttribute("EntityID")) end
                 end
             end
         end
         if Options.chestpickuptoggle.Value and root then
             local deployablesFolder = workspace:FindFirstChild("Deployables")
             if deployablesFolder then
-                for _, chest in ipairs(deployablesFolder:GetChildren()) do
+                 for _, chest in ipairs(deployablesFolder:GetChildren()) do
                     if chest:IsA("Model") and chest.Name == "Chest" and chest:FindFirstChild("Contents") then
                         for _, item in ipairs(chest.Contents:GetChildren()) do
                             if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
                                 if (chest.PrimaryPart.Position - root.Position).Magnitude <= range then pickup(item:GetAttribute("EntityID")) end
                             end
                         end
-                    end
+                     end
                 end
             end
         end
@@ -321,7 +347,7 @@ local cd = 0
 runs.Heartbeat:Connect(function()
     if Options.droptoggle.Value then
         if tick() - debounce >= cd then
-            drop(Options.dropdropdown.Value)
+             drop(Options.dropdropdown.Value)
             debounce = tick()
         end
     end
@@ -353,12 +379,12 @@ local function getpbs(range)
             local ppart = deployable.PrimaryPart or deployable:FindFirstChildWhichIsA("BasePart")
             if ppart then
                 local dist = (ppart.Position - charPos).Magnitude
-                if dist <= range then
+                 if dist <= range then
                     local entityid = deployable:GetAttribute("EntityID")
                     if entityid then table.insert(plantboxes, { entityid = entityid, deployable = deployable, dist = dist }) end
                 end
             end
-        end
+         end
     end
     return plantboxes
 end
@@ -372,7 +398,7 @@ local function getbushes(range, fruitname)
         local model = children[i]
         if model:IsA("Model") and model.Name:find(fruitname) then
             local ppart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-            if ppart then
+             if ppart then
                 local dist = (ppart.Position - charPos).Magnitude
                 if dist <= range then
                     local entityid = model:GetAttribute("EntityID")
@@ -392,7 +418,7 @@ local function walkToTarget(targetPosition)
     if hum and root and targetPosition then
         hum:MoveTo(targetPosition)
         local now = tick()
-        local dt = now - lastCheck
+         local dt = now - lastCheck
         if lastCheck == 0 or dt > 0.5 then
             lastCheck = now
             lastPos = root.Position
@@ -400,19 +426,19 @@ local function walkToTarget(targetPosition)
             return
         end
         lastCheck = now
-        if (root.Position - targetPosition).Magnitude > 3 then
+         if (root.Position - targetPosition).Magnitude > 3 then
             if (root.Position - lastPos).Magnitude < 1 * dt then
                 stuckTimer = stuckTimer + dt
                 if stuckTimer >= 3 then
                     hum.Jump = true
-                    stuckTimer = 0
+                     stuckTimer = 0
                 end
             else
                 stuckTimer = 0
             end
         else
             stuckTimer = 0
-        end
+         end
         lastPos = root.Position
     end
 end
@@ -424,7 +450,7 @@ local function pathToPlantbox(range)
         if not box.deployable:FindFirstChild("Seed") then
             if box.deployable.PrimaryPart then
                 walkToTarget(box.deployable.PrimaryPart.Position)
-                break
+                 break
             end
         end
     end
@@ -437,7 +463,7 @@ local function pathToBushesOrBoxes(range, fruitname)
         for _, bush in ipairs(bushes) do
             if bush.model.PrimaryPart then
                 walkToTarget(bush.model.PrimaryPart.Position)
-                break
+                 break
             end
         end
     else
@@ -445,7 +471,7 @@ local function pathToBushesOrBoxes(range, fruitname)
         table.sort(plantboxes, function(a, b) return a.dist < b.dist end)
         for _, box in ipairs(plantboxes) do
             if not box.deployable:FindFirstChild("Seed") then
-                if box.deployable.PrimaryPart then
+                 if box.deployable.PrimaryPart then
                     walkToTarget(box.deployable.PrimaryPart.Position)
                     break
                 end
@@ -456,7 +482,7 @@ end
 
 task.spawn(function()
     while true do
-        if not Options.tweentoplantbox.Value then task.wait(0.1) continue end
+         if not Options.tweentoplantbox.Value then task.wait(0.1) continue end
         pathToPlantbox(tonumber(Options.tweenrange.Value) or 250)
         task.wait(0.1)
     end
@@ -494,24 +520,24 @@ task.spawn(function()
             if currentTime - lastPlantCacheUpdate > 0.4 or #plantCache == 0 then
                 plantCache = {}
                 local children = deployablesFolder:GetChildren()
-                for i = 1, #children do
+                 for i = 1, #children do
                     local v = children[i]
                     if v.Name == "Plant Box" then
                         local ppart = v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
-                        local entityid = v:GetAttribute("EntityID")
+                         local entityid = v:GetAttribute("EntityID")
                         if ppart and entityid then table.insert(plantCache, {box = v, part = ppart, id = entityid}) end
                     end
                 end
-                lastPlantCacheUpdate = currentTime
+                 lastPlantCacheUpdate = currentTime
             end
             if root then
                 local myPos = root.Position
                 for i = 1, #plantCache do
                     local data = plantCache[i]
-                    if data.box.Parent == deployablesFolder then
+                     if data.box.Parent == deployablesFolder then
                         if (data.part.Position - myPos).Magnitude <= range then
                             if not data.box:FindFirstChild("Seed") then plant(data.id, itemID) else plantedboxes[data.id] = true end
-                        end
+                         end
                     end
                 end
             end
@@ -544,16 +570,16 @@ task.spawn(function()
         if lastCount == nil then
             lastCount = currentCount
             print("[Tracker] Context Engine Init baseline total for " .. targetFruit .. ": " .. tostring(lastCount))
-        else
+         else
             if currentCount > lastCount then
                 gained = currentCount - lastCount
-                print("[Tracker Inventory Match] Found Increment: +" .. tostring(gained) .. " | Item: " .. targetFruit)
+                print("[Tracker Inventory Match] Found Increment: +" .. tostring(gained) .. " |\nItem: " .. targetFruit)
                 lastCount = currentCount
             elseif currentCount < lastCount then
                 print("[Tracker Inventory Recalibrate] Drop/Spent detected. Adjusting inventory baseline down to: " .. tostring(currentCount))
                 lastCount = currentCount
             end
-        end
+         end
         
         -- 2. Bush Deletion Fallback Processing
         if Options.harvesttoggle.Value and targetFruit == "Bloodfruit" and root then
@@ -564,17 +590,17 @@ task.spawn(function()
                 if not workspace:FindFirstChild(data.name) and (data.pos - root.Position).Magnitude <= harvestrange then
                     if gained == 0 then
                         gained = 3
-                        print("[Tracker Fallback Match] Bush deletion registered within radius! Force-adding +3 fruits.")
+                         print("[Tracker Fallback Match] Bush deletion registered within radius! Force-adding +3 fruits.")
                     end
                     trackedBushes[id] = nil
                 end
             end
             
-            for _, bush in ipairs(bushes) do
+             for _, bush in ipairs(bushes) do
                 if bush.entityid and not trackedBushes[bush.entityid] then
                     trackedBushes[bush.entityid] = {
                         name = bush.model.Name,
-                        pos = bush.model.PrimaryPart and bush.model.PrimaryPart.Position or root.Position
+                         pos = bush.model.PrimaryPart and bush.model.PrimaryPart.Position or root.Position
                     }
                 end
             end
@@ -582,11 +608,11 @@ task.spawn(function()
         
         -- 3. Metric Calculations and UI Updates
         if gained > 0 then
-            if not farmStats.timerStarted then
+             if not farmStats.timerStarted then
                 farmStats.timerStarted = true
                 farmStats.startTime = tick()
                 farmStats.sessionStartTime = tick()
-                print("[Tracker Stopwatch] Initial harvest verified. Timer running.")
+                print("[Tracker Stopwatch] Initial harvest verified.\nTimer running.")
             end
             farmStats.bloodfruits = farmStats.bloodfruits + gained
             farmStats.totalAllTime = farmStats.totalAllTime + gained
@@ -601,7 +627,7 @@ task.spawn(function()
         
         pcall(function()
             BloodfruitParagraph:SetContent(string.format("%d (Per Min: %d | Per Hour: %d)", farmStats.bloodfruits, bloodfruitsPerMin, bloodfruitsPerHour))
-            if farmStats.timerStarted then
+             if farmStats.timerStarted then
                 TotalAllTimeParagraph:SetContent(string.format("%d (Time: %s)", farmStats.totalAllTime, formatTime(totalSessionElapsed)))
             else
                 TotalAllTimeParagraph:SetContent(string.format("%d (Time: 00:00:00 (Waiting for harvest...))", farmStats.totalAllTime))
@@ -664,7 +690,7 @@ local function getInventorySlot(itemName)
 end
 
 local function dropFromSlot(slot, amount)
-    if not slot then return end
+     if not slot then return end
     for _ = 1, amount do pcall(function() packets.DropBagItem.send(slot) end); task.wait(0.07) end
 end
 
@@ -678,7 +704,7 @@ local function findAllCauldrons()
             table.insert(cauldrons, {cauldron = obj, hitbox = obj.Hitbox})
         end
     end
-    return cauldrons
+     return cauldrons
 end
 
 local function teleportToHitbox(hitbox)
@@ -688,7 +714,7 @@ local function teleportToHitbox(hitbox)
         local n = item.Name or ""
         if n:find("Ice Cube") or n:find("Bloodfruit") or n:find("Strawberry") or n:find("Prickly Pear") or n:find("Crystal") or n:find("Cloudberry") or n:find("Adurite") or n:find("Fire Hide") or n:find("Berry") or n:find("Iron") or n:find("Lemon") or n:find("Magnetite") then
             pcall(function()
-                if item:IsA("BasePart") then item.Position = tp
+                 if item:IsA("BasePart") then item.Position = tp
                 elseif item:IsA("Model") and item.PrimaryPart then item:SetPrimaryPartCFrame(CFrame.new(tp)) end
             end)
         end
@@ -731,7 +757,7 @@ Tabs.Potions:AddToggle("AutoPotionToggle", {
             if potionLoop then potionLoop:Disconnect() end
             potionLoop = runs.Heartbeat:Connect(brewPotions)
         else
-            if potionLoop then potionLoop:Disconnect(); potionLoop = nil end
+             if potionLoop then potionLoop:Disconnect(); potionLoop = nil end
             isBrewing = false
         end
     end
@@ -747,7 +773,7 @@ local function pressBedButton()
         local bedButton = spawnGui.Customization:FindFirstChild("BedButton")
         if bedButton then
             pcall(function() bedButton.Activated:Fire() end)
-            pcall(function() firesignal(bedButton.Activated) end)
+             pcall(function() firesignal(bedButton.Activated) end)
             return
         end
     end
@@ -757,7 +783,7 @@ local function pressBedButton()
             pcall(function() firesignal(gui.Activated) end)
         end
     end
-    pcall(function() rs.Events.SpawnFirst:InvokeServer(true) end)
+     pcall(function() rs.Events.SpawnFirst:InvokeServer(true) end)
 end
 
 local function getPlayerLevel()
@@ -777,7 +803,7 @@ local function AutoRebirthLoop()
     while autoRebirthRunning do
         task.wait(0.5)
         local spawnGui = plr.PlayerGui:FindFirstChild("SpawnGui")
-        if spawnGui and spawnGui.Enabled then pressBedButton() end
+         if spawnGui and spawnGui.Enabled then pressBedButton() end
         local currentLevel = getPlayerLevel()
         if currentLevel >= 100 then doRebirth(); task.wait(6) end
     end
@@ -807,31 +833,31 @@ local function getPrioritizedTarget()
             if pp then
                 local humCheck = c:FindFirstChildWhichIsA("Humanoid")
                 if not humCheck or humCheck.Health > 0 then
-                    local dist = (pp.Position - root.Position).Magnitude
+                     local dist = (pp.Position - root.Position).Magnitude
                     
                     -- Priority 1: The Voodoo Spider Queen
                     if c.Name == "The Voodoo Spider Queen" then
-                        if dist < queenMinDist then
+                         if dist < queenMinDist then
                             queenMinDist = dist
                             queenInstance = c
-                        end
+                         end
                     -- Priority 2: Soul Minion
                     elseif c.Name == "Soul Minion" and not queenInstance then
                         if dist < minionMinDist then
-                            minionMinDist = dist
+                             minionMinDist = dist
                             minionInstance = c
                         end
                     -- Priority 3: Void Ant
-                    elseif c.Name == "Void Ant" and not queenInstance and not minionInstance then
+                     elseif c.Name == "Void Ant" and not queenInstance and not minionInstance then
                         if dist < antMinDist then
                             antMinDist = dist
-                            antInstance = c
+                             antInstance = c
                         end
                     end
                 end
             end
         end
-    end
+     end
     
     if queenInstance then return queenInstance end
     if minionInstance then return minionInstance end
@@ -847,48 +873,48 @@ task.spawn(function()
     while true do
         if Options.tpsoulminionstoggle and Options.tpsoulminionstoggle.Value and root then
             local rightNow = tick()
-            
+             
             -- Firmly enforce the 3-second delay period after any target vanishes
             if rightNow < targetExpiryDelay then
                 task.wait(0.05)
                 continue
             end
             
-            -- If we are currently tracking an ID, make sure it still exists in workspace
+             -- If we are currently tracking an ID, make sure it still exists in workspace
             local activeTargetStillAlive = false
             if currentlyLockedID then
                 local critters = workspace:FindFirstChild("Critters")
                 if critters then
-                    for _, c in ipairs(critters:GetChildren()) do
+                     for _, c in ipairs(critters:GetChildren()) do
                         if c:GetAttribute("EntityID") == currentlyLockedID then
                             local humCheck = c:FindFirstChildWhichIsA("Humanoid")
-                            if not humCheck or humCheck.Health > 0 then
+                             if not humCheck or humCheck.Health > 0 then
                                 activeTargetStillAlive = true
                                 local targetPart = c.PrimaryPart or c:FindFirstChildWhichIsA("BasePart")
-                                if targetPart then
+                                 if targetPart then
                                     -- Continuous strict position lock teleportation
                                     root.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
-                                end
+                                 end
                                 break
                             end
-                        end
+                         end
                     end
                 end
                 
                 -- TARGET ELIMINATED: If it was alive last frame but is now gone/dead, initiate the 3-second lockout delay
                 if not activeTargetStillAlive then
-                    print("[Exploit Engine] Target eliminated! Triggering strict 3-second swap delay.")
+                    print("[Exploit Engine] Target eliminated!\nTriggering strict 3-second swap delay.")
                     targetExpiryDelay = rightNow + 1.5
                     currentlyLockedID = nil
                 end
             end
             
-            -- If we aren't tracking anything, look for the next prioritized target
+             -- If we aren't tracking anything, look for the next prioritized target
             if not currentlyLockedID and rightNow >= targetExpiryDelay then
                 local nextTarget = getPrioritizedTarget()
                 if nextTarget then
                     currentlyLockedID = nextTarget:GetAttribute("EntityID")
-                end
+                 end
             end
         else
             currentlyLockedID = nil
@@ -903,18 +929,18 @@ Tabs.Event:AddToggle("AutoRebirthToggle", {
     Default = false,
     Callback = function(state)
         if state then
-            if not hasConfirmedRebirth then
+             if not hasConfirmedRebirth then
                 Window:Dialog({
                     Title = "Confirmation Required",
                     Content = "Are you sure you want to toggle Auto Rebirth?",
-                    Buttons = {
+                     Buttons = {
                         { Title = "Confirm", Callback = function() hasConfirmedRebirth = true; StartAutoRebirth() end },
                         { Title = "Cancel", Callback = function() Options.AutoRebirthToggle:SetValue(false) end }
                     }
                 })
             else
                 StartAutoRebirth()
-            end
+             end
         else
             StopAutoRebirth()
         end
@@ -936,6 +962,6 @@ SaveManager:BuildConfigSection(Tabs.Settings)
 Window:SelectTab(1)
 
 task.wait(0.5)
-Library:Notify{Title = "wa wa wa.", Content = "", Duration = 8}
+Library:Notify{Title = "", Content = "", Duration = 8}
 SaveManager:LoadAutoloadConfig()
 print("Done!")
