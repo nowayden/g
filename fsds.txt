@@ -106,11 +106,19 @@ Tabs.Map:CreateSlider("resourceaurarange", { Title = "Range", Min = 1, Max = 20,
 Tabs.Map:CreateDropdown("resourcetargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
 Tabs.Map:CreateSlider("resourcecooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
 
+Tabs.Map:AddToggle("DeployableAuraToggle", {
+    Title = "Break Depl/Rubble/Chests",
+    Default = false,
+    Callback = function(state)
+        if state then StartDeployableAura(25) else StopDeployableAura() end
+    end
+})
+
 Tabs.Map:AddSection("Critter Aura")
 Tabs.Map:CreateToggle("critterauratoggle", { Title = "Critter Aura", Default = false })
 Tabs.Map:CreateSlider("critterrangeslider", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
 Tabs.Map:CreateDropdown("crittertargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
-Tabs.Map:CreateSlider("resourcecooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
+Tabs.Map:CreateSlider("crittercooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
 
 -- Pickup Tab
 Tabs.Pickup:AddSection("Auto Pickup")
@@ -217,7 +225,7 @@ Options.itemdropdown:OnChanged(function(v)
     for item, state in pairs(v) do if state then table.insert(selecteditems, item) end end
 end)
 
--- Resource Aura (FIXED FOR ALL NODES/NESTED CONTAINERS)
+-- Resource Aura (FIXED)
 local resourceActive, resourceConn, lastResourceTime = false, nil, 0
 local function startResource()
     if resourceActive then return end
@@ -231,7 +239,6 @@ local function startResource()
         local tc = tonumber(Options.resourcetargetdropdown.Value) or 1
         local targets, all = {}, {}
         
-        -- Pulls nodes inside nested resource sub-folders recursively
         if workspace:FindFirstChild("Resources") then
             for _, r in pairs(workspace.Resources:GetDescendants()) do 
                 if r:IsA("Model") then 
@@ -240,7 +247,6 @@ local function startResource()
             end
         end
         
-        -- Captures anything structural in top-level workspace with valid resource keywords
         local resourceKeywords = {"Node", "Stone", "Lode", "Rock", "Coal", "Guardian"}
         for _, r in pairs(workspace:GetChildren()) do 
             if r:IsA("Model") then
@@ -257,7 +263,6 @@ local function startResource()
             end 
         end
         
-        -- Validates position distance and checks for accurate attribute EntityIDs
         for _, res in pairs(all) do
             if res:IsA("Model") and res:GetAttribute("EntityID") then
                 local pp = res.PrimaryPart or res:FindFirstChildWhichIsA("BasePart")
@@ -277,6 +282,68 @@ local function startResource()
 end
 Options.resourceauratoggle:OnChanged(function(s) if s then startResource() else resourceActive = false; if resourceConn then resourceConn:Disconnect(); resourceConn = nil end end end)
 
+-- ========= [ DEPLOYABLE AURA FROM V9 ] =========
+local RS = runs
+local isTraderActive = false
+
+local deployableAuraActive = false
+local deployableAuraConnection = nil
+local lastDeployableSwingTime = 0
+
+function StartDeployableAura(range)
+    if deployableAuraActive then return end
+    deployableAuraActive = true
+    range = range or 25
+
+    deployableAuraConnection = RS.Heartbeat:Connect(function()
+        if not deployableAuraActive or isTraderActive then return end
+
+        local currentTime = tick()
+        if currentTime - lastDeployableSwingTime < 0.1 then return end
+
+        local char = plr.Character
+        local rootPart = char and char:FindFirstChild("HumanoidRootPart")
+        if not rootPart then return end
+
+        local targetList = {}
+        local folders = {"Deployables", "Rubble", "dropChests"}
+      
+        for _, folderName in ipairs(folders) do
+            local folder = workspace:FindFirstChild(folderName)
+            if folder then
+                for _, child in pairs(folder:GetChildren()) do
+                    local eid = child:GetAttribute("EntityID")
+            
+                    if eid then
+                        local pp = child.PrimaryPart or child:FindFirstChildWhichIsA("BasePart")
+                        if pp and (pp.Position - rootPart.Position).Magnitude <= range then
+                            table.insert(targetList, {entityID = eid, buffer = 0})
+                        end
+                    end
+                end
+            end
+        end
+
+        if #targetList > 0 then
+   
+            pcall(function()
+                packets.SwingTool.send({
+                    entityIDs = targetList,
+                    cframe = rootPart.CFrame,
+                    timestamp = clock.getServerTime(true)
+         
+                })
+            end)
+            lastDeployableSwingTime = currentTime
+        end
+    end)
+end
+
+function StopDeployableAura()
+    deployableAuraActive = false
+    if deployableAuraConnection then deployableAuraConnection:Disconnect() end
+end
+
 -- Critter Aura
 local SchuylerActive, critterConn, lastCritterTime = false, nil, 0
 local function startCritter()
@@ -286,7 +353,7 @@ local function startCritter()
         if not Options.critterauratoggle.Value then critterConn:Disconnect(); critterConn = nil; SchuylerActive = false; return end
         if not root or not GameUtil.Data.equipped then return end
         local ct = tick()
-        if ct - lastCritterTime < (tonumber(Options.resourcecooldownslider.Value) or 0.1) then return end
+        if ct - lastCritterTime < (tonumber(Options.crittercooldownslider.Value) or 0.1) then return end
         local range = tonumber(Options.critterrangeslider.Value) or 20
         local tc = tonumber(Options.crittertargetdropdown.Value) or 1
         local targets = {}
@@ -964,4 +1031,4 @@ Window:SelectTab(1)
 task.wait(0.5)
 Library:Notify{Title = "", Content = "", Duration = 8}
 SaveManager:LoadAutoloadConfig()
-print("Done!")
+print("loaded")
