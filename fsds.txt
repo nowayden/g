@@ -49,7 +49,7 @@ local function getInventoryCount(itemName)
     if GameUtil and GameUtil.Data then
         local inv = GameUtil.Data.inventory or GameUtil.Data.Inventory or GameUtil.Data.bag or GameUtil.Data.Bag
         if type(inv) == "table" then
-            if inv[itemName] then return tonumber(inv[itemName]) or 0 end
+             if inv[itemName] then return tonumber(inv[itemName]) or 0 end
             for _, v in pairs(inv) do
                 if type(v) == "table" and (v.name == itemName or v.Name == itemName) then
                     return tonumber(v.quantity or v.amount or v.Amount or v.count or v.Count or 1) or 0
@@ -64,18 +64,18 @@ local function getInventoryCount(itemName)
         and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
     if list then
         local total = 0
-        for _, slot in ipairs(list:GetChildren()) do
+         for _, slot in ipairs(list:GetChildren()) do
             if slot:IsA("GuiObject") and (slot.Name == itemName or slot.Name:find(itemName)) then
                 local quantityImg = slot:FindFirstChild("QuantityImage")
                 local textObj = (quantityImg and quantityImg:FindFirstChild("QuantityText")) or slot:FindFirstChild("Amount") or slot:FindFirstChild("Count") or slot:FindFirstChildWhichIsA("TextLabel")
                 if textObj then
-                    total = total + (tonumber(textObj.Text:match("%d+")) or 1)
+                     total = total + (tonumber(textObj.Text:match("%d+")) or 1)
                 else
                     total = total + 1
                 end
             end
         end
-        if total > 0 then return total end
+         if total > 0 then return total end
     end
     return 0
 end
@@ -103,12 +103,12 @@ Tabs.Main:CreateToggle("msatoggle", { Title = "No Mountain Slip", Default = fals
 Tabs.Map:AddSection("Resource Aura")
 Tabs.Map:CreateToggle("resourceauratoggle", { Title = "Resource Aura", Default = false })
 Tabs.Map:CreateSlider("resourceaurarange", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
-Tabs.Map:CreateDropdown("resourcetargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
+Tabs.Map:CreateDropdown("resourcetargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "6" })
 Tabs.Map:CreateSlider("resourcecooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
 
 Tabs.Map:AddToggle("DeployableAuraToggle", {
     Title = "Break Depl/Rubble/Chests",
-    Default = false,
+     Default = false,
     Callback = function(state)
         if state then StartDeployableAura(25) else StopDeployableAura() end
     end
@@ -117,7 +117,7 @@ Tabs.Map:AddToggle("DeployableAuraToggle", {
 Tabs.Map:AddSection("Critter Aura")
 Tabs.Map:CreateToggle("critterauratoggle", { Title = "Critter Aura", Default = false })
 Tabs.Map:CreateSlider("critterrangeslider", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
-Tabs.Map:CreateDropdown("crittertargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
+Tabs.Map:CreateDropdown("crittertargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "6" })
 Tabs.Map:CreateSlider("crittercooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
 
 -- Pickup Tab
@@ -161,7 +161,7 @@ Tabs.Farming:AddSection("Farming Statistics")
 local BloodfruitParagraph = Tabs.Farming:AddParagraph("BloodfruitStats", { Title = "Bloodfruits Harvested", Content = "0 (Per Min: 0 |\nPer Hour: 0)" })
 local TotalAllTimeParagraph = Tabs.Farming:AddParagraph("TotalAllTimeStats", { Title = "Total Harvested (All Time)", Content = "0 (Time: 00:00:00 (Waiting for harvest...))" })
 Tabs.Farming:AddButton({
-    Title = "Reset Tracker Statistics",
+     Title = "Reset Tracker Statistics",
     Callback = function()
         farmStats.bloodfruits = 0
         farmStats.startTime = tick()
@@ -199,7 +199,7 @@ local function swingtool(entityIds)
     local arr = {}
     for _, eid in ipairs(entityIds) do table.insert(arr, {entityID = eid, buffer = 0}) end
     pcall(function()
-        packets.SwingTool.send({entityIDs = arr, cframe = root and root.CFrame or CFrame.new(), timestamp = clock.getServerTime(true)})
+         packets.SwingTool.send({entityIDs = arr, cframe = root and root.CFrame or CFrame.new(), timestamp = clock.getServerTime(true)})
     end)
 end
 
@@ -213,7 +213,7 @@ local function drop(itemname)
     for _, child in ipairs(inv:GetChildren()) do
         if child:IsA("ImageLabel") and child.Name == itemname then
             if packets.DropBagItem and packets.DropBagItem.send then
-                packets.DropBagItem.send(child.LayoutOrder)
+                 packets.DropBagItem.send(child.LayoutOrder)
              end
         end
     end
@@ -231,7 +231,7 @@ local function startResource()
     if resourceActive then return end
     resourceActive = true
     resourceConn = runs.Heartbeat:Connect(function()
-        if not Options.resourceauratoggle.Value then resourceConn:Disconnect(); resourceConn = nil; resourceActive = false; return end
+         if not Options.resourceauratoggle.Value then resourceConn:Disconnect(); resourceConn = nil; resourceActive = false; return end
         if not root or not GameUtil.Data.equipped then return end
         local ct = tick()
         if ct - lastResourceTime < (tonumber(Options.resourcecooldownslider.Value) or 0.1) then return end
@@ -246,17 +246,17 @@ local function startResource()
                 end 
             end
         end
- 
+         
         local resourceKeywords = {"Node", "Stone", "Lode", "Rock", "Coal", "Guardian"}
         for _, r in pairs(workspace:GetChildren()) do 
             if r:IsA("Model") then
                 local matchFound = false
                 for _, kw in ipairs(resourceKeywords) do
-                    if string.find(r.Name, kw) then
+                     if string.find(r.Name, kw) then
                         matchFound = true
                         break
                     end
-                end
+                 end
                 if matchFound then
                     table.insert(all, r)
                 end
@@ -264,18 +264,18 @@ local function startResource()
         end
         
         for _, res in pairs(all) do
-          if res:IsA("Model") and res:GetAttribute("EntityID") then
+             if res:IsA("Model") and res:GetAttribute("EntityID") then
                 local pp = res.PrimaryPart or res:FindFirstChildWhichIsA("BasePart")
                 if pp and (pp.Position - root.Position).Magnitude <= range then
                     table.insert(targets, {eid = res:GetAttribute("EntityID"), dist = (pp.Position - root.Position).Magnitude})
-                end
+                 end
             end
         end
         if #targets > 0 then
             table.sort(targets, function(a,b) return a.dist < b.dist end)
             local sel = {}
             for i = 1, math.min(tc, #targets) do table.insert(sel, targets[i].eid) end
-            swingtool(sel)
+             swingtool(sel)
             lastResourceTime = ct
         end
     end)
@@ -315,23 +315,23 @@ function StartDeployableAura(range)
                     local eid = child:GetAttribute("EntityID")
             
                     if eid then
-                        local pp = child.PrimaryPart or child:FindFirstChildWhichIsA("BasePart")
+                         local pp = child.PrimaryPart or child:FindFirstChildWhichIsA("BasePart")
                         if pp and (pp.Position - rootPart.Position).Magnitude <= range then
                             table.insert(targetList, {entityID = eid, buffer = 0})
-                        end
+                         end
                     end
                 end
             end
         end
 
         if #targetList > 0 then
-            pcall(function()
-                packets.SwingTool.send({
+             pcall(function()
+                 packets.SwingTool.send({
                     entityIDs = targetList,
                     cframe = rootPart.CFrame,
                     timestamp = clock.getServerTime(true)
-                })
-            end)
+                  })
+             end)
             lastDeployableSwingTime = currentTime
         end
     end)
@@ -377,49 +377,6 @@ local function startCritter()
 end
 Options.critterauratoggle:OnChanged(function(s) if s then startCritter() else SchuylerActive = false; if critterConn then critterConn:Disconnect(); critterConn = nil end end end)
 
--- Queen Ant's Servant Aura
-local queenServantActive, queenServantConn, lastQueenServantTime = false, nil, 0
-local function startQueenServantAura()
-    if queenServantActive then return end
-    queenServantActive = true
-    queenServantConn = runs.Heartbeat:Connect(function()
-        if not queenServantActive then 
-            if queenServantConn then queenServantConn:Disconnect(); queenServantConn = nil end
-            return 
-        end
-        if not root or not GameUtil.Data.equipped then return end
-        local ct = tick()
-        local cooldown = (Options.crittercooldownslider and tonumber(Options.crittercooldownslider.Value)) or 0.1
-        if ct - lastQueenServantTime < cooldown then return end
-        local range = (Options.critterrangeslider and tonumber(Options.critterrangeslider.Value)) or 20
-        local tc = (Options.crittertargetdropdown and tonumber(Options.crittertargetdropdown.Value)) or 1
-        local targets = {}
-        local folder = workspace:FindFirstChild("Critters")
-        if folder then
-            for _, c in pairs(folder:GetChildren()) do
-                if c:IsA("Model") and c.Name == "Queen Ant's Servant" and c:GetAttribute("EntityID") then
-                    local pp = c.PrimaryPart or c:FindFirstChildWhichIsA("BasePart")
-                    if pp and (pp.Position - root.Position).Magnitude <= range then
-                        table.insert(targets, {eid = c:GetAttribute("EntityID"), dist = (pp.Position - root.Position).Magnitude})
-                    end
-                end
-            end
-        end
-        if #targets > 0 then
-            table.sort(targets, function(a,b) return a.dist < b.dist end)
-            local sel = {}
-            for i = 1, math.min(tc, #targets) do table.insert(sel, targets[i].eid) end
-            swingtool(sel)
-            lastQueenServantTime = ct
-        end
-    end)
-end
-
-local function stopQueenServantAura()
-    queenServantActive = false
-    if queenServantConn then queenServantConn:Disconnect(); queenServantConn = nil end
-end
-
 -- Pickup loop
 task.spawn(function()
     while true do
@@ -427,20 +384,20 @@ task.spawn(function()
         if Options.autopickuptoggle.Value and root then
             for _, item in ipairs(workspace.Items:GetChildren()) do
                 if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
-                     if (item.Position - root.Position).Magnitude <= range then pickup(item:GetAttribute("EntityID")) end
+                       if (item.Position - root.Position).Magnitude <= range then pickup(item:GetAttribute("EntityID")) end
                 end
             end
         end
         if Options.chestpickuptoggle.Value and root then
             local deployablesFolder = workspace:FindFirstChild("Deployables")
             if deployablesFolder then
-                 for _, chest in ipairs(deployablesFolder:GetChildren()) do
+                  for _, chest in ipairs(deployablesFolder:GetChildren()) do
                     if chest:IsA("Model") and chest.Name == "Chest" and chest:FindFirstChild("Contents") then
                         for _, item in ipairs(chest.Contents:GetChildren()) do
                             if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
                                 if (chest.PrimaryPart.Position - root.Position).Magnitude <= range then pickup(item:GetAttribute("EntityID")) end
                             end
-                        end
+                         end
                      end
                 end
             end
@@ -491,7 +448,7 @@ local function getpbs(range)
                     local entityid = deployable:GetAttribute("EntityID")
                     if entityid then table.insert(plantboxes, { entityid = entityid, deployable = deployable, dist = dist }) end
                 end
-            end
+             end
          end
     end
     return plantboxes
@@ -558,7 +515,7 @@ local function pathToPlantbox(range)
         if not box.deployable:FindFirstChild("Seed") then
             if box.deployable.PrimaryPart then
                 walkToTarget(box.deployable.PrimaryPart.Position)
-                 break
+                  break
             end
         end
     end
@@ -584,7 +541,7 @@ local function pathToBushesOrBoxes(range, fruitname)
                     break
                 end
             end
-       end
+         end
     end
 end
 
@@ -635,7 +592,7 @@ task.spawn(function()
                          local entityid = v:GetAttribute("EntityID")
                         if ppart and entityid then table.insert(plantCache, {box = v, part = ppart, id = entityid}) end
                     end
-               end
+                 end
                  lastPlantCacheUpdate = currentTime
             end
             if root then
@@ -677,7 +634,7 @@ task.spawn(function()
         -- 1. Inventory Delta Processing
         if lastCount == nil then
             lastCount = currentCount
-           print("[Tracker] Context Engine Init baseline total for " .. targetFruit .. ": " .. tostring(lastCount))
+             print("[Tracker] Context Engine Init baseline total for " .. targetFruit .. ": " .. tostring(lastCount))
          else
             if currentCount > lastCount then
                 gained = currentCount - lastCount
@@ -711,7 +668,7 @@ task.spawn(function()
                          pos = bush.model.PrimaryPart and bush.model.PrimaryPart.Position or root.Position
                     }
                 end
-         end
+             end
         end
         
         -- 3. Metric Calculations and UI Updates
@@ -822,7 +779,7 @@ local function teleportToHitbox(hitbox)
         local n = item.Name or ""
         if n:find("Ice Cube") or n:find("Bloodfruit") or n:find("Strawberry") or n:find("Prickly Pear") or n:find("Crystal") or n:find("Cloudberry") or n:find("Adurite") or n:find("Fire Hide") or n:find("Berry") or n:find("Iron") or n:find("Lemon") or n:find("Magnetite") then
             pcall(function()
-                 if item:IsA("BasePart") then item.Position = tp
+                   if item:IsA("BasePart") then item.Position = tp
                 elseif item:IsA("Model") and item.PrimaryPart then item:SetPrimaryPartCFrame(CFrame.new(tp)) end
             end)
         end
@@ -945,14 +902,14 @@ local function getPrioritizedTarget()
                     
                     -- Priority 1: The Voodoo Spider Queen
                     if c.Name == "The Voodoo Spider Queen" then
-                         if dist < queenMinDist then
+                          if dist < queenMinDist then
                             queenMinDist = dist
                             queenInstance = c
                           end
                     -- Priority 2: Soul Minion
                     elseif c.Name == "Soul Minion" and not queenInstance then
                         if dist < minionMinDist then
-                              minionMinDist = dist
+                          minionMinDist = dist
                             minionInstance = c
                         end
                     -- Priority 3: Void Ant
@@ -1052,15 +1009,6 @@ Tabs.Event:AddToggle("AutoRebirthToggle", {
         else
             StopAutoRebirth()
         end
-    end
-})
-
-Tabs.Event:AddSection("Queen Ant's Servant")
-Tabs.Event:AddToggle("queenservanttoggle", {
-    Title = "Queen Ant's Servant Aura",
-    Default = false,
-    Callback = function(state)
-        if state then startQueenServantAura() else stopQueenServantAura() end
     end
 })
 
