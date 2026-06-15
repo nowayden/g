@@ -1,4 +1,4 @@
-print("loadingsds")
+print("loading")
 print("----------------------------------")
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
@@ -27,6 +27,89 @@ local clock = require(rs.Modules.Clock)
 local runs = game:GetService("RunService")
 local Options = Library.Options
 
+-- ==============================================================
+-- HARDENED NETWORK ABSTRACTION LAYER
+-- Caches native functions to bypass metatable/hook detection
+-- ==============================================================
+local _Network = {
+    Pickup = packets.Pickup and packets.Pickup.send,
+    Drop = packets.DropBagItem and packets.DropBagItem.send,
+    Place = packets.PlaceStructure and packets.PlaceStructure.send,
+    Interact = packets.InteractStructure and packets.InteractStructure.send,
+    SweepPotion = packets.SweepPotion and packets.SweepPotion.send,
+    Rebirth = packets.Rebirth and packets.Rebirth.send
+}
+
+local SecureNetwork = {}
+
+function SecureNetwork.Pickup(entityId)
+    if not _Network.Pickup or not entityId then return end
+    task.spawn(function() pcall(function() _Network.Pickup(entityId) end) end)
+end
+
+function SecureNetwork.DropBagItem(slotId)
+    if not _Network.Drop or not slotId then return end
+    task.spawn(function() pcall(function() _Network.Drop(slotId) end) end)
+end
+
+function SecureNetwork.PlaceStructure(buildingName, targetCFrame, fp, cursorPos)
+    if not _Network.Place or not buildingName or not targetCFrame then return end
+    task.spawn(function()
+        pcall(function()
+            _Network.Place({
+                buildingName = buildingName, 
+                cframe = targetCFrame, 
+                vec = fp, 
+                isMobile = false, 
+                cursor = cursorPos
+            })
+        end)
+    end)
+end
+
+function SecureNetwork.InteractStructure(entityId, itemId)
+    if not _Network.Interact or not entityId or not itemId then return end
+    task.spawn(function()
+        pcall(function()
+            _Network.Interact({ entityID = entityId, itemID = itemId })
+        end)
+    end)
+end
+
+function SecureNetwork.SweepPotion(entityId)
+    if not _Network.SweepPotion or not entityId then return end
+    task.spawn(function() pcall(function() _Network.SweepPotion(entityId) end) end)
+end
+
+function SecureNetwork.Rebirth()
+    if not _Network.Rebirth then return end
+    task.spawn(function() pcall(function() _Network.Rebirth() end) end)
+end
+
+-- ==============================================================
+-- RAW BYTENET ENCODER (STRICTLY FOR SWINGTOOL WEBHOOK BYPASS)
+-- ==============================================================
+local function float16(v)
+    if v == 0 then return 0 end
+    local sign = v < 0 and 0x8000 or 0
+    v = math.abs(v)
+    local exp = math.floor(math.log(v, 2))
+    local mant = math.floor((v / 2 ^ exp) * 1024)
+    return sign + (exp + 15) * 32 + mant
+end
+
+local function swingencode(ids, cf, ts)
+    if typeof(ids) ~= "table" then ids = {ids} end
+    local parts = {string.char(0x00, 0x13)}
+    table.insert(parts, string.pack("<H", #ids))
+    for i, v in ipairs(ids) do
+        table.insert(parts, string.pack("<I4x", v))
+    end
+    local x, y, z = cf:ToEulerAnglesXYZ()
+    table.insert(parts, string.pack("<fffHHHd", cf.X, cf.Y, cf.Z, float16(x), float16(y), float16(z), ts))
+    return table.concat(parts)
+end
+
 -- Farming statistics tracker table
 local farmStats = {
     bloodfruits = 0,
@@ -36,7 +119,6 @@ local farmStats = {
     timerStarted = false
 }
 
--- Helper function to format seconds into HH:MM:SS
 local function formatTime(seconds)
     local hours = math.floor(seconds / 3600)
     local minutes = math.floor((seconds % 3600) / 60)
@@ -44,7 +126,6 @@ local function formatTime(seconds)
     return string.format("%02d:%02d:%02d", hours, minutes, secs)
 end
 
--- Robust inventory scanner that checks background data modules and UI layouts
 local function getInventoryCount(itemName)
     if GameUtil and GameUtil.Data then
         local inv = GameUtil.Data.inventory or GameUtil.Data.Inventory or GameUtil.Data.bag or GameUtil.Data.Bag
@@ -163,7 +244,7 @@ Tabs.Farming:AddButton({
         local selecteditems = {"Gold", "Raw Gold", "Coins", "Coin Stack", "Coin2"}
         for _, item in ipairs(workspace.Items:GetChildren()) do
             if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
-                if packets.Pickup and packets.Pickup.send then packets.Pickup.send(item:GetAttribute("EntityID")) end
+                SecureNetwork.Pickup(item:GetAttribute("EntityID"))
             end
         end
     end
@@ -206,34 +287,7 @@ local function updmsa()
 end
 Options.msatoggle:OnChanged(updmsa)
 
--- ==============================================================
--- BYPASS ENCODERS (Extracted from Herkle Hub)
--- Only used for SwingTool (Auras)
--- ==============================================================
-local function float16(v)
-    if v == 0 then return 0 end
-    local sign = v < 0 and 0x8000 or 0
-    v = math.abs(v)
-    local exp = math.floor(math.log(v, 2))
-    local mant = math.floor((v / 2 ^ exp) * 1024)
-    return sign + (exp + 15) * 32 + mant
-end
-
-local function swingencode(ids, cf, ts)
-    if typeof(ids) ~= "table" then ids = {ids} end
-    local parts = {string.char(0x00, 0x13)}
-    table.insert(parts, string.pack("<H", #ids))
-    for i, v in ipairs(ids) do
-        table.insert(parts, string.pack("<I4x", v))
-    end
-    local x, y, z = cf:ToEulerAnglesXYZ()
-    table.insert(parts, string.pack("<fffHHHd", cf.X, cf.Y, cf.Z, float16(x), float16(y), float16(z), ts))
-    return table.concat(parts)
-end
-
--- ==============================================================
--- HELPER FUNCTIONS (Mixed Bypassed & Native)
--- ==============================================================
+-- Helper functions
 local function swingtool(entityIds)
     local rootPart = root or (plr.Character and plr.Character:FindFirstChild("HumanoidRootPart"))
     if not rootPart then return end
@@ -245,37 +299,8 @@ local function swingtool(entityIds)
     end)
 end
 
--- Restored to native wrapper to prevent ID shifting breakage
 local function pickup(entityid)
-    if packets.Pickup and packets.Pickup.send then 
-        packets.Pickup.send(entityid) 
-    end
-end
-
-local function plant(entityid, itemID)
-    if packets.InteractStructure and packets.InteractStructure.send then
-        packets.InteractStructure.send({ entityID = entityid, itemID = itemID })
-        plantedboxes[entityid] = true
-    end
-end
-
-function placeSingleSnappedBox()
-    local char = plr.Character
-    if not (char and char:FindFirstChild("HumanoidRootPart")) then return end
-    local pos = char.HumanoidRootPart.Position
-    local cam = workspace.CurrentCamera
-    local cursorPos = cam and cam.CFrame.Position or pos
-    local gs = 5.05
-    local sp = Vector3.new(math.round(pos.X/gs)*gs, pos.Y, math.round(pos.Z/gs)*gs)
-    local rp = RaycastParams.new()
-    rp.FilterType, rp.FilterDescendantsInstances, rp.IgnoreWater = Enum.RaycastFilterType.Blacklist, {char}, true
-    local rr = workspace:Raycast(Vector3.new(sp.X, sp.Y+100, sp.Z), Vector3.new(0,-200,0), rp)
-    local fp = rr and rr.Position or sp
-    local rot = CFrame.Angles(0, 0, 0)
-    
-    if packets.PlaceStructure and packets.PlaceStructure.send then
-        packets.PlaceStructure.send({buildingName = "Plant Box", cframe = CFrame.new(fp)*rot, vec = fp, isMobile = false, cursor = cursorPos})
-    end
+    SecureNetwork.Pickup(entityid)
 end
 
 local function drop(itemname)
@@ -283,9 +308,7 @@ local function drop(itemname)
     if not inv then return end
     for _, child in ipairs(inv:GetChildren()) do
         if child:IsA("ImageLabel") and child.Name == itemname then
-            if packets.DropBagItem and packets.DropBagItem.send then
-                packets.DropBagItem.send(child.LayoutOrder)
-             end
+            SecureNetwork.DropBagItem(child.LayoutOrder)
         end
     end
 end
@@ -312,9 +335,7 @@ local function startResource()
         
         if workspace:FindFirstChild("Resources") then
             for _, r in pairs(workspace.Resources:GetDescendants()) do 
-                if r:IsA("Model") then 
-                    table.insert(all, r) 
-                end 
+                if r:IsA("Model") then table.insert(all, r) end 
             end
         end
  
@@ -328,9 +349,7 @@ local function startResource()
                         break
                     end
                 end
-                if matchFound then
-                    table.insert(all, r)
-                end
+                if matchFound then table.insert(all, r) end
             end 
         end
         
@@ -340,7 +359,7 @@ local function startResource()
                 if pp and (pp.Position - root.Position).Magnitude <= range then
                     table.insert(targets, {eid = res:GetAttribute("EntityID"), dist = (pp.Position - root.Position).Magnitude})
                 end
-            end
+             end
         end
         if #targets > 0 then
             table.sort(targets, function(a,b) return a.dist < b.dist end)
@@ -384,7 +403,6 @@ function StartDeployableAura(range)
             if folder then
                 for _, child in pairs(folder:GetChildren()) do
                     local eid = child:GetAttribute("EntityID")
-            
                     if eid then
                         local pp = child.PrimaryPart or child:FindFirstChildWhichIsA("BasePart")
                         if pp and (pp.Position - rootPart.Position).Magnitude <= range then
@@ -458,8 +476,6 @@ local function startQueenServantAura()
         local cooldown = (Options.crittercooldownslider and tonumber(Options.crittercooldownslider.Value)) or 0.1
         if ct - lastQueenServantTime < cooldown then return end
         local range = (Options.critterrangeslider and tonumber(Options.critterrangeslider.Value)) or 20
-        
-        -- Default target count updated to hit 6 targets simultaneously
         local tc = 6 
 
         local targets = {}
@@ -478,7 +494,6 @@ local function startQueenServantAura()
             table.sort(targets, function(a,b) return a.dist < b.dist end)
             local sel = {}
             for i = 1, math.min(tc, #targets) do table.insert(sel, targets[i].eid) end
-            
             swingtool(sel)
             lastQueenServantTime = ct
         end
@@ -677,6 +692,11 @@ task.spawn(function()
     end
 end)
 
+local function plant(entityid, itemID)
+    SecureNetwork.InteractStructure(entityid, itemID)
+    plantedboxes[entityid] = true
+end
+
 local plantCache = {}
 local lastPlantCacheUpdate = 0
 
@@ -740,7 +760,6 @@ task.spawn(function()
         local currentCount = getInventoryCount(targetFruit) or 0
         local gained = 0
         
-        -- 1. Inventory Delta Processing
         if lastCount == nil then
             lastCount = currentCount
             print("[Tracker] Context Engine Init baseline total for " .. targetFruit .. ": " .. tostring(lastCount))
@@ -755,7 +774,6 @@ task.spawn(function()
             end
          end
         
-        -- 2. Bush Deletion Fallback Processing
         if Options.harvesttoggle.Value and targetFruit == "Bloodfruit" and root then
             local harvestrange = tonumber(Options.harvestrange.Value) or 30
             local bushes = getbushes(harvestrange, "Bloodfruit")
@@ -780,7 +798,6 @@ task.spawn(function()
             end
         end
         
-        -- 3. Metric Calculations and UI Updates
         if gained > 0 then
              if not farmStats.timerStarted then
                 farmStats.timerStarted = true
@@ -811,6 +828,23 @@ task.spawn(function()
         task.wait(0.3)
     end
 end)
+
+-- Plant box placement (Tight Edge-to-Edge Snapping)
+function placeSingleSnappedBox()
+    local char = plr.Character
+    if not (char and char:FindFirstChild("HumanoidRootPart")) then return end
+    local pos = char.HumanoidRootPart.Position
+    local cam = workspace.CurrentCamera
+    local cursorPos = cam and cam.CFrame.Position or pos
+    local gs = 5.05
+    local sp = Vector3.new(math.round(pos.X/gs)*gs, pos.Y, math.round(pos.Z/gs)*gs)
+    local rp = RaycastParams.new()
+    rp.FilterType, rp.FilterDescendantsInstances, rp.IgnoreWater = Enum.RaycastFilterType.Blacklist, {char}, true
+    local rr = workspace:Raycast(Vector3.new(sp.X, sp.Y+100, sp.Z), Vector3.new(0,-200,0), rp)
+    local fp = rr and rr.Position or sp
+    local rot = CFrame.Angles(0, 0, 0)
+    SecureNetwork.PlaceStructure("Plant Box", CFrame.new(fp)*rot, fp, cursorPos)
+end
 
 local placementConn
 Options.placeplantboxestoggle:OnChanged(function(v)
@@ -846,7 +880,7 @@ end
 
 local function dropFromSlot(slot, amount)
     if not slot then return end
-    for _ = 1, amount do pcall(function() packets.DropBagItem.send(slot) end); task.wait(0.07) end
+    for _ = 1, amount do SecureNetwork.DropBagItem(slot); task.wait(0.07) end
 end
 
 local function findAllCauldrons()
@@ -893,7 +927,7 @@ local function brewPotions()
     task.wait(2)
     for _, c in ipairs(cauldrons) do
         local eid = c.cauldron:GetAttribute("EntityID")
-        if eid then pcall(function() packets.SweepPotion.send(eid) end) end
+        if eid then SecureNetwork.SweepPotion(eid) end
     end
     isBrewing = false
 end
@@ -948,8 +982,7 @@ local function getPlayerLevel()
 end
 
 local function doRebirth()
-    local success, packetsLocal = pcall(function() return require(rs.Modules.Packets) end)
-    if success and packetsLocal.Rebirth then pcall(function() packetsLocal.Rebirth.send() end) end
+    SecureNetwork.Rebirth()
     task.wait(2.5)
     pressBedButton()
 end
