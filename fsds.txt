@@ -15,7 +15,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "Booga Automation Suite", SubTitle = "v1.2.31", TabWidth = 160,
+    Title = "Booga Automation Suite", SubTitle = "v1.2.3", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -43,15 +43,17 @@ local GameUtil = require(rs.Modules.GameUtil)
 local clock = require(rs.Modules.Clock)
 
 --==================================================================================================
--- 3. BYTENET SAFE NETWORK INJECTION LAYER (NATIVE FRAME ALIGNED)
+-- 3. BYTENET SAFE NETWORK INJECTION LAYER (FIX A APPLIED)
 --==================================================================================================
 local SecureNetwork = {}
 
 function SecureNetwork.Pickup(entityId)
     if not entityId then return end
-    -- Route strictly through native ByteNet to ensure perfect frame formatting and metadata allocation
     if packets.Pickup and packets.Pickup.send then
-        packets.Pickup.send(entityId)
+        -- Wraps the primitive ID into a structured dictionary to match ByteNet schema requirements
+        pcall(function()
+            packets.Pickup.send({ entityID = entityId })
+        end)
     end
 end
 
@@ -259,7 +261,7 @@ Tabs.Farming:AddButton({
         local goldItems = {"Gold", "Raw Gold", "Coins", "Coin Stack", "Coin2"}
         local count = 0
         for _, item in ipairs(workspace.Items:GetChildren()) do
-            if count >= 8 then break end -- Internal safety throttle limit
+            if count >= 8 then break end 
             if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(goldItems, item.Name) then
                 SecureNetwork.Pickup(item:GetAttribute("EntityID"))
                 count = count + 1
@@ -521,12 +523,11 @@ local processedEntities = {}
 
 task.spawn(function()
     while true do
-        task.wait(0.05) -- Fast but secure execution heartbeat
+        task.wait(0.05) 
         
         if not Options.autopickuptoggle or not Options.autopickuptoggle.Value then continue end
         if not root then continue end
         
-        -- Server absolute validation cap is 25 studs; we clamp at 24 to guarantee safety under high ping
         local range = math.clamp(tonumber(Options.pickuprange.Value) or 18, 1, 24)
         local itemsFolder = workspace:FindFirstChild("Items")
         
@@ -540,11 +541,8 @@ task.spawn(function()
                     if entityId and not processedEntities[entityId] and Options.itemdropdown.Value[item.Name] then
                         local distance = (item.Position - root.Position).Magnitude
                         if distance <= range then
-                            -- Instantly lock the entity locally to prevent sending duplicate packets
                             processedEntities[entityId] = true
                             SecureNetwork.Pickup(entityId)
-                            
-                            -- Micro-yield to natively space interactions out over separate execution ticks
                             task.wait(0.05) 
                         end
                     end
@@ -580,7 +578,6 @@ task.spawn(function()
     end
 end)
 
--- Background garbage collection to clean up the network processing table memory
 task.spawn(function()
     while true do
         task.wait(8)
