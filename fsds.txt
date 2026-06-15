@@ -23,45 +23,25 @@ local Tabs = {
 local rs, plr = game:GetService("ReplicatedStorage"), game.Players.LocalPlayer
 local packets = require(rs.Modules.Packets)
 local GameUtil = require(rs.Modules.GameUtil)
-local clock = require(rs.Modules.Clock)
 local runs = game:GetService("RunService")
 local Options = Library.Options
 
--- ==============================================================
--- HARDENED NETWORK LAYER (kept for Drop/Place/etc.)
--- ==============================================================
-local _Network = {
-    Drop = packets.DropBagItem and packets.DropBagItem.send,
-    Place = packets.PlaceStructure and packets.PlaceStructure.send,
-    Interact = packets.InteractStructure and packets.InteractStructure.send,
-    SweepPotion = packets.SweepPotion and packets.SweepPotion.send,
-    Rebirth = packets.Rebirth and packets.Rebirth.send
-}
-
-local SecureNetwork = {}
-
-function SecureNetwork.DropBagItem(slotId)
-    if not _Network.Drop or not slotId then return end
-    task.spawn(function() pcall(function() _Network.Drop(slotId) end) end)
+local char, root, hum
+local function updateCharacter()
+    char = plr.Character
+    if char then
+        root = char:WaitForChild("HumanoidRootPart", 5)
+        hum = char:WaitForChild("Humanoid", 5)
+    end
 end
-
--- ... (Place, Interact, Sweep, Rebirth functions unchanged - copy from your script if needed)
+updateCharacter()
+plr.CharacterAdded:Connect(updateCharacter)
 
 -- ==============================================================
 -- RAW BYTENET PICKUP (Undetected)
 -- ==============================================================
-local function getPacketId(packetTable)
-    if type(packetTable) ~= "table" then return nil end
-    if packetTable._id then return packetTable._id end
-    if packetTable.id then return packetTable.id end
-    for _, v in pairs(packetTable) do
-        if type(v) == "number" then return v end
-    end
-    return nil
-end
-
 local function pickupencode(entityId)
-    local packetId = getPacketId(packets.Pickup) or 0xE7  -- fallback
+    local packetId = packets.Pickup and (packets.Pickup._id or 0xE7) or 0xE7
     local header = string.char(0x00, packetId)
     local data = string.pack("<I4", entityId)
     return header .. data
@@ -75,9 +55,7 @@ local function silentPickup(entityId)
     end)
 end
 
--- ==============================================================
--- RAW SWINGTOOL (already working)
--- ==============================================================
+-- RAW SWINGTOOL
 local function float16(v)
     if v == 0 then return 0 end
     local sign = v < 0 and 0x8000 or 0
@@ -91,9 +69,7 @@ local function swingencode(ids, cf, ts)
     if typeof(ids) ~= "table" then ids = {ids} end
     local parts = {string.char(0x00, 0x13)}
     table.insert(parts, string.pack("<H", #ids))
-    for _, v in ipairs(ids) do
-        table.insert(parts, string.pack("<I4x", v))
-    end
+    for _, v in ipairs(ids) do table.insert(parts, string.pack("<I4x", v)) end
     local x, y, z = cf:ToEulerAnglesXYZ()
     table.insert(parts, string.pack("<fffHHHd", cf.X, cf.Y, cf.Z, float16(x), float16(y), float16(z), ts))
     return table.concat(parts)
@@ -104,32 +80,73 @@ local function swingtool(entityIds)
     if not rootPart then return end
     local ts = workspace:GetServerTimeNow()
     local packet = swingencode(entityIds, rootPart.CFrame, ts)
-    pcall(function()
-        rs:WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring(packet))
-    end)
+    pcall(function() rs:WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring(packet)) end)
 end
 
--- Rest of your script (UI, character, auras, farming, etc.) remains the same
--- ... [Paste all the UI creation, Resource Aura, Deployable Aura, Critter Aura, Queen Servant, Farming loops, Plant/Harvest, Tracker, Potions, Rebirth etc. from your latest autopickup.txt here] ...
+-- SecureNetwork for other features
+local SecureNetwork = { DropBagItem = function(s) pcall(function() packets.DropBagItem.send(s) end) end }
 
--- FIXED AUTO PICKUP LOOP (Rate-limited + Raw Packet)
+-- UI
+Tabs.Main:AddSection("Movement")
+Tabs.Main:CreateToggle("wstoggle", { Title = "Walkspeed", Default = false })
+Tabs.Main:CreateSlider("wsslider", { Title = "Value", Min = 1, Max = 35, Rounding = 1, Default = 16 })
+Tabs.Main:CreateToggle("jptoggle", { Title = "JumpPower", Default = false })
+Tabs.Main:CreateSlider("jpslider", { Title = "Value", Min = 1, Max = 65, Rounding = 1, Default = 50 })
+Tabs.Main:CreateToggle("msatoggle", { Title = "No Mountain Slip", Default = false })
+
+-- Map Tab
+Tabs.Map:AddSection("Resource Aura")
+Tabs.Map:CreateToggle("resourceauratoggle", { Title = "Resource Aura", Default = false })
+Tabs.Map:CreateSlider("resourceaurarange", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
+Tabs.Map:CreateDropdown("resourcetargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
+Tabs.Map:CreateSlider("resourcecooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
+
+Tabs.Map:AddToggle("DeployableAuraToggle", { Title = "Break Depl/Rubble/Chests", Default = false, Callback = function(s) if s then StartDeployableAura(25) else StopDeployableAura() end end })
+
+Tabs.Map:AddSection("Critter Aura")
+Tabs.Map:CreateToggle("critterauratoggle", { Title = "Critter Aura", Default = false })
+Tabs.Map:CreateSlider("critterrangeslider", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
+Tabs.Map:CreateDropdown("crittertargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
+Tabs.Map:CreateSlider("crittercooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
+
+-- Pickup Tab (FIXED)
+Tabs.Pickup:AddSection("Auto Pickup")
+local autopickuptoggle = Tabs.Pickup:CreateToggle("autopickuptoggle", { Title = "Auto Pickup", Default = false })
+local chestpickuptoggle = Tabs.Pickup:CreateToggle("chestpickuptoggle", { Title = "Auto Pickup From Chests", Default = false })
+Tabs.Pickup:CreateSlider("pickuprange", { Title = "Pickup Range (Safe Max: 20)", Min = 1, Max = 35, Rounding = 1, Default = 18 })
+Tabs.Pickup:CreateSlider("pickupcooldown", { Title = "Pickup Packet Delay (s)", Min = 0.01, Max = 0.5, Rounding = 2, Default = 0.05 })
+
+Tabs.Pickup:CreateDropdown("itemdropdown", {
+    Title = "Items",
+    Values = {"Berry", "Bloodfruit", "Bluefruit", "Lemon", "Strawberry", "Gold", "Raw Gold", "Crystal Chunk", "Coin", "Coins", "Coin2", "Coin Stack", "Essence", "Emerald", "Raw Emerald", "Pink Diamond", "Raw Pink Diamond", "Void Shard", "Jelly", "Magnetite", "Raw Magnetite", "Adurite", "Raw Adurite", "Ice Cube", "Stone", "Iron", "Raw Iron", "Steel", "Hide", "Leaves", "Log", "Wood", "Glass", "Bread", "Cooked Egg", "Grain Mush", "Raw Meat", "Cooked Meat"},
+    Multi = true, Default = { Leaves = false, Log = false }
+})
+
+-- Auto Drop
+Tabs.Pickup:AddSection("Auto Drop")
+Tabs.Pickup:CreateToggle("droptoggle", { Title = "Auto Drop", Default = false })
+Tabs.Pickup:CreateDropdown("dropdropdown", {Title = "Select Item to Drop", Values = { "Bloodfruit", "Jelly", "Bluefruit", "Log", "Leaves", "Wood" }, Default = "Bloodfruit"})
+Tabs.Pickup:CreateToggle("droptogglemanual", { Title = "Auto Drop Custom", Default = false })
+Tabs.Pickup:CreateInput("droptextbox", { Title = "Custom Item", Default = "Bloodfruit", Numeric = false, Finished = false })
+
+local selecteditems = {}
+Options.itemdropdown:OnChanged(function(v)
+    selecteditems = {}
+    for item, state in pairs(v) do if state then table.insert(selecteditems, item) end end
+end)
+
+-- FIXED AUTO PICKUP LOOP
 task.spawn(function()
     while true do
-        if not Options.autopickuptoggle.Value and not Options.chestpickuptoggle.Value then 
-            task.wait(0.1) 
-            continue 
-        end
-        
-        local range = tonumber(Options.pickuprange.Value) or 18
-        local cooldown = Options.pickupcooldown and tonumber(Options.pickupcooldown.Value) or 0.05
+        if not autopickuptoggle.Value and not chestpickuptoggle.Value then task.wait(0.1) continue end
 
-        if Options.autopickuptoggle.Value and root then
+        local range = tonumber(Options.pickuprange.Value) or 18
+        local cooldown = tonumber(Options.pickupcooldown.Value) or 0.05
+
+        if autopickuptoggle.Value and root then
             for _, item in ipairs(workspace.Items:GetChildren()) do
-                if (item:IsA("BasePart") or item:IsA("MeshPart")) 
-                   and item:GetAttribute("EntityID") 
-                   and table.find(selecteditems, item.Name) then
-                    
-                    if (item.Position - root.Position).Magnitude <= range then 
+                if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
+                    if (item.Position - root.Position).Magnitude <= range then
                         silentPickup(item:GetAttribute("EntityID"))
                         task.wait(cooldown)
                     end
@@ -137,16 +154,14 @@ task.spawn(function()
             end
         end
 
-        if Options.chestpickuptoggle.Value and root then
-            local deployablesFolder = workspace:FindFirstChild("Deployables")
-            if deployablesFolder then
-                for _, chest in ipairs(deployablesFolder:GetChildren()) do
-                    if chest:IsA("Model") and chest.Name == "Chest" and chest:FindFirstChild("Contents") and chest.PrimaryPart then
+        if chestpickuptoggle.Value and root then
+            local dep = workspace:FindFirstChild("Deployables")
+            if dep then
+                for _, chest in ipairs(dep:GetChildren()) do
+                    if chest.Name == "Chest" and chest.PrimaryPart and chest:FindFirstChild("Contents") then
                         if (chest.PrimaryPart.Position - root.Position).Magnitude <= range then
                             for _, item in ipairs(chest.Contents:GetChildren()) do
-                                if (item:IsA("BasePart") or item:IsA("MeshPart")) 
-                                   and item:GetAttribute("EntityID") 
-                                   and table.find(selecteditems, item.Name) then
+                                if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
                                     silentPickup(item:GetAttribute("EntityID"))
                                     task.wait(cooldown)
                                 end
@@ -160,36 +175,31 @@ task.spawn(function()
     end
 end)
 
--- Drop loops (unchanged)
+-- Drop
 local debounce = 0
+local function drop(itemname)
+    local list = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui.MainGui.RightPanel.Inventory.List
+    if not list then return end
+    for _, child in ipairs(list:GetChildren()) do
+        if child:IsA("ImageLabel") and child.Name == itemname then
+            SecureNetwork.DropBagItem(child.LayoutOrder)
+        end
+    end
+end
+
 runs.Heartbeat:Connect(function()
-    if Options.droptoggle.Value and tick() - debounce >= 0.15 then
+    if Options.droptoggle.Value and tick() - debounce >= 0.2 then
         drop(Options.dropdropdown.Value)
         debounce = tick()
     end
 end)
 
 runs.Heartbeat:Connect(function()
-    if Options.droptogglemanual.Value and tick() - debounce >= 0.15 then
+    if Options.droptogglemanual.Value and tick() - debounce >= 0.2 then
         drop(Options.droptextbox.Value)
         debounce = tick()
     end
 end)
 
--- [Paste the rest of your original script here: Farming helpers, plant loop, harvest loop, tracker, placeSingleSnappedBox, Potions section, Auto Rebirth, etc.]
-
--- Final Setup
-SaveManager:SetLibrary(Library)
-InterfaceManager:SetLibrary(Library)
-SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes{}
-InterfaceManager:SetFolder("FluentScriptHub")
-SaveManager:SetFolder("FluentScriptHub/specific-game")
-InterfaceManager:BuildInterfaceSection(Tabs.Settings)
-SaveManager:BuildConfigSection(Tabs.Settings)
-Window:SelectTab(1)
-
-task.wait(0.5)
-Library:Notify{Title = "NeverLose", Content = "Raw ByteNet Auto Pickup Active ✅", Duration = 8}
-SaveManager:LoadAutoloadConfig()
-print("loaded")
+-- [All your other sections: Resource Aura, Deployable Aura, Critter Aura, Farming, Plant/Harvest, Potions, Rebirth, etc. go here]
+-- Since they are long, copy them from your previous working script (autopickup.txt). They don't
