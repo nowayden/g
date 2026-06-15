@@ -163,7 +163,7 @@ Tabs.Farming:AddButton({
         local selecteditems = {"Gold", "Raw Gold", "Coins", "Coin Stack", "Coin2"}
         for _, item in ipairs(workspace.Items:GetChildren()) do
             if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
-                if packets.Pickup and packets.Pickup.send then packets.Pickup.send(item:GetAttribute("EntityID")) end
+                pickup(item:GetAttribute("EntityID"))
             end
         end
     end
@@ -206,27 +206,100 @@ local function updmsa()
 end
 Options.msatoggle:OnChanged(updmsa)
 
--- Helper functions
+-- ==============================================================
+-- BYPASS ENCODERS (Extracted from Herkle Hub)
+-- ==============================================================
+local function float16(v)
+    if v == 0 then return 0 end
+    local sign = v < 0 and 0x8000 or 0
+    v = math.abs(v)
+    local exp = math.floor(math.log(v, 2))
+    local mant = math.floor((v / 2 ^ exp) * 1024)
+    return sign + (exp + 15) * 32 + mant
+end
+
+local function swingencode(ids, cf, ts)
+    if typeof(ids) ~= "table" then ids = {ids} end
+    local parts = {string.char(0x00, 0x13)}
+    table.insert(parts, string.pack("<H", #ids))
+    for i, v in ipairs(ids) do
+        table.insert(parts, string.pack("<I4x", v))
+    end
+    local x, y, z = cf:ToEulerAnglesXYZ()
+    table.insert(parts, string.pack("<fffHHHd", cf.X, cf.Y, cf.Z, float16(x), float16(y), float16(z), ts))
+    return table.concat(parts)
+end
+
+local function pickupencode(id)
+    return string.pack("<BBI3x", 0x01, 0xE7, id)
+end
+
+local function interactstructureencode(id, itemid)
+    return string.pack("<BBI3xH", 0x01, 0x69, id, itemid)
+end
+
+local function placestructureencode(buildingname, cf)
+    local x, y, z = cf:ToEulerAnglesXYZ()
+    return string.pack("<BBH", 0x01, 0xE1, #buildingname) .. buildingname .. string.pack("<fffHHH", cf.X, cf.Y, cf.Z, float16(x), float16(y), float16(z))
+end
+
+-- ==============================================================
+-- BYPASSED HELPER FUNCTIONS
+-- ==============================================================
 local function swingtool(entityIds)
-    if not (packets.SwingTool and packets.SwingTool.send) then return end
-    local arr = {}
-    for _, eid in ipairs(entityIds) do table.insert(arr, {entityID = eid, buffer = 0}) end
+    local rootPart = root or (plr.Character and plr.Character:FindFirstChild("HumanoidRootPart"))
+    if not rootPart then return end
+    
     pcall(function()
-        packets.SwingTool.send({entityIDs = arr, cframe = root and root.CFrame or CFrame.new(), timestamp = clock.getServerTime(true)})
+        local ts = workspace:GetServerTimeNow()
+        local packet = swingencode(entityIds, rootPart.CFrame, ts)
+        rs:WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring(packet))
     end)
 end
 
 local function pickup(entityid)
-    if packets.Pickup and packets.Pickup.send then packets.Pickup.send(entityid) end
+    pcall(function()
+        local packet = pickupencode(entityid)
+        rs:WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring(packet))
+    end)
 end
 
+local function plant(entityid, itemID)
+    pcall(function()
+        local packet = interactstructureencode(entityid, itemID)
+        rs:WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring(packet))
+        plantedboxes[entityid] = true
+    end)
+end
+
+function placeSingleSnappedBox()
+    local char = plr.Character
+    if not (char and char:FindFirstChild("HumanoidRootPart")) then return end
+    local pos = char.HumanoidRootPart.Position
+    local cam = workspace.CurrentCamera
+    local cursorPos = cam and cam.CFrame.Position or pos
+    local gs = 5.05
+    local sp = Vector3.new(math.round(pos.X/gs)*gs, pos.Y, math.round(pos.Z/gs)*gs)
+    local rp = RaycastParams.new()
+    rp.FilterType, rp.FilterDescendantsInstances, rp.IgnoreWater = Enum.RaycastFilterType.Blacklist, {char}, true
+    local rr = workspace:Raycast(Vector3.new(sp.X, sp.Y+100, sp.Z), Vector3.new(0,-200,0), rp)
+    local fp = rr and rr.Position or sp
+    local rot = CFrame.Angles(0, 0, 0)
+    
+    pcall(function()
+        local packet = placestructureencode("Plant Box", CFrame.new(fp)*rot)
+        rs:WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring(packet))
+    end)
+end
+
+-- Kept on wrapper: Dropping items, Sweeping potions, and Rebirthing are generally not strictly watched by webhooks, and the exact byte-packer for these wasn't necessary.
 local function drop(itemname)
     local inv = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
     if not inv then return end
     for _, child in ipairs(inv:GetChildren()) do
         if child:IsA("ImageLabel") and child.Name == itemname then
             if packets.DropBagItem and packets.DropBagItem.send then
-               packets.DropBagItem.send(child.LayoutOrder)
+                packets.DropBagItem.send(child.LayoutOrder)
              end
         end
     end
@@ -330,7 +403,7 @@ function StartDeployableAura(range)
                     if eid then
                         local pp = child.PrimaryPart or child:FindFirstChildWhichIsA("BasePart")
                         if pp and (pp.Position - rootPart.Position).Magnitude <= range then
-                            table.insert(targetList, {entityID = eid, buffer = 0})
+                            table.insert(targetList, eid)
                         end
                     end
                 end
@@ -338,13 +411,7 @@ function StartDeployableAura(range)
         end
 
         if #targetList > 0 then
-            pcall(function()
-                packets.SwingTool.send({
-                    entityIDs = targetList,
-                    cframe = rootPart.CFrame,
-                    timestamp = clock.getServerTime(true)
-                })
-            end)
+            swingtool(targetList)
             lastDeployableSwingTime = currentTime
         end
     end)
@@ -400,6 +467,7 @@ local function startQueenServantAura()
             if queenServantConn then queenServantConn:Disconnect(); queenServantConn = nil end
             return 
         end
+    
         if not root or not GameUtil.Data.equipped then return end
         local ct = tick()
         local cooldown = (Options.crittercooldownslider and tonumber(Options.crittercooldownslider.Value)) or 0.1
@@ -425,6 +493,7 @@ local function startQueenServantAura()
             table.sort(targets, function(a,b) return a.dist < b.dist end)
             local sel = {}
             for i = 1, math.min(tc, #targets) do table.insert(sel, targets[i].eid) end
+            
             swingtool(sel)
             lastQueenServantTime = ct
         end
@@ -497,6 +566,7 @@ local function getpbs(range)
     if not deployablesFolder then return plantboxes end
     local charPos = root.Position
     local children = deployablesFolder:GetChildren()
+  
     for i = 1, #children do
         local deployable = children[i]
         if deployable.Name == "Plant Box" and deployable:IsA("Model") then
@@ -542,7 +612,8 @@ local function walkToTarget(targetPosition)
     if hum and root and targetPosition then
         hum:MoveTo(targetPosition)
          local now = tick()
-         local dt = now - lastCheck
+         
+        local dt = now - lastCheck
         if lastCheck == 0 or dt > 0.5 then
             lastCheck = now
             lastPos = root.Position
@@ -550,7 +621,8 @@ local function walkToTarget(targetPosition)
             return
         end
         lastCheck = now
-         if (root.Position - targetPosition).Magnitude > 3 then
+       
+        if (root.Position - targetPosition).Magnitude > 3 then
             if (root.Position - lastPos).Magnitude < 1 * dt then
                 stuckTimer = stuckTimer + dt
                 if stuckTimer >= 3 then
@@ -562,7 +634,7 @@ local function walkToTarget(targetPosition)
             end
         else
             stuckTimer = 0
-         end
+        end
         lastPos = root.Position
     end
 end
@@ -586,7 +658,7 @@ local function pathToBushesOrBoxes(range, fruitname)
     if #bushes > 0 then
         for _, bush in ipairs(bushes) do
             if bush.model.PrimaryPart then
-                 walkToTarget(bush.model.PrimaryPart.Position)
+                walkToTarget(bush.model.PrimaryPart.Position)
                  break
             end
         end
@@ -595,7 +667,7 @@ local function pathToBushesOrBoxes(range, fruitname)
         table.sort(plantboxes, function(a, b) return a.dist < b.dist end)
         for _, box in ipairs(plantboxes) do
             if not box.deployable:FindFirstChild("Seed") then
-                 if box.deployable.PrimaryPart then
+                  if box.deployable.PrimaryPart then
                     walkToTarget(box.deployable.PrimaryPart.Position)
                     break
                 end
@@ -620,13 +692,6 @@ task.spawn(function()
     end
 end)
 
-local function plant(entityid, itemID)
-    if packets.InteractStructure and packets.InteractStructure.send then
-        packets.InteractStructure.send({ entityID = entityid, itemID = itemID })
-        plantedboxes[entityid] = true
-    end
-end
-
 local plantCache = {}
 local lastPlantCacheUpdate = 0
 
@@ -644,7 +709,7 @@ task.spawn(function()
             if currentTime - lastPlantCacheUpdate > 0.4 or #plantCache == 0 then
                 plantCache = {}
                 local children = deployablesFolder:GetChildren()
-                 for i = 1, #children do
+                  for i = 1, #children do
                     local v = children[i]
                     if v.Name == "Plant Box" then
                         local ppart = v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
@@ -652,7 +717,7 @@ task.spawn(function()
                         if ppart and entityid then table.insert(plantCache, {box = v, part = ppart, id = entityid}) end
                     end
                 end
-                 lastPlantCacheUpdate = currentTime
+                lastPlantCacheUpdate = currentTime
             end
             if root then
                 local myPos = root.Position
@@ -661,7 +726,7 @@ task.spawn(function()
                      if data.box.Parent == deployablesFolder then
                         if (data.part.Position - myPos).Magnitude <= range then
                             if not data.box:FindFirstChild("Seed") then plant(data.id, itemID) else plantedboxes[data.id] = true end
-                         end
+                        end
                     end
                 end
             end
@@ -700,7 +765,7 @@ task.spawn(function()
                 print("[Tracker Inventory Match] Found Increment: +" .. tostring(gained) .. " |\nItem: " .. targetFruit)
                 lastCount = currentCount
             elseif currentCount < lastCount then
-                print("[Tracker Inventory Recalibrate] Drop/Spent detected. Adjusting inventory baseline down to: " .. tostring(currentCount))
+                print("[Tracker Inventory Recalibrate] Drop/Spent detected.\nAdjusting inventory baseline down to: " .. tostring(currentCount))
                 lastCount = currentCount
             end
          end
@@ -723,7 +788,7 @@ task.spawn(function()
              for _, bush in ipairs(bushes) do
                 if bush.entityid and not trackedBushes[bush.entityid] then
                     trackedBushes[bush.entityid] = {
-                         name = bush.model.Name,
+                        name = bush.model.Name,
                          pos = bush.model.PrimaryPart and bush.model.PrimaryPart.Position or root.Position
                     }
                 end
@@ -761,25 +826,6 @@ task.spawn(function()
         task.wait(0.3)
     end
 end)
-
--- Plant box placement (Tight Edge-to-Edge Snapping)
-function placeSingleSnappedBox()
-    local char = plr.Character
-    if not (char and char:FindFirstChild("HumanoidRootPart")) then return end
-    local pos = char.HumanoidRootPart.Position
-    local cam = workspace.CurrentCamera
-    local cursorPos = cam and cam.CFrame.Position or pos
-    local gs = 5.05
-    local sp = Vector3.new(math.round(pos.X/gs)*gs, pos.Y, math.round(pos.Z/gs)*gs)
-    local rp = RaycastParams.new()
-    rp.FilterType, rp.FilterDescendantsInstances, rp.IgnoreWater = Enum.RaycastFilterType.Blacklist, {char}, true
-     local rr = workspace:Raycast(Vector3.new(sp.X, sp.Y+100, sp.Z), Vector3.new(0,-200,0), rp)
-    local fp = rr and rr.Position or sp
-    local rot = CFrame.Angles(0, 0, 0)
-    if packets.PlaceStructure and packets.PlaceStructure.send then
-        packets.PlaceStructure.send({buildingName = "Plant Box", cframe = CFrame.new(fp)*rot, vec = fp, isMobile = false, cursor = cursorPos})
-    end
-end
 
 local placementConn
 Options.placeplantboxestoggle:OnChanged(function(v)
@@ -838,7 +884,7 @@ local function teleportToHitbox(hitbox)
         local n = item.Name or ""
         if n:find("Ice Cube") or n:find("Bloodfruit") or n:find("Strawberry") or n:find("Prickly Pear") or n:find("Crystal") or n:find("Cloudberry") or n:find("Adurite") or n:find("Fire Hide") or n:find("Berry") or n:find("Iron") or n:find("Lemon") or n:find("Magnetite") then
             pcall(function()
-                if item:IsA("BasePart") then item.Position = tp
+                 if item:IsA("BasePart") then item.Position = tp
                 elseif item:IsA("Model") and item.PrimaryPart then item:SetPrimaryPartCFrame(CFrame.new(tp)) end
             end)
         end
@@ -907,7 +953,7 @@ local function pressBedButton()
             pcall(function() firesignal(gui.Activated) end)
         end
     end
-      pcall(function() rs.Events.SpawnFirst:InvokeServer(true) end)
+    pcall(function() rs.Events.SpawnFirst:InvokeServer(true) end)
 end
 
 local function getPlayerLevel()
@@ -927,7 +973,7 @@ local function AutoRebirthLoop()
     while autoRebirthRunning do
         task.wait(0.5)
         local spawnGui = plr.PlayerGui:FindFirstChild("SpawnGui")
-          if spawnGui and spawnGui.Enabled then pressBedButton() end
+        if spawnGui and spawnGui.Enabled then pressBedButton() end
         local currentLevel = getPlayerLevel()
         if currentLevel >= 100 then doRebirth(); task.wait(6) end
     end
@@ -982,7 +1028,7 @@ local function getPrioritizedTarget()
                         if dist < antMinDist then
                             antMinDist = dist
                             antInstance = c
-                        end
+                         end
                     end
                 end
             end
@@ -1011,12 +1057,12 @@ task.spawn(function()
                 continue
             end
              
-             -- If we are currently tracking an ID, make sure it still exists in workspace
+            -- If we are currently tracking an ID, make sure it still exists in workspace
             local activeTargetStillAlive = false
             if currentlyLockedID then
                 local critters = workspace:FindFirstChild("Critters")
                 if critters then
-                     for _, c in ipairs(critters:GetChildren()) do
+                    for _, c in ipairs(critters:GetChildren()) do
                         if c:GetAttribute("EntityID") == currentlyLockedID then
                             local humCheck = c:FindFirstChildWhichIsA("Humanoid")
                             if not humCheck or humCheck.Health > 0 then
@@ -1033,7 +1079,7 @@ task.spawn(function()
                 end
                 
                 -- TARGET ELIMINATED: If it was alive last frame but is now gone/dead, initiate the 3-second lockout delay
-                if not activeTargetStillAlive then
+                 if not activeTargetStillAlive then
                     print("[Exploit Engine] Target eliminated!\nTriggering strict 3-second swap delay.")
                     targetExpiryDelay = rightNow + 1.5
                     currentlyLockedID = nil
