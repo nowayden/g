@@ -16,7 +16,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "Booga Automation Suite", SubTitle = "v1.2.0", TabWidth = 160,
+    Title = "Booga Automation Suite", SubTitle = "v1.2.1", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -44,17 +44,28 @@ local GameUtil = require(rs.Modules.GameUtil)
 local clock = require(rs.Modules.Clock)
 
 --==================================================================================================
--- 3. BYTENET DYNAMIC OPCOE RESOLUTION
+-- 3. BYTENET DYNAMIC OPCODE RESOLUTION
 --==================================================================================================
-local Opcodes = {
-    Pickup = packets.Pickup and (packets.Pickup.id or packets.Pickup._id),
-    Drop = packets.DropBagItem and (packets.DropBagItem.id or packets.DropBagItem._id),
-    Place = packets.PlaceStructure and (packets.PlaceStructure.id or packets.PlaceStructure._id),
-    Interact = packets.InteractStructure and (packets.InteractStructure.id or packets.InteractStructure._id),
-    SweepPotion = packets.SweepPotion and (packets.SweepPotion.id or packets.SweepPotion._id),
-    Rebirth = packets.Rebirth and (packets.Rebirth.id or packets.Rebirth._id),
-    SwingTool = packets.SwingTool and (packets.SwingTool.id or packets.SwingTool._id)
-}
+local Opcodes = {}
+
+local function extractPacketId(packetObj)
+    if not packetObj then return nil end
+    if type(packetObj) == "number" then return packetObj end
+    if packetObj.id then return packetObj.id end
+    if packetObj._id then return packetObj._id end
+    for key, val in pairs(packetObj) do
+        if type(val) == "number" then return val end
+    end
+    return nil
+end
+
+Opcodes.Pickup = extractPacketId(packets.Pickup)
+Opcodes.Drop = packets.DropBagItem and (packets.DropBagItem.id or packets.DropBagItem._id)
+Opcodes.Place = packets.PlaceStructure and (packets.PlaceStructure.id or packets.PlaceStructure._id)
+Opcodes.Interact = packets.InteractStructure and (packets.InteractStructure.id or packets.InteractStructure._id)
+Opcodes.SweepPotion = packets.SweepPotion and (packets.SweepPotion.id or packets.SweepPotion._id)
+Opcodes.Rebirth = packets.Rebirth and (packets.Rebirth.id or packets.Rebirth._id)
+Opcodes.SwingTool = packets.SwingTool and (packets.SwingTool.id or packets.SwingTool._id)
 
 --==================================================================================================
 -- 4. HARDENED BINARY NETWORK INJECTION LAYER (ZERO-WRAPPER BYPASS)
@@ -69,17 +80,23 @@ local _Network = {
 
 local SecureNetwork = {}
 
--- Completely rewritten to build raw binary memory buffers and bypass client wrappers
 function SecureNetwork.Pickup(entityId)
-    if not entityId or not Opcodes.Pickup then return end
+    if not entityId then return end
     task.spawn(function()
         pcall(function()
-            -- Pack ByteNet header (uint16) followed by Entity ID payload (uint32)
-            local header = string.pack("<I2", Opcodes.Pickup)
-            local data = string.pack("<I4", entityId)
-            local rawPacket = header .. data
-            
-            rs:WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring(rawPacket))
+            if Opcodes.Pickup then
+                -- Method A: Manual memory serialization injection
+                local header = string.pack("<I2", Opcodes.Pickup)
+                local data = string.pack("<I4", entityId)
+                local rawPacket = header .. data
+                
+                rs:WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring(rawPacket))
+            else
+                -- Method B: Low-level library execution fallback bypassing game engine abstractions
+                if packets.Pickup and packets.Pickup.send then
+                    packets.Pickup.send(entityId)
+                end
+            end
         end)
     end)
 end
@@ -287,9 +304,9 @@ Tabs.Farming:AddSection("Gold Farming")
 Tabs.Farming:AddButton({
     Title = "Farm Gold",
     Callback = function()
-        local selecteditems = {"Gold", "Raw Gold", "Coins", "Coin Stack", "Coin2"}
+        local goldItems = {"Gold", "Raw Gold", "Coins", "Coin Stack", "Coin2"}
         for _, item in ipairs(workspace.Items:GetChildren()) do
-            if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
+            if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(goldItems, item.Name) then
                 SecureNetwork.Pickup(item:GetAttribute("EntityID"))
             end
         end
@@ -362,12 +379,6 @@ local function drop(itemname)
     end
 end
 
-local selecteditems = {}
-Options.itemdropdown:OnChanged(function(v)
-    selecteditems = {}
-    for item, state in pairs(v) do if state then table.insert(selecteditems, item) end end
-end)
-
 --==================================================================================================
 -- 11. COMBAT & THREAT DETECTION LOGIC (COMBAT AURAS)
 --==================================================================================================
@@ -433,7 +444,7 @@ function StartDeployableAura(range)
     range = range or 25
 
     deployableAuraConnection = runs.Heartbeat:Connect(function()
-        if not deployableAuraActive or isTraderActive then return end
+        if not deployableAuraActive then return end
 
         local currentTime = tick()
         if currentTime - lastDeployableSwingTime < 0.1 then return end
@@ -553,29 +564,50 @@ local function stopQueenServantAura()
 end
 
 --==================================================================================================
--- 12. RUNTIME PIPELINES (AUTO PICKUP WORKER WITH RAW INJECTION MAPPING)
+-- 12. RUNTIME PIPELINES (LIVE UI STATE RE-MAPPING)
 --==================================================================================================
 task.spawn(function()
     while true do
+        task.wait(0.05)
+        
+        if not Options.autopickuptoggle or not Options.autopickuptoggle.Value then continue end
+        if not root then continue end
+        
         local range = tonumber(Options.pickuprange.Value) or 35
-        if Options.autopickuptoggle.Value and root then
-            for _, item in ipairs(workspace.Items:GetChildren()) do
-                if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
-                     if (item.Position - root.Position).Magnitude <= range then 
-                         pickup(item:GetAttribute("EntityID")) 
-                     end
+        local itemsFolder = workspace:FindFirstChild("Items")
+        
+        if itemsFolder then
+            local children = itemsFolder:GetChildren()
+            for i = 1, #children do
+                local item = children[i]
+                
+                if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") then
+                    -- Query Fluent UI live dictionary state directly to avoid empty array initialization bug
+                    local isTargeted = Options.itemdropdown.Value[item.Name]
+                    
+                    if isTargeted then
+                        local distance = (item.Position - root.Position).Magnitude
+                        if distance <= range then 
+                            SecureNetwork.Pickup(item:GetAttribute("EntityID")) 
+                        end
+                    end
                 end
             end
         end
-        if Options.chestpickuptoggle.Value and root then
+        
+        if Options.chestpickuptoggle and Options.chestpickuptoggle.Value then
             local deployablesFolder = workspace:FindFirstChild("Deployables")
             if deployablesFolder then
-                for _, chest in ipairs(deployablesFolder:GetChildren()) do
+                local objects = deployablesFolder:GetChildren()
+                for i = 1, #objects do
+                    local chest = objects[i]
                     if chest:IsA("Model") and chest.Name == "Chest" and chest:FindFirstChild("Contents") then
-                        for _, item in ipairs(chest.Contents:GetChildren()) do
-                            if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
-                                if (chest.PrimaryPart.Position - root.Position).Magnitude <= range then 
-                                    pickup(item:GetAttribute("EntityID")) 
+                        if chest.PrimaryPart and (chest.PrimaryPart.Position - root.Position).Magnitude <= range then
+                            local contents = chest.Contents:GetChildren()
+                            for j = 1, #contents do
+                                local item = contents[j]
+                                if item:GetAttribute("EntityID") and Options.itemdropdown.Value[item.Name] then
+                                    SecureNetwork.Pickup(item:GetAttribute("EntityID"))
                                 end
                             end
                         end
@@ -583,7 +615,6 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.01)
     end
 end)
 
@@ -591,7 +622,7 @@ end)
 local debounce = 0
 local cd = 0
 runs.Heartbeat:Connect(function()
-    if Options.droptoggle.Value then
+    if Options.droptoggle and Options.droptoggle.Value then
         if tick() - debounce >= cd then
             drop(Options.dropdropdown.Value)
             debounce = tick()
@@ -600,7 +631,7 @@ runs.Heartbeat:Connect(function()
 end)
 
 runs.Heartbeat:Connect(function()
-    if Options.droptogglemanual.Value then
+    if Options.droptogglemanual and Options.droptogglemanual.Value then
         if tick() - debounce >= cd then
             drop(Options.droptextbox.Value)
             debounce = tick()
@@ -819,14 +850,11 @@ task.spawn(function()
         
         if lastCount == nil then
             lastCount = currentCount
-            print("[Tracker] Context Engine Init baseline total for " .. targetFruit .. ": " .. tostring(lastCount))
          else
             if currentCount > lastCount then
                 gained = currentCount - lastCount
-                print("[Tracker Inventory Match] Found Increment: +" .. tostring(gained) .. " |\nItem: " .. targetFruit)
                 lastCount = currentCount
             elseif currentCount < lastCount then
-                print("[Tracker Inventory Recalibrate] Drop/Spent detected.\nAdjusting inventory baseline down to: " .. tostring(currentCount))
                 lastCount = currentCount
             end
          end
@@ -839,7 +867,6 @@ task.spawn(function()
                 if not workspace:FindFirstChild(data.name) and (data.pos - root.Position).Magnitude <= harvestrange then
                     if gained == 0 then
                         gained = 3
-                         print("[Tracker Fallback Match] Bush deletion registered within radius! Force-adding +3 fruits.")
                     end
                     trackedBushes[id] = nil
                 end
@@ -860,7 +887,6 @@ task.spawn(function()
                 farmStats.timerStarted = true
                 farmStats.startTime = tick()
                 farmStats.sessionStartTime = tick()
-                print("[Tracker Stopwatch] Initial harvest verified.\nTimer running.")
             end
             farmStats.bloodfruits = farmStats.bloodfruits + gained
             farmStats.totalAllTime = farmStats.totalAllTime + gained
@@ -1086,7 +1112,6 @@ local function getPrioritizedTarget()
                 if not humCheck or humCheck.Health > 0 then
                     local dist = (pp.Position - root.Position).Magnitude
                     
-                    -- Priority Hierarchy Filtering
                     if c.Name == "Wandering Trader" then
                         if dist < traderMinDist then
                             traderMinDist = dist
@@ -1153,7 +1178,6 @@ task.spawn(function()
                 end
                 
                 if not activeTargetStillAlive then
-                    print("[Exploit Engine] Target eliminated!\nTriggering strict 3-second swap delay.")
                     targetExpiryDelay = rightNow + 1.5
                     currentlyLockedID = nil
                 end
