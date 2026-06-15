@@ -1,4 +1,4 @@
-print("loading11")
+print("loadingsds")
 print("----------------------------------")
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
@@ -163,7 +163,7 @@ Tabs.Farming:AddButton({
         local selecteditems = {"Gold", "Raw Gold", "Coins", "Coin Stack", "Coin2"}
         for _, item in ipairs(workspace.Items:GetChildren()) do
             if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
-                pickup(item:GetAttribute("EntityID"))
+                if packets.Pickup and packets.Pickup.send then packets.Pickup.send(item:GetAttribute("EntityID")) end
             end
         end
     end
@@ -208,6 +208,7 @@ Options.msatoggle:OnChanged(updmsa)
 
 -- ==============================================================
 -- BYPASS ENCODERS (Extracted from Herkle Hub)
+-- Only used for SwingTool (Auras)
 -- ==============================================================
 local function float16(v)
     if v == 0 then return 0 end
@@ -230,21 +231,8 @@ local function swingencode(ids, cf, ts)
     return table.concat(parts)
 end
 
-local function pickupencode(id)
-    return string.pack("<BBI3x", 0x01, 0xE7, id)
-end
-
-local function interactstructureencode(id, itemid)
-    return string.pack("<BBI3xH", 0x01, 0x69, id, itemid)
-end
-
-local function placestructureencode(buildingname, cf)
-    local x, y, z = cf:ToEulerAnglesXYZ()
-    return string.pack("<BBH", 0x01, 0xE1, #buildingname) .. buildingname .. string.pack("<fffHHH", cf.X, cf.Y, cf.Z, float16(x), float16(y), float16(z))
-end
-
 -- ==============================================================
--- BYPASSED HELPER FUNCTIONS
+-- HELPER FUNCTIONS (Mixed Bypassed & Native)
 -- ==============================================================
 local function swingtool(entityIds)
     local rootPart = root or (plr.Character and plr.Character:FindFirstChild("HumanoidRootPart"))
@@ -257,19 +245,18 @@ local function swingtool(entityIds)
     end)
 end
 
+-- Restored to native wrapper to prevent ID shifting breakage
 local function pickup(entityid)
-    pcall(function()
-        local packet = pickupencode(entityid)
-        rs:WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring(packet))
-    end)
+    if packets.Pickup and packets.Pickup.send then 
+        packets.Pickup.send(entityid) 
+    end
 end
 
 local function plant(entityid, itemID)
-    pcall(function()
-        local packet = interactstructureencode(entityid, itemID)
-        rs:WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring(packet))
+    if packets.InteractStructure and packets.InteractStructure.send then
+        packets.InteractStructure.send({ entityID = entityid, itemID = itemID })
         plantedboxes[entityid] = true
-    end)
+    end
 end
 
 function placeSingleSnappedBox()
@@ -286,13 +273,11 @@ function placeSingleSnappedBox()
     local fp = rr and rr.Position or sp
     local rot = CFrame.Angles(0, 0, 0)
     
-    pcall(function()
-        local packet = placestructureencode("Plant Box", CFrame.new(fp)*rot)
-        rs:WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring(packet))
-    end)
+    if packets.PlaceStructure and packets.PlaceStructure.send then
+        packets.PlaceStructure.send({buildingName = "Plant Box", cframe = CFrame.new(fp)*rot, vec = fp, isMobile = false, cursor = cursorPos})
+    end
 end
 
--- Kept on wrapper: Dropping items, Sweeping potions, and Rebirthing are generally not strictly watched by webhooks, and the exact byte-packer for these wasn't necessary.
 local function drop(itemname)
     local inv = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
     if not inv then return end
