@@ -86,8 +86,16 @@ function SecureNetwork.Rebirth()
     task.spawn(function() pcall(function() _Network.Rebirth() end) end)
 end
 
+-- Direct un-wrapped synchronous alternative for anti-detection
+local function directSecurePickup(entityid)
+    if not _Network.Pickup or not entityid then return end
+    pcall(function() 
+        _Network.Pickup(entityid) 
+    end)
+end
+
 -- ==============================================================
--- RAW BYTENET ENCODER (STRICTLY FOR SWINGTOOL WEBHOOK BYPASS)
+-- RAW BYTENET ENCODER (FOR SWINGTOOL WEBHOOK BYPASS)
 -- ==============================================================
 local function float16(v)
     if v == 0 then return 0 end
@@ -172,6 +180,10 @@ end
 updateCharacter()
 plr.CharacterAdded:Connect(updateCharacter)
 
+-- ==============================================================
+-- INTERFACE TABS & SECTIONS SETUP
+-- ==============================================================
+
 -- Main Tab
 Tabs.Main:AddSection("Movement")
 Tabs.Main:CreateToggle("wstoggle", { Title = "Walkspeed", Default = false })
@@ -199,7 +211,7 @@ Tabs.Map:AddSection("Critter Aura")
 Tabs.Map:CreateToggle("critterauratoggle", { Title = "Critter Aura", Default = false })
 Tabs.Map:CreateSlider("critterrangeslider", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
 Tabs.Map:CreateDropdown("crittertargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
-Tabs.Map:CreateSlider("crittercooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
+Tabs.Map:CreateSlider("resourcecooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
 
 -- Pickup Tab
 Tabs.Pickup:AddSection("Auto Pickup")
@@ -250,7 +262,6 @@ Tabs.Farming:AddButton({
     end
 })
 
--- Farming Tracker UI Components
 Tabs.Farming:AddSection("Farming Statistics")
 local BloodfruitParagraph = Tabs.Farming:AddParagraph("BloodfruitStats", { Title = "Bloodfruits Harvested", Content = "0 (Per Min: 0 |\nPer Hour: 0)" })
 local TotalAllTimeParagraph = Tabs.Farming:AddParagraph("TotalAllTimeStats", { Title = "Total Harvested (All Time)", Content = "0 (Time: 00:00:00 (Waiting for harvest...))" })
@@ -262,7 +273,9 @@ Tabs.Farming:AddButton({
     end
 })
 
--- WS/JP handlers
+-- ==============================================================
+-- MOVEMENT FUNCTIONAL HANDLERS
+-- ==============================================================
 local function updws()
     if wscon then wscon:Disconnect(); wscon = nil end
     if Options.wstoggle.Value or Options.jptoggle.Value then
@@ -287,7 +300,9 @@ local function updmsa()
 end
 Options.msatoggle:OnChanged(updmsa)
 
--- Helper functions
+-- ==============================================================
+-- GLOBAL UTILITY HANDLERS
+-- ==============================================================
 local function swingtool(entityIds)
     local rootPart = root or (plr.Character and plr.Character:FindFirstChild("HumanoidRootPart"))
     if not rootPart then return end
@@ -299,7 +314,6 @@ local function swingtool(entityIds)
     end)
 end
 
--- Modified abstraction function mirroring array infrastructure design
 local function pickuptool(entityIds)
     if typeof(entityIds) ~= "table" then entityIds = {entityIds} end
     for _, eid in ipairs(entityIds) do
@@ -323,7 +337,9 @@ Options.itemdropdown:OnChanged(function(v)
     for item, state in pairs(v) do if state then table.insert(selecteditems, item) end end
 end)
 
--- Resource Aura
+-- ==============================================================
+-- RESOURCE AURA SYSTEM
+-- ==============================================================
 local resourceActive, resourceConn, lastResourceTime = false, nil, 0
 local function startResource()
     if resourceActive then return end
@@ -376,10 +392,11 @@ local function startResource()
 end
 Options.resourceauratoggle:OnChanged(function(s) if s then startResource() else resourceActive = false; if resourceConn then resourceConn:Disconnect(); resourceConn = nil end end end)
 
--- ========= [ DEPLOYABLE AURA FROM V9 ] =========
+-- ==============================================================
+-- DEPLOYABLES & CRITTER AURAS
+-- ==============================================================
 local RS = runs
 local isTraderActive = false
-
 local deployableAuraActive = false
 local deployableAuraConnection = nil
 local lastDeployableSwingTime = 0
@@ -391,7 +408,6 @@ function StartDeployableAura(range)
 
     deployableAuraConnection = RS.Heartbeat:Connect(function()
         if not deployableAuraActive or isTraderActive then return end
-
         local currentTime = tick()
         if currentTime - lastDeployableSwingTime < 0.1 then return end
 
@@ -429,7 +445,6 @@ function StopDeployableAura()
     if deployableAuraConnection then deployableAuraConnection:Disconnect() end
 end
 
--- Critter Aura
 local SchuylerActive, critterConn, lastCritterTime = false, nil, 0
 local function startCritter()
     if SchuylerActive then return end
@@ -464,7 +479,6 @@ local function startCritter()
 end
 Options.critterauratoggle:OnChanged(function(s) if s then startCritter() else SchuylerActive = false; if critterConn then critterConn:Disconnect(); critterConn = nil end end end)
 
--- Queen Ant's Servant Aura
 local queenServantActive, queenServantConn, lastQueenServantTime = false, nil, 0
 local function startQueenServantAura()
     if queenServantActive then return end
@@ -474,7 +488,6 @@ local function startQueenServantAura()
             if queenServantConn then queenServantConn:Disconnect(); queenServantConn = nil end
             return 
         end
-    
         if not root or not GameUtil.Data.equipped then return end
         local ct = tick()
         local cooldown = (Options.crittercooldownslider and tonumber(Options.crittercooldownslider.Value)) or 0.1
@@ -510,36 +523,63 @@ local function stopQueenServantAura()
 end
 
 -- ==============================================================
--- REMADE BATCHED AUTO PICKUP LOOP (Emulates swingtool structure)
+-- SYNCED AUTO PICKUP SYSTEM (UNDETECTED STRUCTURE)
 -- ==============================================================
-task.spawn(function()
-    while true do
-        if Options.autopickuptoggle.Value and root then
-            local range = tonumber(Options.pickuprange.Value) or 35
-            local targets = {}
+local pickupActive, pickupConn, lastPickupTime = false, nil, 0
 
-            -- 1. Scan for loose drops in workspace
-            for _, item in ipairs(workspace.Items:GetChildren()) do
-                if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
-                    local dist = (item.Position - root.Position).Magnitude
-                    if dist <= range then
-                        table.insert(targets, {eid = item:GetAttribute("EntityID"), dist = dist})
+local function startPickupAura()
+    if pickupActive then return end
+    pickupActive = true
+    
+    pickupConn = runs.Heartbeat:Connect(function()
+        if not Options.autopickuptoggle.Value then 
+            pickupConn:Disconnect()
+            pickupConn = nil
+            pickupActive = false
+            return 
+        end
+        if not root then return end
+        
+        local ct = tick()
+        if ct - lastPickupTime < 0.25 then return end
+        
+        local range = tonumber(Options.pickuprange.Value) or 20
+        local targets = {}
+        
+        -- Ground Drop Processing
+        local itemsFolder = workspace:FindFirstChild("Items")
+        if itemsFolder then
+            local items = itemsFolder:GetChildren()
+            for i = 1, #items do
+                local item = items[i]
+                if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") then
+                    if table.find(selecteditems, item.Name) then
+                        local dist = (item.Position - root.Position).Magnitude
+                        if dist <= range then
+                            table.insert(targets, {eid = item:GetAttribute("EntityID"), dist = dist})
+                        end
                     end
                 end
             end
-
-            -- 2. Scan inside close chests if toggle allowed
-            if Options.chestpickuptoggle.Value then
-                local deployablesFolder = workspace:FindFirstChild("Deployables")
-                if deployablesFolder then
-                    for _, chest in ipairs(deployablesFolder:GetChildren()) do
-                        if chest:IsA("Model") and chest.Name == "Chest" and chest:FindFirstChild("Contents") then
-                            local chestPart = chest.PrimaryPart or chest:FindFirstChildWhichIsA("BasePart")
-                            if chestPart then
-                                local chestDist = (chestPart.Position - root.Position).Magnitude
-                                if chestDist <= range then
-                                    for _, item in ipairs(chest.Contents:GetChildren()) do
-                                        if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
+        end
+        
+        -- Chest Drop Processing
+        if Options.chestpickuptoggle.Value then
+            local deployablesFolder = workspace:FindFirstChild("Deployables")
+            if deployablesFolder then
+                local chests = deployablesFolder:GetChildren()
+                for i = 1, #chests do
+                    local chest = chests[i]
+                    if chest:IsA("Model") and chest.Name == "Chest" and chest:FindFirstChild("Contents") then
+                        local pp = chest.PrimaryPart or chest:FindFirstChildWhichIsA("BasePart")
+                        if pp then
+                            local chestDist = (pp.Position - root.Position).Magnitude
+                            if chestDist <= range then
+                                local contents = chest.Contents:GetChildren()
+                                for j = 1, #contents do
+                                    local item = contents[j]
+                                    if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") then
+                                        if table.find(selecteditems, item.Name) then
                                             table.insert(targets, {eid = item:GetAttribute("EntityID"), dist = chestDist})
                                         end
                                     end
@@ -549,24 +589,24 @@ task.spawn(function()
                     end
                 end
             end
-
-            -- 3. Batch process targets by closest sorting distance
-            if #targets > 0 then
-                table.sort(targets, function(a, b) return a.dist < b.dist end)
-                
-                local sel = {}
-                for i = 1, #targets do
-                    table.insert(sel, targets[i].eid)
-                end
-                
-                pickuptool(sel)
-            end
         end
-        task.wait(0.01)
-    end
+        
+        -- Structural Selection Execution Pipeline
+        if #targets > 0 then
+            table.sort(targets, function(a, b) return a.dist < b.dist end)
+            directSecurePickup(targets[1].eid)
+            lastPickupTime = ct
+        end
+    end)
+end
+
+Options.autopickuptoggle:OnChanged(function(s) 
+    if s then startPickupAura() else pickupActive = false; if pickupConn then pickupConn:Disconnect(); pickupConn = nil end end 
 end)
 
--- Drop loops
+-- ==============================================================
+-- DROP AND SEED RECONSTRUCTION INTERFACING
+-- ==============================================================
 local debounce = 0
 local cd = 0
 runs.Heartbeat:Connect(function()
@@ -587,7 +627,7 @@ runs.Heartbeat:Connect(function()
     end
 end)
 
--- Farming helpers
+-- Farming utilities
 local plantedboxes = {}
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
 
@@ -644,8 +684,7 @@ local function walkToTarget(targetPosition)
     if hum and root and targetPosition then
         hum:MoveTo(targetPosition)
          local now = tick()
-         
-        local dt = now - lastCheck
+         local dt = now - lastCheck
         if lastCheck == 0 or dt > 0.5 then
             lastCheck = now
             lastPos = root.Position
@@ -782,7 +821,9 @@ task.spawn(function()
     end
 end)
 
--- REWRITTEN HIGH-ACCURACY PARALLEL TRACKING LOOP
+-- ==============================================================
+-- TRACKER PIPELINE STATISTICS
+-- ==============================================================
 task.spawn(function()
     local lastCount = nil
     local trackedBushes = {}
@@ -888,7 +929,9 @@ Options.placeplantboxestoggle:OnChanged(function(v)
     end
 end)
 
--- Potions
+-- ==============================================================
+-- BREWING AND POTIONS ENGINE
+-- ==============================================================
 local potionLoop, isBrewing, selectedPotion = nil, false, "Healing Potion"
 local POTIONS = {
     ["Healing Potion"] = {{name = "Ice Cube", amount = 3}, {name = "Bloodfruit", amount = 5}, {name = "Strawberry", amount = 2}},
@@ -984,7 +1027,9 @@ Tabs.Potions:AddToggle("AutoPotionToggle", {
     end
 })
 
--- Auto Rebirth System
+-- ==============================================================
+-- AUTOMATED REBIRTH SYSTEMS
+-- ==============================================================
 local autoRebirthRunning = false
 local hasConfirmedRebirth = false
 
@@ -1037,7 +1082,9 @@ end
 
 local function StopAutoRebirth() autoRebirthRunning = false end
 
--- Tiered Target Verification Helper
+-- ==============================================================
+-- CRITTER TELEPORTATION LOCKS & VERIFICATION
+-- ==============================================================
 local function getPrioritizedTarget()
     local critters = workspace:FindFirstChild("Critters")
     if not critters or not root then return nil end
@@ -1055,25 +1102,21 @@ local function getPrioritizedTarget()
                 if not humCheck or humCheck.Health > 0 then
                     local dist = (pp.Position - root.Position).Magnitude
                     
-                    -- Priority 0: Wandering Trader Event Logic
                     if c.Name == "Wandering Trader" then
                         if dist < traderMinDist then
                             traderMinDist = dist
                             traderInstance = c
                         end
-                    -- Priority 1: The Voodoo Spider Queen
                     elseif c.Name == "The Voodoo Spider Queen" and not traderInstance then
                         if dist < queenMinDist then
                             queenMinDist = dist
                             queenInstance = c
                         end
-                    -- Priority 2: Soul Minion
                     elseif c.Name == "Soul Minion" and not traderInstance and not queenInstance then
                         if dist < minionMinDist then
                             minionMinDist = dist
                             minionInstance = c
                         end
-                    -- Priority 3: Void Ant
                      elseif c.Name == "Void Ant" and not traderInstance and not queenInstance and not minionInstance then
                         if dist < antMinDist then
                             antMinDist = dist
@@ -1092,7 +1135,6 @@ local function getPrioritizedTarget()
     return nil
 end
 
--- Completely Rewritten Lockout Execution Loop
 task.spawn(function()
     local currentlyLockedID = nil
     local targetExpiryDelay = 0
@@ -1100,14 +1142,11 @@ task.spawn(function()
     while true do
         if Options.tpsoulminionstoggle and Options.tpsoulminionstoggle.Value and root then
             local rightNow = tick()
-             
-            -- Firmly enforce the 3-second delay period after any target vanishes
             if rightNow < targetExpiryDelay then
                 task.wait(0.05)
                 continue
             end
              
-            -- If we are currently tracking an ID, make sure it still exists in workspace
             local activeTargetStillAlive = false
             if currentlyLockedID then
                 local critters = workspace:FindFirstChild("Critters")
@@ -1119,7 +1158,6 @@ task.spawn(function()
                                 activeTargetStillAlive = true
                                 local targetPart = c.PrimaryPart or c:FindFirstChildWhichIsA("BasePart")
                                 if targetPart then
-                                    -- Continuous strict position lock teleportation
                                     root.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
                                  end
                                 break
@@ -1128,7 +1166,6 @@ task.spawn(function()
                     end
                 end
                 
-                -- TARGET ELIMINATED: If it was alive last frame but is now gone/dead, initiate the 3-second lockout delay
                  if not activeTargetStillAlive then
                     print("[Exploit Engine] Target eliminated!\nTriggering strict 3-second swap delay.")
                     targetExpiryDelay = rightNow + 1.5
@@ -1136,7 +1173,6 @@ task.spawn(function()
                 end
             end
             
-             -- If we aren't tracking anything, look for the next prioritized target
             if not currentlyLockedID and rightNow >= targetExpiryDelay then
                 local nextTarget = getPrioritizedTarget()
                 if nextTarget then
@@ -1186,7 +1222,9 @@ Tabs.Event:AddToggle("queenservanttoggle", {
 Tabs.Event:AddSection("Soul Minion")
 Tabs.Event:AddToggle("tpsoulminionstoggle", { Title = "Tp Prioritized Targets", Default = false })
 
--- Final interface arrangement
+-- ==============================================================
+-- SAVE MANAGEMENT CONFIGURATION CLOSURE
+-- ==============================================================
 SaveManager:SetLibrary(Library)
 InterfaceManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
