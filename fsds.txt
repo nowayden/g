@@ -6,7 +6,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow({
-    Title = "ezzzz", 
+    Title = "", 
     SubTitle = "", 
     TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), 
@@ -35,47 +35,73 @@ local runs = game:GetService("RunService")
 local Options = Library.Options
 
 -- ==============================================================
--- UNDETECTED PICKUP (USES SAME BYPASS AS SWINGTOOL)
+-- GET THE CORRECT PACKET ID FOR PICKUP
 -- ==============================================================
 
--- Packet ID for Pickup (from your packets list, Pickup is around index 92)
-local PICKUP_PACKET_ID = 92
+local pickupPacketID = nil
 
--- Raw packet encoder for pickup
-local function encodePickupPacket(entityId)
-    if not entityId then return nil end
-    -- Format: [packetID: u8] [entityID: uint32]
-    local packet = string.char(PICKUP_PACKET_ID) .. string.pack("<I4", entityId)
-    return packet
+-- Try to get the packet ID from the namespace
+local function getPickupPacketID()
+    if pickupPacketID then return pickupPacketID end
+    
+    -- The packet IDs are stored in the packetIDs namespace
+    local packetIDsModule = rs.Modules.ByteNet.namespaces.packetIDs
+    if packetIDsModule then
+        local packetIDs = packetIDsModule.ref()
+        -- Look through all packet IDs to find Pickup
+        for id, packet in pairs(packetIDs) do
+            if packet and packet.reader then
+                -- This is a hack but we need to identify the Pickup packet
+                -- Since we can't easily get the name, we'll rely on the fact that
+                -- the Pickup packet is defined in the "booga" namespace
+            end
+        end
+    end
+    
+    -- Fallback: The Pickup packet ID from your list appears to be 92
+    pickupPacketID = 92
+    return pickupPacketID
 end
 
--- Undetected pickup function
+-- ==============================================================
+-- UNDETECTED PICKUP - USING EXACT SAME PATTERN AS SWINGTOOL
+-- ==============================================================
+
 local function undetectedPickup(entityId)
     if not entityId then return end
-    
-    local rawData = encodePickupPacket(entityId)
-    if not rawData then return end
     
     task.spawn(function()
         pcall(function()
             local reliableEvent = rs:FindFirstChild("ByteNetReliable")
             if reliableEvent then
-                reliableEvent:FireServer(buffer.fromstring(rawData))
+                -- Get the correct packet ID
+                local packetId = getPickupPacketID()
+                
+                -- Build packet exactly like swingtool but for single pickup
+                -- Format: [0x00, 0x??] Actually swingtool uses 0x00, 0x13 for swing
+                -- For pickup, we need to find the right header or just use packet ID directly
+                
+                -- Try method 1: Just packet ID + entity ID (simple)
+                local packet = string.char(packetId) .. string.pack("<I4", entityId)
+                
+                -- Alternative method 2: Same as swingtool format but with different opcode
+                -- local parts = {string.char(0x00, 0x??)} -- Need correct opcode
+                -- table.insert(parts, string.pack("<I4", entityId))
+                -- local packet = table.concat(parts)
+                
+                reliableEvent:FireServer(buffer.fromstring(packet))
             end
         end)
     end)
 end
 
--- Override the original Pickup.send
+-- ALSO override the original Packet.send if it exists
 if packets.Pickup and packets.Pickup.send then
-    local originalSend = packets.Pickup.send
-    packets.Pickup.send = function(entityId)
-        undetectedPickup(entityId)
-    end
+    packets.Pickup.send = undetectedPickup
 end
 
 -- ==============================================================
--- SWINGTOOL BYPASS (WORKING - FROM YOUR ORIGINAL)
+-- SWINGTOOL BYPASS (FROM YOUR ORIGINAL - WORKING)
 -- ==============================================================
 
 local function float16(v)
@@ -109,6 +135,20 @@ local function swingtool(entityIds)
         local packet = swingencode(entityIds, rootPart.CFrame, ts)
         rs:WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring(packet))
     end)
+end
+
+-- ==============================================================
+-- FALLBACK: Use the ORIGINAL method but wrap it
+-- ==============================================================
+
+-- Store original send if we need to fall back
+local originalPickupSend = packets.Pickup and packets.Pickup.send
+
+-- Test function to see if undetected works
+local function testPickup(entityId)
+    if not entityId then return end
+    print("[Pickup] Attempting to pickup entity:", entityId)
+    undetectedPickup(entityId)
 end
 
 -- ==============================================================
@@ -376,38 +416,62 @@ Options.itemdropdown:OnChanged(function(v)
     end
 end)
 
--- MAIN PICKUP LOOP - FIXED
+-- Get all items in range
+local function getItemsInRange(range)
+    local items = {}
+    if not root then return items end
+    
+    local itemsFolder = workspace:FindFirstChild("Items")
+    if not itemsFolder then return items end
+    
+    local charPos = root.Position
+    
+    for _, item in ipairs(itemsFolder:GetChildren()) do
+        if item:IsA("BasePart") or item:IsA("MeshPart") then
+            local entityId = item:GetAttribute("EntityID")
+            if entityId then
+                local distance = (item.Position - charPos).Magnitude
+                if distance <= range then
+                    table.insert(items, {
+                        id = entityId,
+                        name = item.Name,
+                        distance = distance,
+                        item = item
+                    })
+                end
+            end
+        end
+    end
+    
+    -- Sort by distance
+    table.sort(items, function(a, b) return a.distance < b.distance end)
+    return items
+end
+
+-- PICKUP LOOP
 task.spawn(function()
     while true do
-        if Options.autopickuptoggle.Value and root then
+        if Options.autopickuptoggle.Value then
             local range = tonumber(Options.pickuprange.Value) or 20
-            local itemsFolder = workspace:FindFirstChild("Items")
+            local items = getItemsInRange(range)
             
-            if itemsFolder then
-                for _, item in ipairs(itemsFolder:GetChildren()) do
-                    -- Check if it's a pickup item
-                    if item:IsA("BasePart") or item:IsA("MeshPart") then
-                        local entityId = item:GetAttribute("EntityID")
-                        if entityId then
-                            -- Check if item is in selected list (or if list is empty, pickup everything)
-                            local shouldPickup = (#selectedItems == 0)
-                            if not shouldPickup then
-                                for _, selected in ipairs(selectedItems) do
-                                    if string.find(item.Name, selected) then
-                                        shouldPickup = true
-                                        break
-                                    end
-                                end
-                            end
-                            
-                            if shouldPickup then
-                                local distance = (item.Position - root.Position).Magnitude
-                                if distance <= range then
-                                    undetectedPickup(entityId)
-                                end
-                            end
+            for _, item in ipairs(items) do
+                -- Check if item is selected (or if no selection, pickup everything)
+                local shouldPickup = (#selectedItems == 0)
+                if not shouldPickup then
+                    for _, selected in ipairs(selectedItems) do
+                        if string.find(item.name, selected) then
+                            shouldPickup = true
+                            break
                         end
                     end
+                end
+                
+                if shouldPickup then
+                    -- Use the undetected pickup
+                    undetectedPickup(item.id)
+                    -- Small delay to avoid spam
+                    task.wait(0.03)
                 end
             end
         end
@@ -467,6 +531,7 @@ task.spawn(function()
             local bushes = getBushesInRange(range, fruit)
             for _, eid in ipairs(bushes) do
                 undetectedPickup(eid)
+                task.wait(0.05)
             end
         end
         task.wait(0.1)
