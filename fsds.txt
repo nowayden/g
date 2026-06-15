@@ -43,16 +43,16 @@ local GameUtil = require(rs.Modules.GameUtil)
 local clock = require(rs.Modules.Clock)
 
 --==================================================================================================
--- 3. BYTENET SAFE NETWORK INJECTION LAYER (FIX A APPLIED)
+-- 3. BYTENET SAFE NETWORK INJECTION LAYER (FIXED FOR 'value' SCHEMA)
 --==================================================================================================
 local SecureNetwork = {}
 
 function SecureNetwork.Pickup(entityId)
     if not entityId then return end
     if packets.Pickup and packets.Pickup.send then
-        -- Wraps the primitive ID into a structured dictionary to match ByteNet schema requirements
+        -- Uses 'value' to perfectly match the ByteNet uint32 packet definition layout
         pcall(function()
-            packets.Pickup.send({ entityID = entityId })
+            packets.Pickup.send({ value = entityId })
         end)
     end
 end
