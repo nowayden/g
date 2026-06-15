@@ -1,12 +1,11 @@
-print("loadsedrggersrgergsering")
-print("shitdoensgglstoge")
-print("----------------sdgfgffgsdgfddgdfdgfsgdfsdfhfdssdfhhgsdfhsgfddsgrgdrgedsrg------------------")
+print("loadfdsfding")
+print("-----fsddfs-----------------------------")
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "NeverLose", SubTitle = "Booga Booga Edition", TabWidth = 160,
+    Title = "NeverLose", SubTitle = "Boofsdfsdga Booga Edition", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -119,45 +118,8 @@ local function swingencode(ids, cf, ts)
     return table.concat(parts)
 end
 
--- ==============================================================
--- RAW BYTENET PICKUP ENCODER (BYPASSES CLIENT-SIDE HOOKS)
--- ==============================================================
-
-local function getPacketId(packetTable)
-    if type(packetTable) ~= "table" then return nil end
-    if packetTable._id then return packetTable._id end
-    if packetTable.id then return packetTable.id end
-    for k, v in pairs(packetTable) do
-        if type(v) == "number" then return v end
-    end
-    local mt = getrawmetatable and getrawmetatable(packetTable) or getmetatable(packetTable)
-    if mt and type(mt) == "table" then
-        if mt._id then return mt._id end
-        for k, v in pairs(mt) do
-            if type(v) == "number" then return v end
-        end
-        if mt.__index and type(mt.__index) == "table" then
-            for k, v in pairs(mt.__index) do
-                if type(v) == "number" then return v end
-            end
-        end
-    end
-    return nil
-end
-
-local function pickupencode(entityId)
-    local packetId = getPacketId(packets.Pickup) or 0x2F
-    local header = string.char(0x00, packetId)
-    local data = string.pack("<I4", entityId)
-    return header .. data
-end
-
-local function silentPickup(entityId)
-    if not entityId then return end
-    pcall(function()
-        local packetData = pickupencode(entityId)
-        rs:WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring(packetData))
-    end)
+local function pickup(entityid)
+    SecureNetwork.Pickup(entityid)
 end
 
 -- Farming statistics tracker table
@@ -278,6 +240,7 @@ Tabs.Farming:CreateSlider("plantdelay", { Title = "Plant Delay (s)", Min = 0.01,
 Tabs.Farming:CreateToggle("harvesttoggle", { Title = "Auto Harvest", Default = false })
 Tabs.Farming:CreateSlider("harvestrange", { Title = "Harvest Range", Min = 1, Max = 30, Rounding = 1, Default = 30 })
 
+-- Walk Settings
 Tabs.Farming:AddSection("Walk Settings")
 Tabs.Farming:AddToggle("tweentoplantbox", { Title = "Walk to Plant Box", Default = false })
 Tabs.Farming:AddToggle("tweentobush", { Title = "Walk to Bush + Plant Box", Default = false })
@@ -295,7 +258,7 @@ Tabs.Farming:AddButton({
         local selecteditems = {"Gold", "Raw Gold", "Coins", "Coin Stack", "Coin2"}
         for _, item in ipairs(workspace.Items:GetChildren()) do
             if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
-                silentPickup(item:GetAttribute("EntityID"))
+                SecureNetwork.Pickup(item:GetAttribute("EntityID"))
             end
         end
     end
@@ -348,10 +311,6 @@ local function swingtool(entityIds)
         local packet = swingencode(entityIds, rootPart.CFrame, ts)
         rs:WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring(packet))
     end)
-end
-
-local function pickup(entityid)
-    silentPickup(entityid)
 end
 
 local function drop(itemname)
@@ -818,7 +777,7 @@ task.spawn(function()
         if not Options.harvesttoggle.Value then task.wait(0.1) continue end
         local bushes = getbushes(tonumber(Options.harvestrange.Value) or 30, Options.fruitdropdown.Value)
         table.sort(bushes, function(a, b) return a.dist < b.dist end)
-         for _, bush in ipairs(bushes) do pickup(bush.entityid) end
+         for _, bush in ipairs(bushes) do SecureNetwork.Pickup(bush.entityid) end
         task.wait(0.1)
     end
 end)
