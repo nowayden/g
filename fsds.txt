@@ -34,29 +34,50 @@ local GameUtil = require(rs.Modules.GameUtil)
 local runs = game:GetService("RunService")
 local Options = Library.Options
 
--- UNDETECTED PICKUP FUNCTION (BYPASSES WEBHOOK)
-local pickupPacketID = 92
+-- ==============================================================
+-- UNDETECTED PICKUP (USES SAME BYPASS AS SWINGTOOL)
+-- ==============================================================
 
+-- Packet ID for Pickup (from your packets list, Pickup is around index 92)
+local PICKUP_PACKET_ID = 92
+
+-- Raw packet encoder for pickup
+local function encodePickupPacket(entityId)
+    if not entityId then return nil end
+    -- Format: [packetID: u8] [entityID: uint32]
+    local packet = string.char(PICKUP_PACKET_ID) .. string.pack("<I4", entityId)
+    return packet
+end
+
+-- Undetected pickup function
 local function undetectedPickup(entityId)
     if not entityId then return end
+    
+    local rawData = encodePickupPacket(entityId)
+    if not rawData then return end
     
     task.spawn(function()
         pcall(function()
             local reliableEvent = rs:FindFirstChild("ByteNetReliable")
             if reliableEvent then
-                local bufferData = string.char(pickupPacketID) .. string.pack("<I4", entityId)
-                reliableEvent:FireServer(buffer.fromstring(bufferData))
+                reliableEvent:FireServer(buffer.fromstring(rawData))
             end
         end)
     end)
 end
 
--- Override the original pickup
+-- Override the original Pickup.send
 if packets.Pickup and packets.Pickup.send then
-    packets.Pickup.send = undetectedPickup
+    local originalSend = packets.Pickup.send
+    packets.Pickup.send = function(entityId)
+        undetectedPickup(entityId)
+    end
 end
 
--- SWINGTOOL BYPASS (WORKING)
+-- ==============================================================
+-- SWINGTOOL BYPASS (WORKING - FROM YOUR ORIGINAL)
+-- ==============================================================
+
 local function float16(v)
     if v == 0 then return 0 end
     local sign = v < 0 and 0x8000 or 0
@@ -90,7 +111,10 @@ local function swingtool(entityIds)
     end)
 end
 
--- Character variables
+-- ==============================================================
+-- CHARACTER SETUP
+-- ==============================================================
+
 local char, root, hum = nil, nil, nil
 local wscon, slopecon = nil, nil
 
@@ -101,13 +125,14 @@ local function updateCharacter()
         hum = char:FindFirstChild("Humanoid")
     end
 end
+
 updateCharacter()
 plr.CharacterAdded:Connect(updateCharacter)
 
--- Selected items for pickup
-local selecteditems = {}
-
+-- ==============================================================
 -- MAIN TAB
+-- ==============================================================
+
 Tabs.Main:AddSection("Movement")
 Tabs.Main:CreateToggle("wstoggle", { Title = "Walkspeed", Default = false })
 Tabs.Main:CreateSlider("wsslider", { Title = "Value", Min = 1, Max = 35, Rounding = 1, Default = 16 })
@@ -150,7 +175,10 @@ Options.msatoggle:OnChanged(function()
     end
 end)
 
--- MAP TAB - Resource Aura
+-- ==============================================================
+-- MAP TAB - RESOURCE AURA
+-- ==============================================================
+
 Tabs.Map:AddSection("Resource Aura")
 Tabs.Map:CreateToggle("resourceauratoggle", { Title = "Resource Aura", Default = false })
 Tabs.Map:CreateSlider("resourceaurarange", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
@@ -209,7 +237,10 @@ Options.resourceauratoggle:OnChanged(function(s)
     end
 end)
 
--- MAP TAB - Critter Aura
+-- ==============================================================
+-- MAP TAB - CRITTER AURA
+-- ==============================================================
+
 Tabs.Map:AddSection("Critter Aura")
 Tabs.Map:CreateToggle("critterauratoggle", { Title = "Critter Aura", Default = false })
 Tabs.Map:CreateSlider("critterrangeslider", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
@@ -268,7 +299,10 @@ Options.critterauratoggle:OnChanged(function(s)
     end
 end)
 
--- MAP TAB - Deployable Aura
+-- ==============================================================
+-- MAP TAB - DEPLOYABLE AURA
+-- ==============================================================
+
 local deployableActive = false
 local deployableConn = nil
 local lastDeployableTime = 0
@@ -319,37 +353,58 @@ Tabs.Map:AddToggle("DeployableAuraToggle", {
     end
 })
 
+-- ==============================================================
 -- PICKUP TAB
+-- ==============================================================
+
+local selectedItems = {}
+
 Tabs.Pickup:AddSection("Auto Pickup")
 Tabs.Pickup:CreateToggle("autopickuptoggle", { Title = "Auto Pickup (Undetected)", Default = false })
-Tabs.Pickup:CreateToggle("chestpickuptoggle", { Title = "Auto Pickup From Chests", Default = false })
 Tabs.Pickup:CreateSlider("pickuprange", { Title = "Pickup Range", Min = 1, Max = 35, Rounding = 1, Default = 20 })
 Tabs.Pickup:CreateDropdown("itemdropdown", {
-    Title = "Items",
-    Values = {"Berry", "Bloodfruit", "Bluefruit", "Lemon", "Strawberry", "Gold", "Raw Gold", "Crystal Chunk", "Coin", "Coins", "Coin2", "Coin Stack", "Essence", "Emerald", "Ice Cube", "Stone", "Iron", "Hide", "Leaves", "Log", "Wood"},
+    Title = "Items to Pickup",
+    Values = {"Berry", "Bloodfruit", "Bluefruit", "Lemon", "Strawberry", "Gold", "Raw Gold", "Crystal Chunk", "Coin", "Essence", "Ice Cube", "Stone", "Iron", "Hide", "Leaves", "Log", "Wood"},
     Multi = true,
     Default = {}
 })
 
 Options.itemdropdown:OnChanged(function(v)
-    selecteditems = {}
+    selectedItems = {}
     for item, state in pairs(v) do
-        if state then table.insert(selecteditems, item) end
+        if state then table.insert(selectedItems, item) end
     end
 end)
 
--- Pickup loop
+-- MAIN PICKUP LOOP - FIXED
 task.spawn(function()
     while true do
-        local range = tonumber(Options.pickuprange.Value) or 35
         if Options.autopickuptoggle.Value and root then
+            local range = tonumber(Options.pickuprange.Value) or 20
             local itemsFolder = workspace:FindFirstChild("Items")
+            
             if itemsFolder then
                 for _, item in ipairs(itemsFolder:GetChildren()) do
-                    if item:IsA("BasePart") and item:GetAttribute("EntityID") then
-                        if #selecteditems == 0 or table.find(selecteditems, item.Name) then
-                            if (item.Position - root.Position).Magnitude <= range then
-                                undetectedPickup(item:GetAttribute("EntityID"))
+                    -- Check if it's a pickup item
+                    if item:IsA("BasePart") or item:IsA("MeshPart") then
+                        local entityId = item:GetAttribute("EntityID")
+                        if entityId then
+                            -- Check if item is in selected list (or if list is empty, pickup everything)
+                            local shouldPickup = (#selectedItems == 0)
+                            if not shouldPickup then
+                                for _, selected in ipairs(selectedItems) do
+                                    if string.find(item.Name, selected) then
+                                        shouldPickup = true
+                                        break
+                                    end
+                                end
+                            end
+                            
+                            if shouldPickup then
+                                local distance = (item.Position - root.Position).Magnitude
+                                if distance <= range then
+                                    undetectedPickup(entityId)
+                                end
                             end
                         end
                     end
@@ -360,7 +415,7 @@ task.spawn(function()
     end
 end)
 
--- PICKUP TAB - Auto Drop
+-- Auto Drop
 Tabs.Pickup:AddSection("Auto Drop")
 Tabs.Pickup:AddToggle("droptoggle", { Title = "Auto Drop", Default = false })
 Tabs.Pickup:AddDropdown("dropdropdown", { Title = "Select Item to Drop", Values = { "Bloodfruit", "Jelly", "Bluefruit", "Log", "Leaves", "Wood" }, Default = "Bloodfruit" })
@@ -377,7 +432,10 @@ runs.Heartbeat:Connect(function()
     end
 end)
 
+-- ==============================================================
 -- FARMING TAB
+-- ==============================================================
+
 Tabs.Farming:AddSection("Farming Settings")
 Tabs.Farming:CreateDropdown("fruitdropdown", { Title = "Select Fruit", Values = {"Bloodfruit", "Bluefruit", "Lemon", "Berry", "Strawberry"}, Default = "Bloodfruit" })
 Tabs.Farming:CreateToggle("harvesttoggle", { Title = "Auto Harvest", Default = false })
@@ -388,10 +446,13 @@ local function getBushesInRange(range, fruitname)
     if not root then return bushes end
     local charPos = root.Position
     for _, model in ipairs(workspace:GetChildren()) do
-        if model:IsA("Model") and string.find(model.Name, fruitname) and model:GetAttribute("EntityID") then
-            local pp = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-            if pp and (pp.Position - charPos).Magnitude <= range then
-                table.insert(bushes, model:GetAttribute("EntityID"))
+        if model:IsA("Model") and string.find(model.Name, fruitname) then
+            local entityId = model:GetAttribute("EntityID")
+            if entityId then
+                local pp = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+                if pp and (pp.Position - charPos).Magnitude <= range then
+                    table.insert(bushes, entityId)
+                end
             end
         end
     end
@@ -412,7 +473,10 @@ task.spawn(function()
     end
 end)
 
--- EVENT TAB - Auto Rebirth
+-- ==============================================================
+-- EVENT TAB - AUTO REBIRTH
+-- ==============================================================
+
 Tabs.Event:AddSection("Auto Rebirth")
 local autoRebirthRunning = false
 local rebirthConfirmed = false
@@ -466,7 +530,10 @@ Tabs.Event:AddToggle("AutoRebirthToggle", {
     end
 })
 
--- EVENT TAB - Queen Ant's Servant
+-- ==============================================================
+-- EVENT TAB - QUEEN ANT'S SERVANT
+-- ==============================================================
+
 local queenActive = false
 local queenConn = nil
 local lastQueenTime = 0
@@ -484,10 +551,13 @@ local function startQueenAura()
         local crittersFolder = workspace:FindFirstChild("Critters")
         if crittersFolder then
             for _, c in pairs(crittersFolder:GetChildren()) do
-                if c:IsA("Model") and c.Name == "Queen Ant's Servant" and c:GetAttribute("EntityID") then
-                    local pp = c.PrimaryPart or c:FindFirstChildWhichIsA("BasePart")
-                    if pp and (pp.Position - root.Position).Magnitude <= range then
-                        table.insert(targets, c:GetAttribute("EntityID"))
+                if c:IsA("Model") and c.Name == "Queen Ant's Servant" then
+                    local entityId = c:GetAttribute("EntityID")
+                    if entityId then
+                        local pp = c.PrimaryPart or c:FindFirstChildWhichIsA("BasePart")
+                        if pp and (pp.Position - root.Position).Magnitude <= range then
+                            table.insert(targets, entityId)
+                        end
                     end
                 end
             end
@@ -513,7 +583,10 @@ Tabs.Event:AddToggle("queenservanttoggle", {
     end
 })
 
--- EVENT TAB - Soul Minion TP
+-- ==============================================================
+-- EVENT TAB - SOUL MINION TP
+-- ==============================================================
+
 Tabs.Event:AddSection("Soul Minion")
 Tabs.Event:AddToggle("tpsoulminionstoggle", { Title = "TP to Prioritized Targets", Default = false })
 
@@ -572,7 +645,10 @@ task.spawn(function()
     end
 end)
 
+-- ==============================================================
 -- POTIONS TAB
+-- ==============================================================
+
 Tabs.Potions:AddSection("Mass Potion Crafter")
 Tabs.Potions:AddDropdown("PotionType", {
     Title = "Select Potion",
@@ -585,16 +661,18 @@ Tabs.Potions:AddToggle("AutoPotionToggle", {
     Default = false,
     Callback = function(state)
         if state then
-            -- Simple potion crafting logic
             task.spawn(function()
                 while Options.AutoPotionToggle and Options.AutoPotionToggle.Value do
                     if packets.SweepPotion and packets.SweepPotion.send then
                         local deployables = workspace:FindFirstChild("Deployables")
                         if deployables then
                             for _, obj in pairs(deployables:GetChildren()) do
-                                if obj.Name == "Cauldron" and obj:GetAttribute("EntityID") then
-                                    pcall(function() packets.SweepPotion.send(obj:GetAttribute("EntityID")) end)
-                                    task.wait(2)
+                                if obj.Name == "Cauldron" then
+                                    local eid = obj:GetAttribute("EntityID")
+                                    if eid then
+                                        pcall(function() packets.SweepPotion.send(eid) end)
+                                        task.wait(2)
+                                    end
                                 end
                             end
                         end
@@ -606,7 +684,10 @@ Tabs.Potions:AddToggle("AutoPotionToggle", {
     end
 })
 
--- SETTINGS TAB (Save/Load)
+-- ==============================================================
+-- SETTINGS TAB
+-- ==============================================================
+
 SaveManager:SetLibrary(Library)
 InterfaceManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
