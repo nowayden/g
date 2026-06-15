@@ -1,21 +1,11 @@
---==================================================================================================
---                                  ADVANCED BOOGA AUTOMATION SUITE
---==================================================================================================
--- [Optimized Framework: UI, Combat, Harvesting, and Safe Native ByteNet Routing]
---==================================================================================================
-
 print("loading")
 print("----------------------------------")
-
---==================================================================================================
--- 1. EXTERNAL UI AND CONFIGURATION LIBRARIES
---==================================================================================================
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "Booga Automation Suite", SubTitle = "v1.2.3", TabWidth = 160,
+    Title = "", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -30,72 +20,75 @@ local Tabs = {
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
 }
 
---==================================================================================================
--- 2. CORE SERVICE AND REGISTRATION CACHING
---==================================================================================================
-local rs = game:GetService("ReplicatedStorage")
-local plr = game:GetService("Players").LocalPlayer
-local runs = game:GetService("RunService")
-local Options = Library.Options
-
+local rs, plr = game:GetService("ReplicatedStorage"), game.Players.LocalPlayer
 local packets = require(rs.Modules.Packets)
 local GameUtil = require(rs.Modules.GameUtil)
 local clock = require(rs.Modules.Clock)
+local runs = game:GetService("RunService")
+local Options = Library.Options
 
---==================================================================================================
--- 3. BYTENET SAFE NETWORK INJECTION LAYER (FIXED FOR 'value' SCHEMA)
---==================================================================================================
+-- ==============================================================
+-- HARDENED NETWORK ABSTRACTION LAYER
+-- Caches native functions to bypass metatable/hook detection
+-- ==============================================================
+local _Network = {
+    Pickup = packets.Pickup and packets.Pickup.send,
+    Drop = packets.DropBagItem and packets.DropBagItem.send,
+    Place = packets.PlaceStructure and packets.PlaceStructure.send,
+    Interact = packets.InteractStructure and packets.InteractStructure.send,
+    SweepPotion = packets.SweepPotion and packets.SweepPotion.send,
+    Rebirth = packets.Rebirth and packets.Rebirth.send
+}
+
 local SecureNetwork = {}
 
 function SecureNetwork.Pickup(entityId)
-    if not entityId then return end
-    if packets.Pickup and packets.Pickup.send then
-        -- Uses 'value' to perfectly match the ByteNet uint32 packet definition layout
-        pcall(function()
-            packets.Pickup.send({ value = entityId })
-        end)
-    end
+    if not _Network.Pickup or not entityId then return end
+    task.spawn(function() pcall(function() _Network.Pickup(entityId) end) end)
 end
 
 function SecureNetwork.DropBagItem(slotId)
-    if packets.DropBagItem and packets.DropBagItem.send and slotId then
-        packets.DropBagItem.send(slotId)
-    end
+    if not _Network.Drop or not slotId then return end
+    task.spawn(function() pcall(function() _Network.Drop(slotId) end) end)
 end
 
 function SecureNetwork.PlaceStructure(buildingName, targetCFrame, fp, cursorPos)
-    if packets.PlaceStructure and packets.PlaceStructure.send and buildingName and targetCFrame then
-        packets.PlaceStructure.send({
-            buildingName = buildingName, 
-            cframe = targetCFrame, 
-            vec = fp, 
-            isMobile = false, 
-            cursor = cursorPos
-        })
-    end
+    if not _Network.Place or not buildingName or not targetCFrame then return end
+    task.spawn(function()
+        pcall(function()
+            _Network.Place({
+                buildingName = buildingName, 
+                cframe = targetCFrame, 
+                vec = fp, 
+                isMobile = false, 
+                cursor = cursorPos
+            })
+        end)
+    end)
 end
 
 function SecureNetwork.InteractStructure(entityId, itemId)
-    if packets.InteractStructure and packets.InteractStructure.send and entityId and itemId then
-        packets.InteractStructure.send({ entityID = entityId, itemID = itemId })
-    end
+    if not _Network.Interact or not entityId or not itemId then return end
+    task.spawn(function()
+        pcall(function()
+            _Network.Interact({ entityID = entityId, itemID = itemId })
+        end)
+    end)
 end
 
 function SecureNetwork.SweepPotion(entityId)
-    if packets.SweepPotion and packets.SweepPotion.send and entityId then
-        packets.SweepPotion.send(entityId)
-    end
+    if not _Network.SweepPotion or not entityId then return end
+    task.spawn(function() pcall(function() _Network.SweepPotion(entityId) end) end)
 end
 
 function SecureNetwork.Rebirth()
-    if packets.Rebirth and packets.Rebirth.send then
-        packets.Rebirth.send()
-    end
+    if not _Network.Rebirth then return end
+    task.spawn(function() pcall(function() _Network.Rebirth() end) end)
 end
 
---==================================================================================================
--- 4. LOW-LEVEL SERIALIZATION MATH (SWINGTOOL)
---==================================================================================================
+-- ==============================================================
+-- RAW BYTENET ENCODER (STRICTLY FOR SWINGTOOL WEBHOOK BYPASS)
+-- ==============================================================
 local function float16(v)
     if v == 0 then return 0 end
     local sign = v < 0 and 0x8000 or 0
@@ -117,9 +110,7 @@ local function swingencode(ids, cf, ts)
     return table.concat(parts)
 end
 
---==================================================================================================
--- 5. STATISTICAL ENGINE & TELEMETRY TRACKERS
---==================================================================================================
+-- Farming statistics tracker table
 local farmStats = {
     bloodfruits = 0,
     totalAllTime = 0,
@@ -170,9 +161,6 @@ local function getInventoryCount(itemName)
     return 0
 end
 
---==================================================================================================
--- 6. CHARACTER AND ENVIRONMENT LIFECYCLE MANAGEMENT
---==================================================================================================
 local char, root, hum, wscon, slopecon
 local function updateCharacter()
     char = plr.Character
@@ -184,11 +172,7 @@ end
 updateCharacter()
 plr.CharacterAdded:Connect(updateCharacter)
 
---==================================================================================================
--- 7. UI COMPONENT GENERATION (TAB INTERFACES)
---==================================================================================================
-
--- Main Tab Layout
+-- Main Tab
 Tabs.Main:AddSection("Movement")
 Tabs.Main:CreateToggle("wstoggle", { Title = "Walkspeed", Default = false })
 Tabs.Main:CreateSlider("wsslider", { Title = "Value", Min = 1, Max = 35, Rounding = 1, Default = 16 })
@@ -196,7 +180,7 @@ Tabs.Main:CreateToggle("jptoggle", { Title = "JumpPower", Default = false })
 Tabs.Main:CreateSlider("jpslider", { Title = "Value", Min = 1, Max = 65, Rounding = 1, Default = 50 })
 Tabs.Main:CreateToggle("msatoggle", { Title = "No Mountain Slip", Default = false })
 
--- Map Tab Layout
+-- Map Tab
 Tabs.Map:AddSection("Resource Aura")
 Tabs.Map:CreateToggle("resourceauratoggle", { Title = "Resource Aura", Default = false })
 Tabs.Map:CreateSlider("resourceaurarange", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
@@ -217,11 +201,11 @@ Tabs.Map:CreateSlider("critterrangeslider", { Title = "Range", Min = 1, Max = 20
 Tabs.Map:CreateDropdown("crittertargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
 Tabs.Map:CreateSlider("crittercooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
 
--- Pickup Tab Layout
+-- Pickup Tab
 Tabs.Pickup:AddSection("Auto Pickup")
 Tabs.Pickup:CreateToggle("autopickuptoggle", { Title = "Auto Pickup", Default = false })
 Tabs.Pickup:CreateToggle("chestpickuptoggle", { Title = "Auto Pickup From Chests", Default = false })
-Tabs.Pickup:CreateSlider("pickuprange", { Title = "Pickup Range (Hardcapped Safely <=24)", Min = 1, Max = 35, Rounding = 1, Default = 18 })
+Tabs.Pickup:CreateSlider("pickuprange", { Title = "Pickup Range", Min = 1, Max = 35, Rounding = 1, Default = 20 })
 Tabs.Pickup:CreateDropdown("itemdropdown", {
     Title = "Items",
     Values = {"Berry", "Bloodfruit", "Bluefruit", "Lemon", "Strawberry", "Gold", "Raw Gold", "Crystal Chunk", "Coin", "Coins", "Coin2", "Coin Stack", "Essence", "Emerald", "Raw Emerald", "Pink Diamond", "Raw Pink Diamond", "Void Shard", "Jelly", "Magnetite", "Raw Magnetite", "Adurite", "Raw Adurite", "Ice Cube", "Stone", "Iron", "Raw Iron", "Steel", "Hide", "Leaves", "Log", "Wood", "Glass", "Bread", "Cooked Egg", "Grain Mush", "Raw Meat", "Cooked Meat"},
@@ -234,7 +218,7 @@ Tabs.Pickup:AddDropdown("dropdropdown", {Title = "Select Item to Drop", Values =
 Tabs.Pickup:AddToggle("droptogglemanual", { Title = "Auto Drop Custom", Default = false })
 Tabs.Pickup:AddInput("droptextbox", { Title = "Custom Item", Default = "Bloodfruit", Numeric = false, Finished = false })
 
--- Farming Tab Layout
+-- Farming Tab
 Tabs.Farming:AddSection("Farming Settings")
 Tabs.Farming:CreateDropdown("fruitdropdown", {Title = "Select Fruit", Values = {"Bloodfruit", "Bluefruit", "Lemon", "Coconut", "Jelly", "Banana", "Orange", "Oddberry", "Berry", "Strangefruit", "Strawberry", "Sunfruit", "Pumpkin", "Prickly Pear", "Apple", "Barley", "Cloudberry", "Carrot", "Blossom"}, Default = "Bloodfruit"})
 Tabs.Farming:CreateToggle("planttoggle", { Title = "Auto Plant", Default = false })
@@ -243,7 +227,6 @@ Tabs.Farming:CreateSlider("plantdelay", { Title = "Plant Delay (s)", Min = 0.01,
 Tabs.Farming:CreateToggle("harvesttoggle", { Title = "Auto Harvest", Default = false })
 Tabs.Farming:CreateSlider("harvestrange", { Title = "Harvest Range", Min = 1, Max = 30, Rounding = 1, Default = 30 })
 
--- Walk Settings
 Tabs.Farming:AddSection("Walk Settings")
 Tabs.Farming:AddToggle("tweentoplantbox", { Title = "Walk to Plant Box", Default = false })
 Tabs.Farming:AddToggle("tweentobush", { Title = "Walk to Bush + Plant Box", Default = false })
@@ -258,18 +241,16 @@ Tabs.Farming:AddSection("Gold Farming")
 Tabs.Farming:AddButton({
     Title = "Farm Gold",
     Callback = function()
-        local goldItems = {"Gold", "Raw Gold", "Coins", "Coin Stack", "Coin2"}
-        local count = 0
+        local selecteditems = {"Gold", "Raw Gold", "Coins", "Coin Stack", "Coin2"}
         for _, item in ipairs(workspace.Items:GetChildren()) do
-            if count >= 8 then break end 
-            if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(goldItems, item.Name) then
+            if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
                 SecureNetwork.Pickup(item:GetAttribute("EntityID"))
-                count = count + 1
             end
         end
     end
 })
 
+-- Farming Tracker UI Components
 Tabs.Farming:AddSection("Farming Statistics")
 local BloodfruitParagraph = Tabs.Farming:AddParagraph("BloodfruitStats", { Title = "Bloodfruits Harvested", Content = "0 (Per Min: 0 |\nPer Hour: 0)" })
 local TotalAllTimeParagraph = Tabs.Farming:AddParagraph("TotalAllTimeStats", { Title = "Total Harvested (All Time)", Content = "0 (Time: 00:00:00 (Waiting for harvest...))" })
@@ -281,9 +262,7 @@ Tabs.Farming:AddButton({
     end
 })
 
---==================================================================================================
--- 8. LOCAL SYSTEMS CORE PROCESSING (MOVEMENT & SLOPE HANDLERS)
---==================================================================================================
+-- WS/JP handlers
 local function updws()
     if wscon then wscon:Disconnect(); wscon = nil end
     if Options.wstoggle.Value or Options.jptoggle.Value then
@@ -308,9 +287,7 @@ local function updmsa()
 end
 Options.msatoggle:OnChanged(updmsa)
 
---==================================================================================================
--- 9. HARVESTING & INVENTORY HANDLING ROUTINES
---==================================================================================================
+-- Helper functions
 local function swingtool(entityIds)
     local rootPart = root or (plr.Character and plr.Character:FindFirstChild("HumanoidRootPart"))
     if not rootPart then return end
@@ -320,6 +297,10 @@ local function swingtool(entityIds)
         local packet = swingencode(entityIds, rootPart.CFrame, ts)
         rs:WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring(packet))
     end)
+end
+
+local function pickup(entityid)
+    SecureNetwork.Pickup(entityid)
 end
 
 local function drop(itemname)
@@ -332,9 +313,13 @@ local function drop(itemname)
     end
 end
 
---==================================================================================================
--- 10. COMBAT & THREAT DETECTION LOGIC (COMBAT AURAS)
---==================================================================================================
+local selecteditems = {}
+Options.itemdropdown:OnChanged(function(v)
+    selecteditems = {}
+    for item, state in pairs(v) do if state then table.insert(selecteditems, item) end end
+end)
+
+-- Resource Aura
 local resourceActive, resourceConn, lastResourceTime = false, nil, 0
 local function startResource()
     if resourceActive then return end
@@ -387,6 +372,10 @@ local function startResource()
 end
 Options.resourceauratoggle:OnChanged(function(s) if s then startResource() else resourceActive = false; if resourceConn then resourceConn:Disconnect(); resourceConn = nil end end end)
 
+-- ========= [ DEPLOYABLE AURA FROM V9 ] =========
+local RS = runs
+local isTraderActive = false
+
 local deployableAuraActive = false
 local deployableAuraConnection = nil
 local lastDeployableSwingTime = 0
@@ -396,8 +385,8 @@ function StartDeployableAura(range)
     deployableAuraActive = true
     range = range or 25
 
-    deployableAuraConnection = runs.Heartbeat:Connect(function()
-        if not deployableAuraActive then return end
+    deployableAuraConnection = RS.Heartbeat:Connect(function()
+        if not deployableAuraActive or isTraderActive then return end
 
         local currentTime = tick()
         if currentTime - lastDeployableSwingTime < 0.1 then return end
@@ -436,7 +425,7 @@ function StopDeployableAura()
     if deployableAuraConnection then deployableAuraConnection:Disconnect() end
 end
 
--- Critter Aura System
+-- Critter Aura
 local SchuylerActive, critterConn, lastCritterTime = false, nil, 0
 local function startCritter()
     if SchuylerActive then return end
@@ -471,7 +460,7 @@ local function startCritter()
 end
 Options.critterauratoggle:OnChanged(function(s) if s then startCritter() else SchuylerActive = false; if critterConn then critterConn:Disconnect(); critterConn = nil end end end)
 
--- Queen Ant's Servant Special Event Aura
+-- Queen Ant's Servant Aura
 local queenServantActive, queenServantConn, lastQueenServantTime = false, nil, 0
 local function startQueenServantAura()
     if queenServantActive then return end
@@ -516,80 +505,40 @@ local function stopQueenServantAura()
     if queenServantConn then queenServantConn:Disconnect(); queenServantConn = nil end
 end
 
---==================================================================================================
--- 11. RECONFIGURED AUTO-PICKUP ENGINE (ANTI-CHEAT SAFE & RATE THROTTLED)
---==================================================================================================
-local processedEntities = {}
-
+-- Pickup loop
 task.spawn(function()
     while true do
-        task.wait(0.05) 
-        
-        if not Options.autopickuptoggle or not Options.autopickuptoggle.Value then continue end
-        if not root then continue end
-        
-        local range = math.clamp(tonumber(Options.pickuprange.Value) or 18, 1, 24)
-        local itemsFolder = workspace:FindFirstChild("Items")
-        
-        if itemsFolder then
-            local children = itemsFolder:GetChildren()
-            for i = 1, #children do
-                local item = children[i]
-                if (item:IsA("BasePart") or item:IsA("MeshPart")) then
-                    local entityId = item:GetAttribute("EntityID")
-                    
-                    if entityId and not processedEntities[entityId] and Options.itemdropdown.Value[item.Name] then
-                        local distance = (item.Position - root.Position).Magnitude
-                        if distance <= range then
-                            processedEntities[entityId] = true
-                            SecureNetwork.Pickup(entityId)
-                            task.wait(0.05) 
-                        end
-                    end
+        local range = tonumber(Options.pickuprange.Value) or 35
+        if Options.autopickuptoggle.Value and root then
+            for _, item in ipairs(workspace.Items:GetChildren()) do
+                if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
+                     if (item.Position - root.Position).Magnitude <= range then pickup(item:GetAttribute("EntityID")) end
                 end
             end
         end
-        
-        if Options.chestpickuptoggle and Options.chestpickuptoggle.Value then
+        if Options.chestpickuptoggle.Value and root then
             local deployablesFolder = workspace:FindFirstChild("Deployables")
             if deployablesFolder then
-                local objects = deployablesFolder:GetChildren()
-                for i = 1, #objects do
-                    local chest = objects[i]
+                for _, chest in ipairs(deployablesFolder:GetChildren()) do
                     if chest:IsA("Model") and chest.Name == "Chest" and chest:FindFirstChild("Contents") then
-                        local pp = chest.PrimaryPart or chest:FindFirstChildWhichIsA("BasePart")
-                        if pp and (pp.Position - root.Position).Magnitude <= range then
-                            local contents = chest.Contents:GetChildren()
-                            for j = 1, #contents do
-                                local item = contents[j]
-                                local entityId = item:GetAttribute("EntityID")
-                                
-                                if entityId and not processedEntities[entityId] and Options.itemdropdown.Value[item.Name] then
-                                    processedEntities[entityId] = true
-                                    SecureNetwork.Pickup(entityId)
-                                    task.wait(0.05)
-                                end
+                        for _, item in ipairs(chest.Contents:GetChildren()) do
+                            if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
+                                if (chest.PrimaryPart.Position - root.Position).Magnitude <= range then pickup(item:GetAttribute("EntityID")) end
                             end
                         end
                     end
                 end
             end
         end
+        task.wait(0.01)
     end
 end)
 
-task.spawn(function()
-    while true do
-        task.wait(8)
-        table.clear(processedEntities)
-    end
-end)
-
--- Auto Drop System Synchronizers
+-- Drop loops
 local debounce = 0
-local cd = 0.1
+local cd = 0
 runs.Heartbeat:Connect(function()
-    if Options.droptoggle and Options.droptoggle.Value then
+    if Options.droptoggle.Value then
         if tick() - debounce >= cd then
             drop(Options.dropdropdown.Value)
             debounce = tick()
@@ -598,7 +547,7 @@ runs.Heartbeat:Connect(function()
 end)
 
 runs.Heartbeat:Connect(function()
-    if Options.droptogglemanual and Options.droptogglemanual.Value then
+    if Options.droptogglemanual.Value then
         if tick() - debounce >= cd then
             drop(Options.droptextbox.Value)
             debounce = tick()
@@ -606,9 +555,7 @@ runs.Heartbeat:Connect(function()
     end
 end)
 
---==================================================================================================
--- 12. AGRICULTURE AUTOMATION (PLANTING & HARVESTING ENGINE)
---==================================================================================================
+-- Farming helpers
 local plantedboxes = {}
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
 
@@ -798,14 +745,12 @@ task.spawn(function()
         if not Options.harvesttoggle.Value then task.wait(0.1) continue end
         local bushes = getbushes(tonumber(Options.harvestrange.Value) or 30, Options.fruitdropdown.Value)
         table.sort(bushes, function(a, b) return a.dist < b.dist end)
-        for _, bush in ipairs(bushes) do 
-            SecureNetwork.Pickup(bush.entityid) 
-        end
+        for _, bush in ipairs(bushes) do pickup(bush.entityid) end
         task.wait(0.1)
     end
 end)
 
--- High-Accuracy Parallel Telemetry Tracking Loop
+-- REWRITTEN HIGH-ACCURACY PARALLEL TRACKING LOOP
 task.spawn(function()
     local lastCount = nil
     local trackedBushes = {}
@@ -817,11 +762,14 @@ task.spawn(function()
         
         if lastCount == nil then
             lastCount = currentCount
+            print("[Tracker] Context Engine Init baseline total for " .. targetFruit .. ": " .. tostring(lastCount))
          else
             if currentCount > lastCount then
                 gained = currentCount - lastCount
+                print("[Tracker Inventory Match] Found Increment: +" .. tostring(gained) .. " |\nItem: " .. targetFruit)
                 lastCount = currentCount
             elseif currentCount < lastCount then
+                print("[Tracker Inventory Recalibrate] Drop/Spent detected.\nAdjusting inventory baseline down to: " .. tostring(currentCount))
                 lastCount = currentCount
             end
          end
@@ -834,6 +782,7 @@ task.spawn(function()
                 if not workspace:FindFirstChild(data.name) and (data.pos - root.Position).Magnitude <= harvestrange then
                     if gained == 0 then
                         gained = 3
+                         print("[Tracker Fallback Match] Bush deletion registered within radius! Force-adding +3 fruits.")
                     end
                     trackedBushes[id] = nil
                 end
@@ -854,6 +803,7 @@ task.spawn(function()
                 farmStats.timerStarted = true
                 farmStats.startTime = tick()
                 farmStats.sessionStartTime = tick()
+                print("[Tracker Stopwatch] Initial harvest verified.\nTimer running.")
             end
             farmStats.bloodfruits = farmStats.bloodfruits + gained
             farmStats.totalAllTime = farmStats.totalAllTime + gained
@@ -879,7 +829,7 @@ task.spawn(function()
     end
 end)
 
--- Structural Fabrication Placer Engine
+-- Plant box placement (Tight Edge-to-Edge Snapping)
 function placeSingleSnappedBox()
     local char = plr.Character
     if not (char and char:FindFirstChild("HumanoidRootPart")) then return end
@@ -906,9 +856,7 @@ Options.placeplantboxestoggle:OnChanged(function(v)
     end
 end)
 
---==================================================================================================
--- 13. ALCHEMY CRAFTING SUBSYSTEM (POTION BREWING ENGINE)
---==================================================================================================
+-- Potions
 local potionLoop, isBrewing, selectedPotion = nil, false, "Healing Potion"
 local POTIONS = {
     ["Healing Potion"] = {{name = "Ice Cube", amount = 3}, {name = "Bloodfruit", amount = 5}, {name = "Strawberry", amount = 2}},
@@ -1004,9 +952,7 @@ Tabs.Potions:AddToggle("AutoPotionToggle", {
     end
 })
 
---==================================================================================================
--- 14. AUTO REBIRTH & PROFILE LIFECYCLE CONTROLLERS
---==================================================================================================
+-- Auto Rebirth System
 local autoRebirthRunning = false
 local hasConfirmedRebirth = false
 
@@ -1059,9 +1005,7 @@ end
 
 local function StopAutoRebirth() autoRebirthRunning = false end
 
---==================================================================================================
--- 15. ADVANCED LOCK-ON TARGET ACQUISITION (EVENT BOSS TELEPORTATION)
---==================================================================================================
+-- Tiered Target Verification Helper
 local function getPrioritizedTarget()
     local critters = workspace:FindFirstChild("Critters")
     if not critters or not root then return nil end
@@ -1079,22 +1023,26 @@ local function getPrioritizedTarget()
                 if not humCheck or humCheck.Health > 0 then
                     local dist = (pp.Position - root.Position).Magnitude
                     
+                    -- Priority 0: Wandering Trader Event Logic
                     if c.Name == "Wandering Trader" then
                         if dist < traderMinDist then
                             traderMinDist = dist
                             traderInstance = c
                         end
+                    -- Priority 1: The Voodoo Spider Queen
                     elseif c.Name == "The Voodoo Spider Queen" and not traderInstance then
                         if dist < queenMinDist then
                             queenMinDist = dist
                             queenInstance = c
                         end
+                    -- Priority 2: Soul Minion
                     elseif c.Name == "Soul Minion" and not traderInstance and not queenInstance then
                         if dist < minionMinDist then
                             minionMinDist = dist
                             minionInstance = c
                         end
-                    elseif c.Name == "Void Ant" and not traderInstance and not queenInstance and not minionInstance then
+                    -- Priority 3: Void Ant
+                     elseif c.Name == "Void Ant" and not traderInstance and not queenInstance and not minionInstance then
                         if dist < antMinDist then
                             antMinDist = dist
                             antInstance = c
@@ -1112,6 +1060,7 @@ local function getPrioritizedTarget()
     return nil
 end
 
+-- Completely Rewritten Lockout Execution Loop
 task.spawn(function()
     local currentlyLockedID = nil
     local targetExpiryDelay = 0
@@ -1120,11 +1069,13 @@ task.spawn(function()
         if Options.tpsoulminionstoggle and Options.tpsoulminionstoggle.Value and root then
             local rightNow = tick()
              
+            -- Firmly enforce the 3-second delay period after any target vanishes
             if rightNow < targetExpiryDelay then
                 task.wait(0.05)
                 continue
             end
              
+            -- If we are currently tracking an ID, make sure it still exists in workspace
             local activeTargetStillAlive = false
             if currentlyLockedID then
                 local critters = workspace:FindFirstChild("Critters")
@@ -1136,6 +1087,7 @@ task.spawn(function()
                                 activeTargetStillAlive = true
                                 local targetPart = c.PrimaryPart or c:FindFirstChildWhichIsA("BasePart")
                                 if targetPart then
+                                    -- Continuous strict position lock teleportation
                                     root.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
                                  end
                                 break
@@ -1144,12 +1096,15 @@ task.spawn(function()
                     end
                 end
                 
-                if not activeTargetStillAlive then
+                -- TARGET ELIMINATED: If it was alive last frame but is now gone/dead, initiate the 3-second lockout delay
+                 if not activeTargetStillAlive then
+                    print("[Exploit Engine] Target eliminated!\nTriggering strict 3-second swap delay.")
                     targetExpiryDelay = rightNow + 1.5
                     currentlyLockedID = nil
                 end
             end
             
+             -- If we aren't tracking anything, look for the next prioritized target
             if not currentlyLockedID and rightNow >= targetExpiryDelay then
                 local nextTarget = getPrioritizedTarget()
                 if nextTarget then
@@ -1163,9 +1118,6 @@ task.spawn(function()
     end
 end)
 
---==================================================================================================
--- 16. FINAL INTERFACE PACKAGING & LIFECYCLE EXPORTATION
---==================================================================================================
 Tabs.Event:AddSection("Auto Rebirth")
 Tabs.Event:AddToggle("AutoRebirthToggle", {
     Title = "Auto Rebirth (Level 100 → Rebirth + Reset)",
@@ -1202,6 +1154,7 @@ Tabs.Event:AddToggle("queenservanttoggle", {
 Tabs.Event:AddSection("Soul Minion")
 Tabs.Event:AddToggle("tpsoulminionstoggle", { Title = "Tp Prioritized Targets", Default = false })
 
+-- Final interface arrangement
 SaveManager:SetLibrary(Library)
 InterfaceManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
@@ -1213,6 +1166,6 @@ SaveManager:BuildConfigSection(Tabs.Settings)
 Window:SelectTab(1)
 
 task.wait(0.5)
-Library:Notify{Title = "Script Loaded", Content = "Safe framework initiated successfully.", Duration = 8}
+Library:Notify{Title = "", Content = "", Duration = 8}
 SaveManager:LoadAutoloadConfig()
 print("loaded")
