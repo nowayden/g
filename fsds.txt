@@ -27,10 +27,7 @@ local clock = require(rs.Modules.Clock)
 local runs = game:GetService("RunService")
 local Options = Library.Options
 
--- ==============================================================
--- UNDETECTED PICKUP (USES SAME BYPASS AS SWINGTOOL)
--- ==============================================================
-
+-- UNDETECTED PICKUP
 local pickupPacketID = 92
 
 local function rawPickupEncode(entityId)
@@ -55,16 +52,13 @@ local function undetectedPickup(entityId)
     end)
 end
 
--- Override the original Pickup.send
 if packets.Pickup and packets.Pickup.send then
     packets.Pickup.send = function(entityId)
         undetectedPickup(entityId)
     end
 end
 
--- ==============================================================
 -- HARDENED NETWORK ABSTRACTION LAYER
--- ==============================================================
 local _Network = {
     Pickup = undetectedPickup,
     Drop = packets.DropBagItem and packets.DropBagItem.send,
@@ -124,9 +118,7 @@ function SecureNetwork.Rebirth()
     task.spawn(function() pcall(function() _Network.Rebirth() end) end)
 end
 
--- ==============================================================
 -- RAW BYTENET ENCODER
--- ==============================================================
 local function float16(v)
     if v == 0 then return 0 end
     local sign = v < 0 and 0x8000 or 0
@@ -355,7 +347,11 @@ end
 local selecteditems = {}
 Options.itemdropdown:OnChanged(function(v)
     selecteditems = {}
-    for item, state in pairs(v) do if state then table.insert(selecteditems, item) end end
+    for item, state in pairs(v) do 
+        if state then 
+            table.insert(selecteditems, item) 
+        end 
+    end
 end)
 
 -- Resource Aura
@@ -407,7 +403,9 @@ local function startResource()
         if #targets > 0 then
             table.sort(targets, function(a,b) return a.dist < b.dist end)
             local sel = {}
-            for i = 1, math.min(tc, #targets) do table.insert(sel, targets[i].eid) end
+            for i = 1, math.min(tc, #targets) do 
+                table.insert(sel, targets[i].eid) 
+            end
             swingtool(sel)
             lastResourceTime = ct
         end
@@ -469,7 +467,10 @@ end
 
 function StopDeployableAura()
     deployableAuraActive = false
-    if deployableAuraConnection then deployableAuraConnection:Disconnect(); deployableAuraConnection = nil end
+    if deployableAuraConnection then 
+        deployableAuraConnection:Disconnect()
+        deployableAuraConnection = nil 
+    end
 end
 
 -- Critter Aura
@@ -503,7 +504,9 @@ local function startCritter()
         if #targets > 0 then
             table.sort(targets, function(a,b) return a.dist < b.dist end)
             local sel = {}
-            for i = 1, math.min(tc, #targets) do table.insert(sel, targets[i].eid) end
+            for i = 1, math.min(tc, #targets) do 
+                table.insert(sel, targets[i].eid) 
+            end
             swingtool(sel)
             lastCritterTime = ct
         end
@@ -517,6 +520,62 @@ Options.critterauratoggle:OnChanged(function(s)
         if critterConn then critterConn:Disconnect(); critterConn = nil end 
     end 
 end)
+
+-- Queen Ant's Servant
+local queenServantActive = false
+local queenServantConn = nil
+local lastQueenServantTime = 0
+
+local function startQueenServantAura()
+    if queenServantActive then return end
+    queenServantActive = true
+    queenServantConn = runs.Heartbeat:Connect(function()
+        if not queenServantActive then 
+            if queenServantConn then 
+                queenServantConn:Disconnect()
+                queenServantConn = nil 
+            end
+            return 
+        end
+    
+        if not root or not GameUtil.Data.equipped then return end
+        local ct = tick()
+        local cooldown = (Options.crittercooldownslider and tonumber(Options.crittercooldownslider.Value)) or 0.1
+        if ct - lastQueenServantTime < cooldown then return end
+        local range = (Options.critterrangeslider and tonumber(Options.critterrangeslider.Value)) or 20
+        local tc = 6 
+
+        local targets = {}
+        local folder = workspace:FindFirstChild("Critters")
+        if folder then
+            for _, c in pairs(folder:GetChildren()) do
+                if c:IsA("Model") and c.Name == "Queen Ant's Servant" and c:GetAttribute("EntityID") then
+                    local pp = c.PrimaryPart or c:FindFirstChildWhichIsA("BasePart")
+                    if pp and (pp.Position - root.Position).Magnitude <= range then
+                        table.insert(targets, {eid = c:GetAttribute("EntityID"), dist = (pp.Position - root.Position).Magnitude})
+                    end
+                end
+            end
+        end
+        if #targets > 0 then
+            table.sort(targets, function(a,b) return a.dist < b.dist end)
+            local sel = {}
+            for i = 1, math.min(tc, #targets) do 
+                table.insert(sel, targets[i].eid) 
+            end
+            swingtool(sel)
+            lastQueenServantTime = ct
+        end
+    end)
+end
+
+local function stopQueenServantAura()
+    queenServantActive = false
+    if queenServantConn then 
+        queenServantConn:Disconnect()
+        queenServantConn = nil 
+    end
+end
 
 -- Pickup loop
 task.spawn(function()
@@ -574,7 +633,13 @@ end)
 
 -- Farming helpers
 local plantedboxes = {}
-local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
+local fruittoitemid = {
+    Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, 
+    Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, 
+    Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, 
+    Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, 
+    Cloudberry = 101, Carrot = 147, Blossom = 958
+}
 
 local function getpbs(range)
     local plantboxesTable = {}
@@ -592,7 +657,9 @@ local function getpbs(range)
                 local dist = (ppart.Position - charPos).Magnitude
                 if dist <= range then
                     local entityid = deployable:GetAttribute("EntityID")
-                    if entityid then table.insert(plantboxesTable, { entityid = entityid, deployable = deployable, dist = dist }) end
+                    if entityid then 
+                        table.insert(plantboxesTable, { entityid = entityid, deployable = deployable, dist = dist }) 
+                    end
                 end
             end
         end
@@ -613,7 +680,9 @@ local function getbushes(range, fruitname)
                 local dist = (ppart.Position - charPos).Magnitude
                 if dist <= range then
                     local entityid = model:GetAttribute("EntityID")
-                    if entityid then table.insert(bushes, { entityid = entityid, model = model, dist = dist }) end
+                    if entityid then 
+                        table.insert(bushes, { entityid = entityid, model = model, dist = dist }) 
+                    end
                 end
             end
         end
@@ -695,19 +764,19 @@ end
 
 task.spawn(function()
     while true do
-        if not Options.tweentoplantbox.Value then task.wait(0.1) else
+        if Options.tweentoplantbox.Value then
             pathToPlantbox(tonumber(Options.tweenrange.Value) or 250)
-            task.wait(0.1)
         end
+        task.wait(0.1)
     end
 end)
 
 task.spawn(function()
     while true do
-        if not Options.tweentobush.Value then task.wait(0.1) else
+        if Options.tweentobush.Value then
             pathToBushesOrBoxes(tonumber(Options.tweenrange.Value) or 20, Options.fruitdropdown.Value)
-            task.wait(0.1)
         end
+        task.wait(0.1)
     end
 end)
 
@@ -721,7 +790,7 @@ local lastPlantCacheUpdate = 0
 
 task.spawn(function()
     while true do
-        if not Options.planttoggle.Value then task.wait(0.1) else
+        if Options.planttoggle.Value then
             local range = tonumber(Options.plantrange.Value) or 30
             local delay = tonumber(Options.plantdelay.Value) or 0.1
             local selectedfruit = Options.fruitdropdown.Value
@@ -738,7 +807,9 @@ task.spawn(function()
                         if v.Name == "Plant Box" then
                             local ppart = v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
                             local entityid = v:GetAttribute("EntityID")
-                            if ppart and entityid then table.insert(plantCache, {box = v, part = ppart, id = entityid}) end
+                            if ppart and entityid then 
+                                table.insert(plantCache, {box = v, part = ppart, id = entityid}) 
+                            end
                         end
                     end
                     lastPlantCacheUpdate = currentTime
@@ -749,27 +820,33 @@ task.spawn(function()
                         local data = plantCache[i]
                         if data.box.Parent == deployablesFolder then
                             if (data.part.Position - myPos).Magnitude <= range then
-                                if not data.box:FindFirstChild("Seed") then plantStructure(data.id, itemID) else plantedboxes[data.id] = true end
+                                if not data.box:FindFirstChild("Seed") then 
+                                    plantStructure(data.id, itemID) 
+                                else 
+                                    plantedboxes[data.id] = true 
+                                end
                             end
                         end
                     end
                 end
             end
             task.wait(delay)
+        else
+            task.wait(0.1)
         end
     end
 end)
 
 task.spawn(function()
     while true do
-        if not Options.harvesttoggle.Value then task.wait(0.1) else
+        if Options.harvesttoggle.Value then
             local bushes = getbushes(tonumber(Options.harvestrange.Value) or 30, Options.fruitdropdown.Value)
             table.sort(bushes, function(a, b) return a.dist < b.dist end)
             for _, bush in ipairs(bushes) do 
                 undetectedPickup(bush.entityid)
             end
-            task.wait(0.1)
         end
+        task.wait(0.1)
     end
 end)
 
@@ -870,9 +947,15 @@ local placementConn
 Options.placeplantboxestoggle:OnChanged(function(v)
     if v then
         if placementConn then placementConn:Disconnect() end
-        placementConn = runs.Heartbeat:Connect(function() placeSingleSnappedBox(); task.wait(0.1) end)
+        placementConn = runs.Heartbeat:Connect(function() 
+            placeSingleSnappedBox() 
+            task.wait(0.1) 
+        end)
     else
-        if placementConn then placementConn:Disconnect(); placementConn = nil end
+        if placementConn then 
+            placementConn:Disconnect()
+            placementConn = nil 
+        end
     end
 end)
 
@@ -894,13 +977,18 @@ local function getInventorySlot(itemName)
     local list = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
     if not list then return nil end
     for _, slot in ipairs(list:GetChildren()) do
-        if slot:IsA("ImageLabel") and slot.Name:find(itemName) then return slot.LayoutOrder end
+        if slot:IsA("ImageLabel") and slot.Name:find(itemName) then 
+            return slot.LayoutOrder 
+        end
     end
 end
 
 local function dropFromSlot(slot, amount)
     if not slot then return end
-    for _ = 1, amount do SecureNetwork.DropBagItem(slot); task.wait(0.07) end
+    for _ = 1, amount do 
+        SecureNetwork.DropBagItem(slot)
+        task.wait(0.07) 
+    end
 end
 
 local function findAllCauldrons()
@@ -923,8 +1011,11 @@ local function teleportToHitbox(hitbox)
         local n = item.Name or ""
         if n:find("Ice Cube") or n:find("Bloodfruit") or n:find("Strawberry") or n:find("Prickly Pear") or n:find("Crystal") or n:find("Cloudberry") or n:find("Adurite") or n:find("Fire Hide") or n:find("Berry") or n:find("Iron") or n:find("Lemon") or n:find("Magnetite") then
             pcall(function()
-                if item:IsA("BasePart") then item.Position = tp
-                elseif item:IsA("Model") and item.PrimaryPart then item:SetPrimaryPartCFrame(CFrame.new(tp)) end
+                if item:IsA("BasePart") then 
+                    item.Position = tp
+                elseif item:IsA("Model") and item.PrimaryPart then 
+                    item:SetPrimaryPartCFrame(CFrame.new(tp)) 
+                end
             end)
         end
     end
@@ -934,9 +1025,15 @@ local function brewPotions()
     if isBrewing then return end
     isBrewing = true
     local cauldrons = findAllCauldrons()
-    if #cauldrons == 0 then isBrewing = false; return end
+    if #cauldrons == 0 then 
+        isBrewing = false
+        return 
+    end
     local recipe = POTIONS[selectedPotion]
-    if not recipe then isBrewing = false; return end
+    if not recipe then 
+        isBrewing = false
+        return 
+    end
     for _, ing in ipairs(recipe) do
         local slot = getInventorySlot(ing.name)
         if slot then
@@ -952,7 +1049,9 @@ local function brewPotions()
     task.wait(2)
     for _, c in ipairs(cauldrons) do
         local eid = c.cauldron:GetAttribute("EntityID")
-        if eid then SecureNetwork.SweepPotion(eid) end
+        if eid then 
+            SecureNetwork.SweepPotion(eid) 
+        end
     end
     isBrewing = false
 end
@@ -971,7 +1070,10 @@ Tabs.Potions:AddToggle("AutoPotionToggle", {
             if potionLoop then potionLoop:Disconnect() end
             potionLoop = runs.Heartbeat:Connect(brewPotions)
         else
-            if potionLoop then potionLoop:Disconnect(); potionLoop = nil end
+            if potionLoop then 
+                potionLoop:Disconnect()
+                potionLoop = nil 
+            end
             isBrewing = false
         end
     end
@@ -1000,7 +1102,9 @@ end
 
 local function getPlayerLevel()
     local success, GameUtilLocal = pcall(function() return require(rs.Modules.GameUtil) end)
-    if success and GameUtilLocal.Data and GameUtilLocal.Data.level then return GameUtilLocal.Data.level end
+    if success and GameUtilLocal.Data and GameUtilLocal.Data.level then 
+        return GameUtilLocal.Data.level 
+    end
     return plr:GetAttribute("Level") or 0
 end
 
@@ -1014,7 +1118,9 @@ local function AutoRebirthLoop()
     while autoRebirthRunning do
         task.wait(0.5)
         local spawnGui = plr.PlayerGui:FindFirstChild("SpawnGui")
-        if spawnGui and spawnGui.Enabled then pressBedButton() end
+        if spawnGui and spawnGui.Enabled then 
+            pressBedButton() 
+        end
         local currentLevel = getPlayerLevel()
         if currentLevel >= 100 then 
             doRebirth()
@@ -1147,8 +1253,13 @@ Tabs.Event:AddToggle("AutoRebirthToggle", {
                     Title = "Confirmation Required",
                     Content = "Are you sure you want to toggle Auto Rebirth?",
                     Buttons = {
-                        { Title = "Confirm", Callback = function() hasConfirmedRebirth = true; StartAutoRebirth() end },
-                        { Title = "Cancel", Callback = function() Options.AutoRebirthToggle:SetValue(false) end }
+                        { Title = "Confirm", Callback = function() 
+                            hasConfirmedRebirth = true
+                            StartAutoRebirth() 
+                        end },
+                        { Title = "Cancel", Callback = function() 
+                            Options.AutoRebirthToggle:SetValue(false) 
+                        end }
                     }
                 })
             else
@@ -1161,58 +1272,15 @@ Tabs.Event:AddToggle("AutoRebirthToggle", {
 })
 
 Tabs.Event:AddSection("Queen Ant's Servant")
-local queenServantActive = false
-local queenServantConn = nil
-local lastQueenServantTime = 0
-
-local function startQueenServantAura()
-    if queenServantActive then return end
-    queenServantActive = true
-    queenServantConn = runs.Heartbeat:Connect(function()
-        if not queenServantActive then 
-            if queenServantConn then queenServantConn:Disconnect(); queenServantConn = nil end
-            return 
-        end
-    
-        if not root or not GameUtil.Data.equipped then return end
-        local ct = tick()
-        local cooldown = (Options.crittercooldownslider and tonumber(Options.crittercooldownslider.Value)) or 0.1
-        if ct - lastQueenServantTime < cooldown then return end
-        local range = (Options.critterrangeslider and tonumber(Options.critterrangeslider.Value)) or 20
-        local tc = 6 
-
-        local targets = {}
-        local folder = workspace:FindFirstChild("Critters")
-        if folder then
-            for _, c in pairs(folder:GetChildren()) do
-                if c:IsA("Model") and c.Name == "Queen Ant's Servant" and c:GetAttribute("EntityID") then
-                    local pp = c.PrimaryPart or c:FindFirstChildWhichIsA("BasePart")
-                    if pp and (pp.Position - root.Position).Magnitude <= range then
-                        table.insert(targets, {eid = c:GetAttribute("EntityID"), dist = (pp.Position - root.Position).Magnitude})
-                    end
-                end
-            end
-        end
-        if #targets > 0 then
-            table.sort(targets, function(a,b) return a.dist < b.dist end)
-            local sel = {}
-            for i = 1, math.min(tc, #targets) do table.insert(sel, targets[i].eid) end
-            swingtool(sel)
-            lastQueenServantTime = ct
-        end
-    end)
-end
-
-local function stopQueenServantAura()
-    queenServantActive = false
-    if queenServantConn then queenServantConn:Disconnect(); queenServantConn = nil end
-end
-
 Tabs.Event:AddToggle("queenservanttoggle", {
     Title = "Queen Ant's Servant Aura",
     Default = false,
     Callback = function(state)
-        if state then startQueenServantAura() else stopQueenServantAura() end
+        if state then 
+            startQueenServantAura() 
+        else 
+            stopQueenServantAura() 
+        end
     end
 })
 
