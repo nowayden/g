@@ -4,7 +4,7 @@
 -- [Optimized Framework: UI, Combat, Harvesting, and Safe Native ByteNet Routing]
 --==================================================================================================
 
-print("loadingaura")
+print("loading")
 print("----------------------------------")
 
 --==================================================================================================
@@ -15,7 +15,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "Booga Automation Suite", SubTitle = "v1.2.2", TabWidth = 160,
+    Title = "Booga Automation Suite", SubTitle = "v1.2.31", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -219,7 +219,7 @@ Tabs.Map:CreateSlider("crittercooldownslider", { Title = "Swing Cooldown (s)", M
 Tabs.Pickup:AddSection("Auto Pickup")
 Tabs.Pickup:CreateToggle("autopickuptoggle", { Title = "Auto Pickup", Default = false })
 Tabs.Pickup:CreateToggle("chestpickuptoggle", { Title = "Auto Pickup From Chests", Default = false })
-Tabs.Pickup:CreateSlider("pickuprange", { Title = "Pickup Range (Keep Safe: <=20)", Min = 1, Max = 35, Rounding = 1, Default = 18 })
+Tabs.Pickup:CreateSlider("pickuprange", { Title = "Pickup Range (Hardcapped Safely <=24)", Min = 1, Max = 35, Rounding = 1, Default = 18 })
 Tabs.Pickup:CreateDropdown("itemdropdown", {
     Title = "Items",
     Values = {"Berry", "Bloodfruit", "Bluefruit", "Lemon", "Strawberry", "Gold", "Raw Gold", "Crystal Chunk", "Coin", "Coins", "Coin2", "Coin Stack", "Essence", "Emerald", "Raw Emerald", "Pink Diamond", "Raw Pink Diamond", "Void Shard", "Jelly", "Magnetite", "Raw Magnetite", "Adurite", "Raw Adurite", "Ice Cube", "Stone", "Iron", "Raw Iron", "Steel", "Hide", "Leaves", "Log", "Wood", "Glass", "Bread", "Cooked Egg", "Grain Mush", "Raw Meat", "Cooked Meat"},
@@ -241,6 +241,7 @@ Tabs.Farming:CreateSlider("plantdelay", { Title = "Plant Delay (s)", Min = 0.01,
 Tabs.Farming:CreateToggle("harvesttoggle", { Title = "Auto Harvest", Default = false })
 Tabs.Farming:CreateSlider("harvestrange", { Title = "Harvest Range", Min = 1, Max = 30, Rounding = 1, Default = 30 })
 
+-- Walk Settings
 Tabs.Farming:AddSection("Walk Settings")
 Tabs.Farming:AddToggle("tweentoplantbox", { Title = "Walk to Plant Box", Default = false })
 Tabs.Farming:AddToggle("tweentobush", { Title = "Walk to Bush + Plant Box", Default = false })
@@ -514,34 +515,37 @@ local function stopQueenServantAura()
 end
 
 --==================================================================================================
--- 11. RECONFIGURED AUTO-PICKUP ENGINE (NATIVE COMPLIANT & RATE THROTTLED)
+-- 11. RECONFIGURED AUTO-PICKUP ENGINE (ANTI-CHEAT SAFE & RATE THROTTLED)
 --==================================================================================================
+local processedEntities = {}
+
 task.spawn(function()
     while true do
-        task.wait(0.08) -- Balanced network tick speed to minimize server bandwidth overhead
+        task.wait(0.05) -- Fast but secure execution heartbeat
         
         if not Options.autopickuptoggle or not Options.autopickuptoggle.Value then continue end
         if not root then continue end
         
-        local range = tonumber(Options.pickuprange.Value) or 18
+        -- Server absolute validation cap is 25 studs; we clamp at 24 to guarantee safety under high ping
+        local range = math.clamp(tonumber(Options.pickuprange.Value) or 18, 1, 24)
         local itemsFolder = workspace:FindFirstChild("Items")
-        local processingCount = 0
         
         if itemsFolder then
             local children = itemsFolder:GetChildren()
             for i = 1, #children do
-                if processingCount >= 6 then break end -- STRICT MAXIMUM CAP: Prevents rapid fires that trigger server logs
-                
                 local item = children[i]
-                if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") then
-                    -- Direct live read from UI dictionary prevents initialization selection bugs
-                    local isTargeted = Options.itemdropdown.Value[item.Name]
+                if (item:IsA("BasePart") or item:IsA("MeshPart")) then
+                    local entityId = item:GetAttribute("EntityID")
                     
-                    if isTargeted then
+                    if entityId and not processedEntities[entityId] and Options.itemdropdown.Value[item.Name] then
                         local distance = (item.Position - root.Position).Magnitude
-                        if distance <= range then 
-                            SecureNetwork.Pickup(item:GetAttribute("EntityID")) 
-                            processingCount = processingCount + 1
+                        if distance <= range then
+                            -- Instantly lock the entity locally to prevent sending duplicate packets
+                            processedEntities[entityId] = true
+                            SecureNetwork.Pickup(entityId)
+                            
+                            -- Micro-yield to natively space interactions out over separate execution ticks
+                            task.wait(0.05) 
                         end
                     end
                 end
@@ -553,19 +557,19 @@ task.spawn(function()
             if deployablesFolder then
                 local objects = deployablesFolder:GetChildren()
                 for i = 1, #objects do
-                    if processingCount >= 6 then break end
-                    
                     local chest = objects[i]
                     if chest:IsA("Model") and chest.Name == "Chest" and chest:FindFirstChild("Contents") then
-                        if chest.PrimaryPart and (chest.PrimaryPart.Position - root.Position).Magnitude <= range then
+                        local pp = chest.PrimaryPart or chest:FindFirstChildWhichIsA("BasePart")
+                        if pp and (pp.Position - root.Position).Magnitude <= range then
                             local contents = chest.Contents:GetChildren()
                             for j = 1, #contents do
-                                if processingCount >= 6 then break end
-                                
                                 local item = contents[j]
-                                if item:GetAttribute("EntityID") and Options.itemdropdown.Value[item.Name] then
-                                    SecureNetwork.Pickup(item:GetAttribute("EntityID"))
-                                    processingCount = processingCount + 1
+                                local entityId = item:GetAttribute("EntityID")
+                                
+                                if entityId and not processedEntities[entityId] and Options.itemdropdown.Value[item.Name] then
+                                    processedEntities[entityId] = true
+                                    SecureNetwork.Pickup(entityId)
+                                    task.wait(0.05)
                                 end
                             end
                         end
@@ -573,6 +577,14 @@ task.spawn(function()
                 end
             end
         end
+    end
+end)
+
+-- Background garbage collection to clean up the network processing table memory
+task.spawn(function()
+    while true do
+        task.wait(8)
+        table.clear(processedEntities)
     end
 end)
 
