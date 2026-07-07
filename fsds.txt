@@ -5,7 +5,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "aaaaa", SubTitle = "", TabWidth = 160,
+    Title = "yap yap yap", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -142,6 +142,7 @@ Tabs.Farming:AddSection("Farming Settings")
 Tabs.Farming:CreateDropdown("fruitdropdown", {Title = "Select Fruit", Values = {"Bloodfruit", "Bluefruit", "Lemon", "Coconut", "Jelly", "Banana", "Orange", "Oddberry", "Berry", "Strangefruit", "Strawberry", "Sunfruit", "Pumpkin", "Prickly Pear", "Apple", "Barley", "Cloudberry", "Carrot", "Blossom"}, Default = "Bloodfruit"})
 Tabs.Farming:CreateToggle("planttoggle", { Title = "Auto Plant", Default = false })
 Tabs.Farming:CreateSlider("plantrange", { Title = "Plant Range", Min = 1, Max = 100, Rounding = 1, Default = 30 })
+Tabs.Farming:CreateSlider("plantdelay", { Title = "Plant Delay (s)", Min = 0.01, Max = 1, Rounding = 2, Default = 0.1 }) -- kept for UI, internally ignored
 Tabs.Farming:CreateToggle("harvesttoggle", { Title = "Auto Harvest", Default = false })
 Tabs.Farming:CreateSlider("harvestrange", { Title = "Harvest Range", Min = 1, Max = 30, Rounding = 1, Default = 30 })
 
@@ -225,7 +226,7 @@ local function drop(itemname)
     for _, child in ipairs(inv:GetChildren()) do
         if child:IsA("ImageLabel") and child.Name == itemname then
             if packets.DropBagItem and packets.DropBagItem.send then
-                packets.DropBagItem.send(child.LayoutOrder)
+               packets.DropBagItem.send(child.LayoutOrder)
              end
         end
     end
@@ -269,7 +270,7 @@ local function startResource()
                         break
                     end
                 end
-                 if matchFound then
+                if matchFound then
                     table.insert(all, r)
                 end
             end 
@@ -322,7 +323,7 @@ function StartDeployableAura(range)
       
         for _, folderName in ipairs(folders) do
             local folder = workspace:FindFirstChild(folderName)
-             if folder then
+            if folder then
                 for _, child in pairs(folder:GetChildren()) do
                     local eid = child:GetAttribute("EntityID")
                     if eid then
@@ -337,7 +338,7 @@ function StartDeployableAura(range)
 
         if #targetList > 0 then
             pcall(function()
-                 packets.SwingTool.send({
+                packets.SwingTool.send({
                     entityIDs = targetList,
                     cframe = rootPart.CFrame,
                     timestamp = clock.getServerTime(true)
@@ -398,11 +399,12 @@ local function startQueenServantAura()
             if queenServantConn then queenServantConn:Disconnect(); queenServantConn = nil end
             return 
         end
-         if not root or not GameUtil.Data.equipped then return end
+        if not root or not GameUtil.Data.equipped then return end
         local ct = tick()
         local cooldown = (Options.crittercooldownslider and tonumber(Options.crittercooldownslider.Value)) or 0.1
         if ct - lastQueenServantTime < cooldown then return end
         local range = (Options.critterrangeslider and tonumber(Options.critterrangeslider.Value)) or 20
+        
         local tc = 6 
 
         local targets = {}
@@ -410,7 +412,7 @@ local function startQueenServantAura()
         if folder then
             for _, c in pairs(folder:GetChildren()) do
                 if c:IsA("Model") and c.Name == "Queen Ant's Servant" and c:GetAttribute("EntityID") then
-                     local pp = c.PrimaryPart or c:FindFirstChildWhichIsA("BasePart")
+                    local pp = c.PrimaryPart or c:FindFirstChildWhichIsA("BasePart")
                     if pp and (pp.Position - root.Position).Magnitude <= range then
                         table.insert(targets, {eid = c:GetAttribute("EntityID"), dist = (pp.Position - root.Position).Magnitude})
                     end
@@ -486,45 +488,76 @@ end)
 local plantedboxes = {}
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
 
-local function getpbs(range)
-    local plantboxes = {}
-    if not root then return plantboxes end
+local plantBoxCache = {}
+local lastPlantBoxCacheUpdate = 0
+local bushCache = {}
+local lastBushCacheUpdate = 0
+
+local function refreshPlantBoxCache()
     local deployablesFolder = workspace:FindFirstChild("Deployables")
-    if not deployablesFolder then return plantboxes end
-    local charPos = root.Position
+    plantBoxCache = {}
+    if not deployablesFolder then return end
     local children = deployablesFolder:GetChildren()
-     for i = 1, #children do
+    for i = 1, #children do
         local deployable = children[i]
         if deployable.Name == "Plant Box" and deployable:IsA("Model") then
             local ppart = deployable.PrimaryPart or deployable:FindFirstChildWhichIsA("BasePart")
             if ppart then
-                local dist = (ppart.Position - charPos).Magnitude
-                 if dist <= range then
-                    local entityid = deployable:GetAttribute("EntityID")
-                    if entityid then table.insert(plantboxes, { entityid = entityid, deployable = deployable, dist = dist }) end
+                local entityid = deployable:GetAttribute("EntityID")
+                if entityid then
+                    table.insert(plantBoxCache, { entityid = entityid, deployable = deployable, part = ppart })
                 end
             end
         end
     end
-    return plantboxes
+    lastPlantBoxCacheUpdate = tick()
 end
 
-local function getbushes(range, fruitname)
-    local bushes = {}
-    if not root then return bushes end
-    local charPos = root.Position
+local function refreshBushCache(fruitname)
+    bushCache = {}
     local children = workspace:GetChildren()
     for i = 1, #children do
         local model = children[i]
         if model:IsA("Model") and model.Name:find(fruitname) then
             local ppart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
             if ppart then
-                local dist = (ppart.Position - charPos).Magnitude
-                if dist <= range then
-                    local entityid = model:GetAttribute("EntityID")
-                     if entityid then table.insert(bushes, { entityid = entityid, model = model, dist = dist }) end
+                local entityid = model:GetAttribute("EntityID")
+                if entityid then
+                    table.insert(bushCache, { entityid = entityid, model = model, part = ppart })
                 end
             end
+        end
+    end
+    lastBushCacheUpdate = tick()
+end
+
+local function getpbs(range)
+    if tick() - lastPlantBoxCacheUpdate > 0.5 or #plantBoxCache == 0 then
+        refreshPlantBoxCache()
+    end
+    local plantboxes = {}
+    if not root then return plantboxes end
+    local charPos = root.Position
+    for _, data in ipairs(plantBoxCache) do
+        local dist = (data.part.Position - charPos).Magnitude
+        if dist <= range then
+            table.insert(plantboxes, { entityid = data.entityid, deployable = data.deployable, dist = dist })
+        end
+    end
+    return plantboxes
+end
+
+local function getbushes(range, fruitname)
+    if tick() - lastBushCacheUpdate > 0.5 or #bushCache == 0 then
+        refreshBushCache(fruitname)
+    end
+    local bushes = {}
+    if not root then return bushes end
+    local charPos = root.Position
+    for _, data in ipairs(bushCache) do
+        local dist = (data.part.Position - charPos).Magnitude
+        if dist <= range then
+            table.insert(bushes, { entityid = data.entityid, model = data.model, dist = dist })
         end
     end
     return bushes
@@ -537,8 +570,8 @@ local lastCheck = 0
 local function walkToTarget(targetPosition)
     if hum and root and targetPosition then
         hum:MoveTo(targetPosition)
-         local now = tick()
-         local dt = now - lastCheck
+        local now = tick()
+        local dt = now - lastCheck
         if lastCheck == 0 or dt > 0.5 then
             lastCheck = now
             lastPos = root.Position
@@ -546,19 +579,19 @@ local function walkToTarget(targetPosition)
             return
         end
         lastCheck = now
-         if (root.Position - targetPosition).Magnitude > 3 then
+        if (root.Position - targetPosition).Magnitude > 3 then
             if (root.Position - lastPos).Magnitude < 1 * dt then
                 stuckTimer = stuckTimer + dt
                 if stuckTimer >= 3 then
-                     hum.Jump = true
-                      stuckTimer = 0
+                    hum.Jump = true
+                    stuckTimer = 0
                 end
             else
                 stuckTimer = 0
             end
         else
             stuckTimer = 0
-       end
+        end
         lastPos = root.Position
     end
 end
@@ -600,7 +633,7 @@ local function pathToBushesOrBoxes(range, fruitname)
     end
 end
 
--- Walk loops (unchanged logic, gentle throttling)
+-- Walk loops (optimized but same behavior)
 task.spawn(function()
     while true do
         if not Options.tweentoplantbox.Value then task.wait(0.1) continue end
@@ -620,46 +653,42 @@ end)
 local function plant(entityid, itemID)
     if packets.InteractStructure and packets.InteractStructure.send then
         packets.InteractStructure.send({ entityID = entityid, itemID = itemID })
+        plantedboxes[entityid] = true
     end
 end
 
--- Auto Plant: same logic, but with a fixed interval to avoid hammering FPS
-local lastPlantCacheUpdate = 0
 local plantCache = {}
-local PLANT_CHECK_INTERVAL = 0.05  -- tweak this if you want more/less aggressiveness
+local lastPlantCacheUpdate = 0
+local PLANT_INTERNAL_INTERVAL = 0.03 -- "no delay" feel, but still sane for FPS
 
 task.spawn(function()
-    local lastPlantCheck = 0
+    local lastPlantTick = 0
     while true do
         if not Options.planttoggle.Value then
             task.wait(0.1)
+            lastPlantTick = tick()
             continue
         end
 
         local now = tick()
-        if now - lastPlantCheck < PLANT_CHECK_INTERVAL then
-            task.wait(PLANT_CHECK_INTERVAL)
+        if now - lastPlantTick < PLANT_INTERNAL_INTERVAL then
+            task.wait(PLANT_INTERNAL_INTERVAL)
             continue
         end
-        lastPlantCheck = now
-
-        local fruitName = Options.fruitdropdown.Value
-        local itemID = fruittoitemid[fruitName]
-        if not itemID then
-            task.wait(0.1)
-            continue
-        end
+        lastPlantTick = now
 
         local range = tonumber(Options.plantrange.Value) or 30
+        local selectedfruit = Options.fruitdropdown.Value
+        local itemID = fruittoitemid[selectedfruit] or 94
         local deployablesFolder = workspace:FindFirstChild("Deployables")
+
         if deployablesFolder then
-            local currentTime = tick()
-            if currentTime - lastPlantCacheUpdate > 2 then
+            if now - lastPlantCacheUpdate > 0.4 or #plantCache == 0 then
                 plantCache = {}
                 local children = deployablesFolder:GetChildren()
                 for i = 1, #children do
                     local v = children[i]
-                    if v.Name == "Plant Box" and v:IsA("Model") then
+                    if v.Name == "Plant Box" then
                         local ppart = v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
                         local entityid = v:GetAttribute("EntityID")
                         if ppart and entityid then
@@ -667,7 +696,7 @@ task.spawn(function()
                         end
                     end
                 end
-                lastPlantCacheUpdate = currentTime
+                lastPlantCacheUpdate = now
             end
 
             if root then
@@ -687,11 +716,11 @@ task.spawn(function()
             end
         end
 
-        task.wait(PLANT_CHECK_INTERVAL)
+        task.wait(PLANT_INTERNAL_INTERVAL)
     end
 end)
 
--- Auto Harvest (unchanged logic, light delay)
+-- Auto Harvest
 task.spawn(function()
     while true do
         if not Options.harvesttoggle.Value then task.wait(0.1) continue end
@@ -704,7 +733,7 @@ task.spawn(function()
     end
 end)
 
--- REWRITTEN HIGH-ACCURACY PARALLEL TRACKING LOOP
+-- Tracker loop
 task.spawn(function()
     local lastCount = nil
     local trackedBushes = {}
@@ -715,14 +744,11 @@ task.spawn(function()
         
         if lastCount == nil then
             lastCount = currentCount
-            print("[Tracker] Context Engine Init baseline total for " .. targetFruit .. ": " .. tostring(lastCount))
         else
             if currentCount > lastCount then
                 gained = currentCount - lastCount
-                print("[Tracker Inventory Match] Found Increment: +" .. tostring(gained) .. " |\nItem: " .. targetFruit)
                 lastCount = currentCount
             elseif currentCount < lastCount then
-                print("[Tracker Inventory Recalibrate] Drop/Spent detected. Adjusting inventory baseline down to: " .. tostring(currentCount))
                 lastCount = currentCount
             end
         end
@@ -734,7 +760,6 @@ task.spawn(function()
                 if not workspace:FindFirstChild(data.name) and (data.pos - root.Position).Magnitude <= harvestrange then
                     if gained == 0 then
                         gained = 3
-                        print("[Tracker Fallback Match] Bush deletion registered within radius! Force-adding +3 fruits.")
                     end
                     trackedBushes[id] = nil
                 end
@@ -772,7 +797,7 @@ task.spawn(function()
     end
 end)
 
--- Plant box placement (Tight Edge-to-Edge Snapping)
+-- Plant box placement
 function placeSingleSnappedBox()
     local char = plr.Character
     if not (char and char:FindFirstChild("HumanoidRootPart")) then return end
@@ -1021,7 +1046,7 @@ Tabs.Event:AddToggle("queenservanttoggle", {
     end
 })
 
--- Prioritized Targets TP Execution System (Soul Minion Tracker Integration)
+-- Prioritized Targets TP Execution System
 local function getPrioritizedTarget()
     local critters = workspace:FindFirstChild("Critters")
     if not critters then return nil end
@@ -1068,17 +1093,11 @@ local function getPrioritizedTarget()
 end
 
 task.spawn(function()
-    local currentlyLockedID = nil
-    local targetExpiryDelay = 0
-    
     while true do
         if Options.tpsoulminionstoggle and Options.tpsoulminionstoggle.Value and root then
-            local rightNow = tick()
-            if rightNow >= targetExpiryDelay then
-                local target = getPrioritizedTarget()
-                if target and target.PrimaryPart then
-                    root.CFrame = target.PrimaryPart.CFrame * CFrame.new(0, 0, 3)
-                end
+            local target = getPrioritizedTarget()
+            if target and target.PrimaryPart then
+                root.CFrame = target.PrimaryPart.CFrame * CFrame.new(0, 0, 3)
             end
         end
         task.wait(0.1)
