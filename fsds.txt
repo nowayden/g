@@ -5,7 +5,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "", SubTitle = "", TabWidth = 160,
+    Title = "e", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -93,18 +93,18 @@ plr.CharacterAdded:Connect(updateCharacter)
 
 -- Main Tab
 Tabs.Main:AddSection("Movement")
-Tabs.Main:CreateToggle("wstoggle", { Title = "Walkspeed", Default = false })
-Tabs.Main:CreateSlider("wsslider", { Title = "Value", Min = 1, Max = 35, Rounding = 1, Default = 16 })
-Tabs.Main:CreateToggle("jptoggle", { Title = "JumpPower", Default = false })
-Tabs.Main:CreateSlider("jpslider", { Title = "Value", Min = 1, Max = 65, Rounding = 1, Default = 50 })
-Tabs.Main:CreateToggle("msatoggle", { Title = "No Mountain Slip", Default = false })
+Tabs.Main:AddToggle("wstoggle", { Title = "Walkspeed", Default = false })
+Tabs.Main:AddSlider("wsslider", { Title = "Value", Min = 1, Max = 35, Rounding = 1, Default = 16 })
+Tabs.Main:AddToggle("jptoggle", { Title = "JumpPower", Default = false })
+Tabs.Main:AddSlider("jpslider", { Title = "Value", Min = 1, Max = 65, Rounding = 1, Default = 50 })
+Tabs.Main:AddToggle("msatoggle", { Title = "No Mountain Slip", Default = false })
 
 -- Map Tab
 Tabs.Map:AddSection("Resource Aura")
-Tabs.Map:CreateToggle("resourceauratoggle", { Title = "Resource Aura", Default = false })
-Tabs.Map:CreateSlider("resourceaurarange", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
-Tabs.Map:CreateDropdown("resourcetargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
-Tabs.Map:CreateSlider("resourcecooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
+Tabs.Map:AddToggle("resourceauratoggle", { Title = "Resource Aura", Default = false })
+Tabs.Map:AddSlider("resourceaurarange", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
+Tabs.Map:AddDropdown("resourcetargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
+Tabs.Map:AddSlider("resourcecooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
 
 Tabs.Map:AddToggle("DeployableAuraToggle", {
     Title = "Break Depl/Rubble/Chests",
@@ -115,17 +115,17 @@ Tabs.Map:AddToggle("DeployableAuraToggle", {
 })
 
 Tabs.Map:AddSection("Critter Aura")
-Tabs.Map:CreateToggle("critterauratoggle", { Title = "Critter Aura", Default = false })
-Tabs.Map:CreateSlider("critterrangeslider", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
-Tabs.Map:CreateDropdown("crittertargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
-Tabs.Map:CreateSlider("crittercooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
+Tabs.Map:AddToggle("critterauratoggle", { Title = "Critter Aura", Default = false })
+Tabs.Map:AddSlider("critterrangeslider", { Title = "Range", Min = 1, Max = 20, Rounding = 1, Default = 20 })
+Tabs.Map:AddDropdown("crittertargetdropdown", { Title = "Max Targets", Values = { "1", "2", "3", "4", "5", "6" }, Default = "1" })
+Tabs.Map:AddSlider("crittercooldownslider", { Title = "Swing Cooldown (s)", Min = 0.01, Max = 1.01, Rounding = 2, Default = 0.1 })
 
 -- Pickup Tab
 Tabs.Pickup:AddSection("Auto Pickup")
-Tabs.Pickup:CreateToggle("autopickuptoggle", { Title = "Auto Pickup", Default = false })
-Tabs.Pickup:CreateToggle("chestpickuptoggle", { Title = "Auto Pickup From Chests", Default = false })
-Tabs.Pickup:CreateSlider("pickuprange", { Title = "Pickup Range", Min = 1, Max = 35, Rounding = 1, Default = 20 })
-Tabs.Pickup:CreateDropdown("itemdropdown", {
+Tabs.Pickup:AddToggle("autopickuptoggle", { Title = "Auto Pickup", Default = false })
+Tabs.Pickup:AddToggle("chestpickuptoggle", { Title = "Auto Pickup From Chests", Default = false })
+Tabs.Pickup:AddSlider("pickuprange", { Title = "Pickup Range", Min = 1, Max = 35, Rounding = 1, Default = 20 })
+Tabs.Pickup:AddDropdown("itemdropdown", {
     Title = "Items",
     Values = {"Berry", "Bloodfruit", "Bluefruit", "Lemon", "Strawberry", "Gold", "Raw Gold", "Crystal Chunk", "Coin", "Coins", "Coin2", "Coin Stack", "Essence", "Emerald", "Raw Emerald", "Pink Diamond", "Raw Pink Diamond", "Void Shard", "Jelly", "Magnetite", "Raw Magnetite", "Adurite", "Raw Adurite", "Ice Cube", "Stone", "Iron", "Raw Iron", "Steel", "Hide", "Leaves", "Log", "Wood", "Glass", "Bread", "Cooked Egg", "Grain Mush", "Raw Meat", "Cooked Meat"},
     Multi = true, Default = { Leaves = false, Log = false }
@@ -139,12 +139,12 @@ Tabs.Pickup:AddInput("droptextbox", { Title = "Custom Item", Default = "Bloodfru
 
 -- Farming Tab
 Tabs.Farming:AddSection("Farming Settings")
-Tabs.Farming:CreateDropdown("fruitdropdown", {Title = "Select Fruit", Values = {"Bloodfruit", "Bluefruit", "Lemon", "Coconut", "Jelly", "Banana", "Orange", "Oddberry", "Berry", "Strangefruit", "Strawberry", "Sunfruit", "Pumpkin", "Prickly Pear", "Apple", "Barley", "Cloudberry", "Carrot", "Blossom"}, Default = "Bloodfruit"})
-Tabs.Farming:CreateToggle("planttoggle", { Title = "Auto Plant", Default = false })
-Tabs.Farming:CreateSlider("plantrange", { Title = "Plant Range", Min = 1, Max = 100, Rounding = 1, Default = 30 })
-Tabs.Farming:CreateSlider("plantdelay", { Title = "Plant Delay (s)", Min = 0.01, Max = 1, Rounding = 2, Default = 0.1 })
-Tabs.Farming:CreateToggle("harvesttoggle", { Title = "Auto Harvest", Default = false })
-Tabs.Farming:CreateSlider("harvestrange", { Title = "Harvest Range", Min = 1, Max = 30, Rounding = 1, Default = 30 })
+Tabs.Farming:AddDropdown("fruitdropdown", {Title = "Select Fruit", Values = {"Bloodfruit", "Bluefruit", "Lemon", "Coconut", "Jelly", "Banana", "Orange", "Oddberry", "Berry", "Strangefruit", "Strawberry", "Sunfruit", "Pumpkin", "Prickly Pear", "Apple", "Barley", "Cloudberry", "Carrot", "Blossom"}, Default = "Bloodfruit"})
+Tabs.Farming:AddToggle("planttoggle", { Title = "Auto Plant", Default = false })
+Tabs.Farming:AddSlider("plantrange", { Title = "Plant Range", Min = 1, Max = 100, Rounding = 1, Default = 30 })
+Tabs.Farming:AddSlider("plantdelay", { Title = "Plant Delay (s)", Min = 0.01, Max = 1, Rounding = 2, Default = 0.1 })
+Tabs.Farming:AddToggle("harvesttoggle", { Title = "Auto Harvest", Default = false })
+Tabs.Farming:AddSlider("harvestrange", { Title = "Harvest Range", Min = 1, Max = 30, Rounding = 1, Default = 30 })
 
 Tabs.Farming:AddSection("Walk Settings")
 Tabs.Farming:AddToggle("tweentoplantbox", { Title = "Walk to Plant Box", Default = false })
@@ -156,11 +156,12 @@ Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Con
 Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees"}, Default = "0 degrees"})
 Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placeSingleSnappedBox() end})
 
--- New Dock Placer UI Controls
+-- Split Axis Dock Placer UI Controls
 Tabs.Farming:AddSection("Dock Placer")
 Tabs.Farming:AddToggle("placedockstoggle", { Title = "Place Docks Continuously", Default = false })
 Tabs.Farming:AddSlider("dockoffsetslider", { Title = "Dock Offset Distance (Ahead)", Min = 0, Max = 25, Rounding = 1, Default = 14 })
-Tabs.Farming:AddSlider("dockgridsizeslider", { Title = "Dock Snap Size Grid", Min = 5, Max = 25, Rounding = 2, Default = 15.0 })
+Tabs.Farming:AddSlider("dockgridXslider", { Title = "Dock Snap X (Left/Right Grid)", Min = 2, Max = 25, Rounding = 2, Default = 15.0 })
+Tabs.Farming:AddSlider("dockgridZslider", { Title = "Dock Snap Z (Up/Down Grid)", Min = 2, Max = 25, Rounding = 2, Default = 5.05 })
 Tabs.Farming:AddButton({Title = "Place Single Dock", Callback = function() placeSingleDock() end})
 
 Tabs.Farming:AddSection("Gold Farming")
@@ -604,6 +605,16 @@ local plantedboxes = {}
 local plantCache = {}
 local lastPlantCacheUpdate = 0
 
+local function getInventorySlot(itemName)
+    local list = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
+    if not list then return nil end
+    for _, slot in ipairs(list:GetChildren()) do
+        if slot:IsA("ImageLabel") and slot.Name:find(itemName) then
+            return slot.LayoutOrder
+        end
+    end
+end
+
 local function plant(boxEntityID, itemID)
     if plantedboxes[boxEntityID] then return end
     if packets.PlantSeed and packets.PlantSeed.send then
@@ -737,7 +748,7 @@ Options.placeplantboxestoggle:OnChanged(function(v)
     end
 end)
 
--- Precise Forward-Snapped Dock Placement Logic
+-- Precise Forward-Snapped Dock Placement Logic (Independent Axes Handling)
 function placeSingleDock()
     local char = plr.Character
     if not (char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid")) then return end
@@ -754,9 +765,10 @@ function placeSingleDock()
     local offsetDistance = Options.dockoffsetslider and Options.dockoffsetslider.Value or 14
     local targetPos = rootPart.Position + (forwardDir * offsetDistance)
     
-    -- Dynamically customize grid size mapping for edge-to-edge structural precision
-    local gs = Options.dockgridsizeslider and Options.dockgridsizeslider.Value or 15.0
-    local sp = Vector3.new(math.round(targetPos.X / gs) * gs, rootPart.Position.Y, math.round(targetPos.Z / gs) * gs)
+    -- Split axes snapping allows you to configure rectangular structures cleanly
+    local gsX = Options.dockgridXslider and Options.dockgridXslider.Value or 15.0
+    local gsZ = Options.dockgridZslider and Options.dockgridZslider.Value or 5.05
+    local sp = Vector3.new(math.round(targetPos.X / gsX) * gsX, rootPart.Position.Y, math.round(targetPos.Z / gsZ) * gsZ)
     
     local cam = workspace.CurrentCamera
     local cursorPos = cam and cam.CFrame.Position or rootPart.Position
@@ -810,16 +822,6 @@ local POTIONS = {
     ["Weakness Potion"] = {{name = "Ice Cube", amount = 3}, {name = "Berry", amount = 2}, {name = "Magnetite", amount = 3}},
     ["Haste Potion"] = {{name = "Ice Cube", amount = 3}, {name = "Iron", amount = 2}, {name = "Lemon", amount = 2}}
 }
-
-local function getInventorySlot(itemName)
-    local list = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
-    if not list then return nil end
-    for _, slot in ipairs(list:GetChildren()) do
-        if slot:IsA("ImageLabel") and slot.Name:find(itemName) then
-            return slot.LayoutOrder
-        end
-    end
-end
 
 local function brewPotions()
     if isBrewing then return end
