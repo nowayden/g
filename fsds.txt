@@ -1,11 +1,11 @@
-print("what's wrong with fucking github, son takes like a month to commit real script")
+print("loading")
 print("----------------------------------")
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "ez", SubTitle = "", TabWidth = 160,
+    Title = "year", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -672,7 +672,7 @@ task.spawn(function()
                                 if delay <= 0.01 then 
                                     runs.Heartbeat:Wait() 
                                 else 
-                                    task.wait(0) 
+                                    task.wait(0.01) 
                                 end
                             end
                         end
