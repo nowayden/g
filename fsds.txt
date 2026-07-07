@@ -5,7 +5,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "aura", SubTitle = "", TabWidth = 160,
+    Title = "gangster", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -461,7 +461,7 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.1) -- OPTIMIZED: Increased from 0.01 to 0.1 to save massive amounts of CPU while keeping it fast enough
+        task.wait(0.01)
     end
 end)
 
@@ -490,38 +490,21 @@ end)
 local plantedboxes = {}
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
 
--- OPTIMIZED: Caching variables for walk logic
-local pbsCache = {}
-local lastPbsUpdate = 0
-local bushesCache = {}
-local lastBushesUpdate = 0
-
 local function getpbs(range)
     local plantboxes = {}
     if not root then return plantboxes end
     local deployablesFolder = workspace:FindFirstChild("Deployables")
     if not deployablesFolder then return plantboxes end
-    
-    local now = tick()
-    if now - lastPbsUpdate > 2 then
-        pbsCache = {}
-        local children = deployablesFolder:GetChildren()
-        for i = 1, #children do
-            local deployable = children[i]
-            if deployable.Name == "Plant Box" and deployable:IsA("Model") then
-                table.insert(pbsCache, deployable)
-            end
-        end
-        lastPbsUpdate = now
-    end
-
     local charPos = root.Position
-    for i = 1, #pbsCache do
-        local deployable = pbsCache[i]
-        if deployable.Parent == deployablesFolder then
+    local children = deployablesFolder:GetChildren()
+  
+    for i = 1, #children do
+        local deployable = children[i]
+        if deployable.Name == "Plant Box" and deployable:IsA("Model") then
             local ppart = deployable.PrimaryPart or deployable:FindFirstChildWhichIsA("BasePart")
             if ppart then
                 local dist = (ppart.Position - charPos).Magnitude
+              
                 if dist <= range then
                     local entityid = deployable:GetAttribute("EntityID")
                     if entityid then table.insert(plantboxes, { entityid = entityid, deployable = deployable, dist = dist }) end
@@ -535,30 +518,18 @@ end
 local function getbushes(range, fruitname)
     local bushes = {}
     if not root then return bushes end
-    
-    local now = tick()
-    if now - lastBushesUpdate > 2 then
-        bushesCache = {}
-        local children = workspace:GetChildren()
-        for i = 1, #children do
-            local model = children[i]
-            if model:IsA("Model") then
-                table.insert(bushesCache, model)
-            end
-        end
-        lastBushesUpdate = now
-    end
-
     local charPos = root.Position
-    for i = 1, #bushesCache do
-        local model = bushesCache[i]
-        if model.Parent == workspace and model.Name:find(fruitname) then
+    local children = workspace:GetChildren()
+    for i = 1, #children do
+        local model = children[i]
+        if model:IsA("Model") and model.Name:find(fruitname) then
             local ppart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+       
             if ppart then
                 local dist = (ppart.Position - charPos).Magnitude
                 if dist <= range then
                     local entityid = model:GetAttribute("EntityID")
-                    if entityid then table.insert(bushes, { entityid = entityid, model = model, dist = dist }) end
+                     if entityid then table.insert(bushes, { entityid = entityid, model = model, dist = dist }) end
                 end
             end
         end
@@ -574,7 +545,8 @@ local function walkToTarget(targetPosition)
     if hum and root and targetPosition then
         hum:MoveTo(targetPosition)
          local now = tick()
-         local dt = now - lastCheck
+       
+        local dt = now - lastCheck
         if lastCheck == 0 or dt > 0.5 then
             lastCheck = now
             lastPos = root.Position
@@ -583,7 +555,7 @@ local function walkToTarget(targetPosition)
         end
         lastCheck = now
      
-         if (root.Position - targetPosition).Magnitude > 3 then
+        if (root.Position - targetPosition).Magnitude > 3 then
             if (root.Position - lastPos).Magnitude < 1 * dt then
                 stuckTimer = stuckTimer + dt
                 if stuckTimer >= 3 then
@@ -639,17 +611,17 @@ end
 
 task.spawn(function()
     while true do
-        if not Options.tweentoplantbox.Value then task.wait(0.25) continue end
+        if not Options.tweentoplantbox.Value then task.wait(0.1) continue end
         pathToPlantbox(tonumber(Options.tweenrange.Value) or 250)
-        task.wait(0.25) -- OPTIMIZED: Lowered path calculation frequency drastically improves FPS
+        task.wait(0.1)
     end
 end)
 
 task.spawn(function()
     while true do
-        if not Options.tweentobush.Value then task.wait(0.25) continue end
+        if not Options.tweentobush.Value then task.wait(0.1) continue end
         pathToBushesOrBoxes(tonumber(Options.tweenrange.Value) or 20, Options.fruitdropdown.Value)
-        task.wait(0.25) -- OPTIMIZED: Lowered path calculation frequency drastically improves FPS
+        task.wait(0.1)
     end
 end)
 
@@ -659,63 +631,71 @@ local function plant(entityid, itemID)
     end
 end
 
-local lastPlantCacheUpdate = 0
-local plantCache = {}
+-- ==================================================
+-- OPTIMIZED: INSTANT 24/7 AUTO PLANT LOOP
+-- ==================================================
 task.spawn(function()
     while true do
-        if not Options.planttoggle.Value then task.wait(0.15) continue end
+        if not Options.planttoggle.Value then task.wait(0.05) continue end
+        
         local fruitName = Options.fruitdropdown.Value
         local itemID = fruittoitemid[fruitName]
-        if not itemID then task.wait(0.15) continue end
+        if not itemID then task.wait(0.05) continue end
+        
         local range = tonumber(Options.plantrange.Value) or 30
         local deployablesFolder = workspace:FindFirstChild("Deployables")
-      
-         if deployablesFolder then
-            local currentTime = tick()
-            if currentTime - lastPlantCacheUpdate > 2 then
-                plantCache = {}
-                local children = deployablesFolder:GetChildren()
-                for i = 1, #children do
-                    local v = children[i]
-                    if v.Name == "Plant Box" and v:IsA("Model") then
+        
+        if deployablesFolder and root then
+            local myPos = root.Position
+            -- Scanning deployables instantly without the 2-second cache delay
+            for _, v in ipairs(deployablesFolder:GetChildren()) do
+                if v.Name == "Plant Box" and v:IsA("Model") then
+                    -- Instantly check if it needs a seed
+                    if not v:FindFirstChild("Seed") then
                         local ppart = v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
                         local entityid = v:GetAttribute("EntityID")
-                        if ppart and entityid then
-                            table.insert(plantCache, {box = v, part = ppart, id = entityid})
-                        end
-                    end
-                end
-                lastPlantCacheUpdate = currentTime
-            end
-            if root then
-                local myPos = root.Position
-                for i = 1, #plantCache do
-                    local data = plantCache[i]
-                    if data.box.Parent == deployablesFolder then
-                        if (data.part.Position - myPos).Magnitude <= range then
-                            if not data.box:FindFirstChild("Seed") then
-                                plant(data.id, itemID)
-                            else
-                                plantedboxes[data.id] = true
-                            end
+                        
+                        if ppart and entityid and (ppart.Position - myPos).Magnitude <= range then
+                            plant(entityid, itemID)
                         end
                     end
                 end
             end
         end
-        task.wait(0.15) -- OPTIMIZED: Removed instant execution; a 0.15s yield stops the script from stealing all CPU resources per frame.
+        -- Minimal wait to prevent thread locking while maintaining max 24/7 speed
+        task.wait()
     end
 end)
 
+-- ==================================================
+-- FIXED: STRUCTURE INTERACTION AUTO HARVEST LOOP
+-- ==================================================
 task.spawn(function()
     while true do
-        if not Options.harvesttoggle.Value then task.wait(0.1) continue end
-        local bushes = getbushes(tonumber(Options.harvestrange.Value) or 30, Options.fruitdropdown.Value)
-        table.sort(bushes, function(a, b) return a.dist < b.dist end)
+        if not Options.harvesttoggle.Value then task.wait(0.05) continue end
+        
+        local range = tonumber(Options.harvestrange.Value) or 30
+        local bushes = getbushes(range, Options.fruitdropdown.Value)
+        
         for _, bush in ipairs(bushes) do
-            pickup(bush.entityid)
+            -- Send the correct interaction packet to harvest the fully grown plant
+            if packets.InteractStructure and packets.InteractStructure.send then
+                packets.InteractStructure.send({ entityID = bush.entityid })
+            end
+            
+            -- Fallback: If the server requires hitting the bush to harvest it, swing at it
+            pcall(function()
+                if packets.SwingTool and packets.SwingTool.send and root then
+                    packets.SwingTool.send({
+                        entityIDs = {{entityID = bush.entityid, buffer = 0}}, 
+                        cframe = root.CFrame, 
+                        timestamp = clock.getServerTime(true)
+                    })
+                end
+            end)
         end
-        task.wait(0.1)
+        -- Optimized delay for instant harvesting
+        task.wait(0.05) 
     end
 end)
 
@@ -730,7 +710,7 @@ task.spawn(function()
         
         -- 1. Inventory Delta Processing
         if lastCount == nil then
-             lastCount = currentCount
+            lastCount = currentCount
             print("[Tracker] Context Engine Init baseline total for " .. targetFruit .. ": " .. tostring(lastCount))
         else
             if currentCount > lastCount then
