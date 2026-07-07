@@ -5,7 +5,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "gem", SubTitle = "", TabWidth = 160,
+    Title = "", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -631,11 +631,16 @@ local function plant(entityid, itemID)
     end
 end
 
--- Hyper-optimized auto plant loop (Direct linear scan, safe debouncing)
+-- Hyper-optimized auto plant loop (Fixed per-plant yielding)
 local localPlantDebounce = {}
 task.spawn(function()
     while true do
-        if not Options.planttoggle.Value then table.clear(localPlantDebounce); task.wait(0.1) continue end
+        if not Options.planttoggle.Value then 
+            table.clear(localPlantDebounce)
+            task.wait(0.1) 
+            continue 
+        end
+        
         local range = tonumber(Options.plantrange.Value) or 30
         local delay = tonumber(Options.plantdelay.Value) or 0.1
         local itemID = fruittoitemid[Options.fruitdropdown.Value] or 94
@@ -644,6 +649,7 @@ task.spawn(function()
         if deployables and root then
             local charPos = root.Position
             local children = deployables:GetChildren()
+            
             for i = 1, #children do
                 local box = children[i]
                 if box.Name == "Plant Box" then
@@ -660,6 +666,14 @@ task.spawn(function()
                             if dist <= range then
                                 localPlantDebounce[entityid] = tick()
                                 plant(entityid, itemID)
+                                
+                                -- Apply the slider delay PER PLANT to prevent packet dropping.
+                                -- If slider is 0, yield exactly 1 frame so the server doesn't rate-limit.
+                                if delay <= 0.01 then 
+                                    runs.Heartbeat:Wait() 
+                                else 
+                                    task.wait(delay) 
+                                end
                             end
                         end
                     end
@@ -674,7 +688,9 @@ task.spawn(function()
                 end
             end
         end
-        if delay <= 0.01 then runs.Heartbeat:Wait() else task.wait(delay) end
+        
+        -- Base loop idle
+        runs.Heartbeat:Wait() 
     end
 end)
 
