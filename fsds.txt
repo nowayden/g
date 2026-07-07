@@ -5,7 +5,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "UM", SubTitle = "", TabWidth = 160,
+    Title = "", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -156,12 +156,11 @@ Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Con
 Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees"}, Default = "0 degrees"})
 Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placeSingleSnappedBox() end})
 
--- Split Axis Dock Placer UI Controls
+-- New Dock Placer UI Controls
 Tabs.Farming:AddSection("Dock Placer")
 Tabs.Farming:AddToggle("placedockstoggle", { Title = "Place Docks Continuously", Default = false })
 Tabs.Farming:AddSlider("dockoffsetslider", { Title = "Dock Offset Distance (Ahead)", Min = 0, Max = 25, Rounding = 1, Default = 14 })
-Tabs.Farming:AddSlider("dockgridXslider", { Title = "Dock Snap X (Left/Right Grid)", Min = 2, Max = 25, Rounding = 2, Default = 15.0 })
-Tabs.Farming:AddSlider("dockgridZslider", { Title = "Dock Snap Z (Up/Down Grid)", Min = 2, Max = 25, Rounding = 2, Default = 5.05 })
+Tabs.Farming:AddSlider("dockgridsizeslider", { Title = "Dock Snap Size Grid", Min = 5, Max = 25, Rounding = 2, Default = 15.0 })
 Tabs.Farming:AddButton({Title = "Place Single Dock", Callback = function() placeSingleDock() end})
 
 Tabs.Farming:AddSection("Gold Farming")
@@ -605,16 +604,6 @@ local plantedboxes = {}
 local plantCache = {}
 local lastPlantCacheUpdate = 0
 
-local function getInventorySlot(itemName)
-    local list = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
-    if not list then return nil end
-    for _, slot in ipairs(list:GetChildren()) do
-        if slot:IsA("ImageLabel") and slot.Name:find(itemName) then
-            return slot.LayoutOrder
-        end
-    end
-end
-
 local function plant(boxEntityID, itemID)
     if plantedboxes[boxEntityID] then return end
     if packets.PlantSeed and packets.PlantSeed.send then
@@ -748,7 +737,7 @@ Options.placeplantboxestoggle:OnChanged(function(v)
     end
 end)
 
--- Precise Forward-Snapped Dock Placement Logic (Independent Axes Handling)
+-- Precise Forward-Snapped Dock Placement Logic
 function placeSingleDock()
     local char = plr.Character
     if not (char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid")) then return end
@@ -765,10 +754,9 @@ function placeSingleDock()
     local offsetDistance = Options.dockoffsetslider and Options.dockoffsetslider.Value or 14
     local targetPos = rootPart.Position + (forwardDir * offsetDistance)
     
-    -- Split axes snapping allows you to configure rectangular structures cleanly
-    local gsX = Options.dockgridXslider and Options.dockgridXslider.Value or 15.0
-    local gsZ = Options.dockgridZslider and Options.dockgridZslider.Value or 5.05
-    local sp = Vector3.new(math.round(targetPos.X / gsX) * gsX, rootPart.Position.Y, math.round(targetPos.Z / gsZ) * gsZ)
+    -- Dynamically customize grid size mapping for edge-to-edge structural precision
+    local gs = Options.dockgridsizeslider and Options.dockgridsizeslider.Value or 15.0
+    local sp = Vector3.new(math.round(targetPos.X / gs) * gs, rootPart.Position.Y, math.round(targetPos.Z / gs) * gs)
     
     local cam = workspace.CurrentCamera
     local cursorPos = cam and cam.CFrame.Position or rootPart.Position
@@ -822,6 +810,16 @@ local POTIONS = {
     ["Weakness Potion"] = {{name = "Ice Cube", amount = 3}, {name = "Berry", amount = 2}, {name = "Magnetite", amount = 3}},
     ["Haste Potion"] = {{name = "Ice Cube", amount = 3}, {name = "Iron", amount = 2}, {name = "Lemon", amount = 2}}
 }
+
+local function getInventorySlot(itemName)
+    local list = plr.PlayerGui:FindFirstChild("MainGui") and plr.PlayerGui.MainGui:FindFirstChild("RightPanel") and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory") and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
+    if not list then return nil end
+    for _, slot in ipairs(list:GetChildren()) do
+        if slot:IsA("ImageLabel") and slot.Name:find(itemName) then
+            return slot.LayoutOrder
+        end
+    end
+end
 
 local function brewPotions()
     if isBrewing then return end
