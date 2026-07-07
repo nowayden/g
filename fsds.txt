@@ -680,10 +680,10 @@ task.spawn(function()
                 end
             end
             
-            -- Cleanup stale debounces (if planted but server packet dropped after 3s)
+            -- Cleanup stale debounces (if planted but server packet dropped)
             local now = tick()
             for id, timePlanted in pairs(localPlantDebounce) do
-                if now - timePlanted > 3 then
+                if now - timePlanted > 0.2 then
                     localPlantDebounce[id] = nil
                 end
             end
