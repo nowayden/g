@@ -5,7 +5,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "um", SubTitle = "", TabWidth = 160,
+    Title = "", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -142,7 +142,6 @@ Tabs.Farming:AddSection("Farming Settings")
 Tabs.Farming:CreateDropdown("fruitdropdown", {Title = "Select Fruit", Values = {"Bloodfruit", "Bluefruit", "Lemon", "Coconut", "Jelly", "Banana", "Orange", "Oddberry", "Berry", "Strangefruit", "Strawberry", "Sunfruit", "Pumpkin", "Prickly Pear", "Apple", "Barley", "Cloudberry", "Carrot", "Blossom"}, Default = "Bloodfruit"})
 Tabs.Farming:CreateToggle("planttoggle", { Title = "Auto Plant", Default = false })
 Tabs.Farming:CreateSlider("plantrange", { Title = "Plant Range", Min = 1, Max = 100, Rounding = 1, Default = 30 })
-Tabs.Farming:CreateSlider("plantdelay", { Title = "Plant Delay (s)", Min = 0.01, Max = 1, Rounding = 2, Default = 0.1 })
 Tabs.Farming:CreateToggle("harvesttoggle", { Title = "Auto Harvest", Default = false })
 Tabs.Farming:CreateSlider("harvestrange", { Title = "Harvest Range", Min = 1, Max = 30, Rounding = 1, Default = 30 })
 
@@ -627,11 +626,10 @@ local lastPlantCacheUpdate = 0
 local plantCache = {}
 task.spawn(function()
     while true do
-        if not Options.planttoggle.Value then task.wait(0.5) continue end
+        if not Options.planttoggle.Value then task.wait(0.1) continue end
         local fruitName = Options.fruitdropdown.Value
         local itemID = fruittoitemid[fruitName]
-        if not itemID then task.wait(0.5) continue end
-        local delay = tonumber(Options.plantdelay.Value) or 0.1
+        if not itemID then task.wait(0.1) continue end
         local range = tonumber(Options.plantrange.Value) or 30
         local deployablesFolder = workspace:FindFirstChild("Deployables")
         if deployablesFolder then
@@ -667,7 +665,8 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(delay)
+        -- Removed artificial delay slider configuration. Loop executes instantly.
+        task.wait()
     end
 end)
 
