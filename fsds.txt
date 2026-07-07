@@ -5,7 +5,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "tuff?xdxd", SubTitle = "", TabWidth = 160,
+    Title = "easdadsdasdsaz", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -667,7 +667,13 @@ task.spawn(function()
                                 localPlantDebounce[entityid] = tick()
                                 plant(entityid, itemID)
                                 
-                                -- Delay removed: nonstop planting
+                                -- Apply the slider delay PER PLANT to prevent packet dropping.
+                                -- If slider is 0, yield exactly 1 frame so the server doesn't rate-limit.
+                                if delay <= 0.01 then 
+                                    runs.Heartbeat:Wait() 
+                                else 
+                                    task.wait(delay) 
+                                end
                             end
                         end
                     end
@@ -719,8 +725,7 @@ task.spawn(function()
             for id, timeHarvested in pairs(localHarvestDebounce) do
                 if now - timeHarvested > 1.5 then
                     localHarvestDebounce[id] = nil
-                end
-            end
+                end            end
         end
         runs.Heartbeat:Wait()
     end
