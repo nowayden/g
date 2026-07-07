@@ -5,7 +5,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "", SubTitle = "", TabWidth = 160,
+    Title = "XD", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -64,6 +64,7 @@ local function getInventoryCount(itemName)
         and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
     if list then
         local total = 0
+        
         for _, slot in ipairs(list:GetChildren()) do
             if slot:IsA("GuiObject") and (slot.Name == itemName or slot.Name:find(itemName)) then
                 local quantityImg = slot:FindFirstChild("QuantityImage")
@@ -156,6 +157,11 @@ Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Con
 Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees"}, Default = "0 degrees"})
 Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placeSingleSnappedBox() end})
 
+Tabs.Farming:AddSection("Dock Placer")
+Tabs.Farming:AddToggle("placedockstoggle", { Title = "Place Docks Continuously", Default = false })
+Tabs.Farming:AddDropdown("dockrotationdropdown", {Title = "Dock Rotation", Values = {"0 degrees"}, Default = "0 degrees"})
+Tabs.Farming:AddButton({Title = "Place Single Dock (Snapped)", Callback = function() placeSingleSnappedDock() end})
+
 Tabs.Farming:AddSection("Gold Farming")
 Tabs.Farming:AddButton({
     Title = "Farm Gold",
@@ -226,7 +232,7 @@ local function drop(itemname)
     for _, child in ipairs(inv:GetChildren()) do
         if child:IsA("ImageLabel") and child.Name == itemname then
             if packets.DropBagItem and packets.DropBagItem.send then
-               packets.DropBagItem.send(child.LayoutOrder)
+                packets.DropBagItem.send(child.LayoutOrder)
              end
         end
     end
@@ -400,6 +406,7 @@ local function startQueenServantAura()
             if queenServantConn then queenServantConn:Disconnect(); queenServantConn = nil end
             return 
         end
+    
         if not root or not GameUtil.Data.equipped then return end
         local ct = tick()
         local cooldown = (Options.crittercooldownslider and tonumber(Options.crittercooldownslider.Value)) or 0.1
@@ -425,6 +432,7 @@ local function startQueenServantAura()
             table.sort(targets, function(a,b) return a.dist < b.dist end)
             local sel = {}
             for i = 1, math.min(tc, #targets) do table.insert(sel, targets[i].eid) end
+            
             swingtool(sel)
             lastQueenServantTime = ct
         end
@@ -497,6 +505,7 @@ local function getpbs(range)
     if not deployablesFolder then return plantboxes end
     local charPos = root.Position
     local children = deployablesFolder:GetChildren()
+  
     for i = 1, #children do
         local deployable = children[i]
         if deployable.Name == "Plant Box" and deployable:IsA("Model") then
@@ -522,6 +531,7 @@ local function getbushes(range, fruitname)
         local model = children[i]
         if model:IsA("Model") and model.Name:find(fruitname) then
             local ppart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+         
             if ppart then
                 local dist = (ppart.Position - charPos).Magnitude
                 if dist <= range then
@@ -542,7 +552,8 @@ local function walkToTarget(targetPosition)
     if hum and root and targetPosition then
         hum:MoveTo(targetPosition)
          local now = tick()
-         local dt = now - lastCheck
+         
+        local dt = now - lastCheck
         if lastCheck == 0 or dt > 0.5 then
             lastCheck = now
             lastPos = root.Position
@@ -550,7 +561,8 @@ local function walkToTarget(targetPosition)
             return
         end
         lastCheck = now
-         if (root.Position - targetPosition).Magnitude > 3 then
+       
+        if (root.Position - targetPosition).Magnitude > 3 then
             if (root.Position - lastPos).Magnitude < 1 * dt then
                 stuckTimer = stuckTimer + dt
                 if stuckTimer >= 3 then
@@ -562,7 +574,7 @@ local function walkToTarget(targetPosition)
             end
         else
             stuckTimer = 0
-         end
+        end
         lastPos = root.Position
     end
 end
@@ -586,7 +598,7 @@ local function pathToBushesOrBoxes(range, fruitname)
     if #bushes > 0 then
         for _, bush in ipairs(bushes) do
             if bush.model.PrimaryPart then
-                 walkToTarget(bush.model.PrimaryPart.Position)
+                walkToTarget(bush.model.PrimaryPart.Position)
                  break
             end
         end
@@ -595,7 +607,7 @@ local function pathToBushesOrBoxes(range, fruitname)
         table.sort(plantboxes, function(a, b) return a.dist < b.dist end)
         for _, box in ipairs(plantboxes) do
             if not box.deployable:FindFirstChild("Seed") then
-                 if box.deployable.PrimaryPart then
+                if box.deployable.PrimaryPart then
                     walkToTarget(box.deployable.PrimaryPart.Position)
                     break
                 end
@@ -637,6 +649,7 @@ task.spawn(function()
         local delay = tonumber(Options.plantdelay.Value) or 0.1
         local selectedfruit = Options.fruitdropdown.Value
         local itemID = fruittoitemid[selectedfruit] or 94
+   
         local currentTime = tick()
         local deployablesFolder = workspace:FindFirstChild("Deployables")
         
@@ -644,7 +657,8 @@ task.spawn(function()
             if currentTime - lastPlantCacheUpdate > 0.4 or #plantCache == 0 then
                 plantCache = {}
                 local children = deployablesFolder:GetChildren()
-                 for i = 1, #children do
+    
+                for i = 1, #children do
                     local v = children[i]
                     if v.Name == "Plant Box" then
                         local ppart = v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
@@ -652,7 +666,7 @@ task.spawn(function()
                         if ppart and entityid then table.insert(plantCache, {box = v, part = ppart, id = entityid}) end
                     end
                 end
-                 lastPlantCacheUpdate = currentTime
+                lastPlantCacheUpdate = currentTime
             end
             if root then
                 local myPos = root.Position
@@ -661,7 +675,7 @@ task.spawn(function()
                      if data.box.Parent == deployablesFolder then
                         if (data.part.Position - myPos).Magnitude <= range then
                             if not data.box:FindFirstChild("Seed") then plant(data.id, itemID) else plantedboxes[data.id] = true end
-                         end
+                        end
                     end
                 end
             end
@@ -713,7 +727,7 @@ task.spawn(function()
             for id, data in pairs(trackedBushes) do
                 if not workspace:FindFirstChild(data.name) and (data.pos - root.Position).Magnitude <= harvestrange then
                     if gained == 0 then
-                        gained = 3
+                         gained = 3
                          print("[Tracker Fallback Match] Bush deletion registered within radius! Force-adding +3 fruits.")
                     end
                     trackedBushes[id] = nil
@@ -723,8 +737,8 @@ task.spawn(function()
              for _, bush in ipairs(bushes) do
                 if bush.entityid and not trackedBushes[bush.entityid] then
                     trackedBushes[bush.entityid] = {
-                         name = bush.model.Name,
-                         pos = bush.model.PrimaryPart and bush.model.PrimaryPart.Position or root.Position
+                        name = bush.model.Name,
+                        pos = bush.model.PrimaryPart and bush.model.PrimaryPart.Position or root.Position
                     }
                 end
             end
@@ -788,6 +802,38 @@ Options.placeplantboxestoggle:OnChanged(function(v)
         placementConn = runs.Heartbeat:Connect(function() placeSingleSnappedBox(); task.wait(0.1) end)
     else
         if placementConn then placementConn:Disconnect(); placementConn = nil end
+    end
+end)
+
+-- Dock placement (Tight Edge-to-Edge Snapping)
+function placeSingleSnappedDock()
+    local char = plr.Character
+    if not (char and char:FindFirstChild("HumanoidRootPart")) then return end
+    local pos = char.HumanoidRootPart.Position
+    local cam = workspace.CurrentCamera
+    local cursorPos = cam and cam.CFrame.Position or pos
+    local gs = 5.05
+    local sp = Vector3.new(math.round(pos.X/gs)*gs, pos.Y, math.round(pos.Z/gs)*gs)
+    
+    local rp = RaycastParams.new()
+    -- IgnoreWater set to false allowing the Raycast to hit the water surface so it properly acts like a dock
+    rp.FilterType, rp.FilterDescendantsInstances, rp.IgnoreWater = Enum.RaycastFilterType.Blacklist, {char}, false
+    local rr = workspace:Raycast(Vector3.new(sp.X, sp.Y+100, sp.Z), Vector3.new(0,-200,0), rp)
+    local fp = rr and rr.Position or sp
+    local rot = CFrame.Angles(0, 0, 0)
+    
+    if packets.PlaceStructure and packets.PlaceStructure.send then
+        packets.PlaceStructure.send({buildingName = "Dock", cframe = CFrame.new(fp)*rot, vec = fp, isMobile = false, cursor = cursorPos})
+    end
+end
+
+local dockPlacementConn
+Options.placedockstoggle:OnChanged(function(v)
+    if v then
+        if dockPlacementConn then dockPlacementConn:Disconnect() end
+        dockPlacementConn = runs.Heartbeat:Connect(function() placeSingleSnappedDock(); task.wait(0.1) end)
+    else
+        if dockPlacementConn then dockPlacementConn:Disconnect(); dockPlacementConn = nil end
     end
 end)
 
@@ -907,7 +953,7 @@ local function pressBedButton()
             pcall(function() firesignal(gui.Activated) end)
         end
     end
-      pcall(function() rs.Events.SpawnFirst:InvokeServer(true) end)
+    pcall(function() rs.Events.SpawnFirst:InvokeServer(true) end)
 end
 
 local function getPlayerLevel()
@@ -927,7 +973,7 @@ local function AutoRebirthLoop()
     while autoRebirthRunning do
         task.wait(0.5)
         local spawnGui = plr.PlayerGui:FindFirstChild("SpawnGui")
-          if spawnGui and spawnGui.Enabled then pressBedButton() end
+        if spawnGui and spawnGui.Enabled then pressBedButton() end
         local currentLevel = getPlayerLevel()
         if currentLevel >= 100 then doRebirth(); task.wait(6) end
     end
@@ -982,7 +1028,7 @@ local function getPrioritizedTarget()
                         if dist < antMinDist then
                             antMinDist = dist
                             antInstance = c
-                        end
+                         end
                     end
                 end
             end
@@ -1011,12 +1057,12 @@ task.spawn(function()
                 continue
             end
              
-             -- If we are currently tracking an ID, make sure it still exists in workspace
+            -- If we are currently tracking an ID, make sure it still exists in workspace
             local activeTargetStillAlive = false
             if currentlyLockedID then
                 local critters = workspace:FindFirstChild("Critters")
                 if critters then
-                     for _, c in ipairs(critters:GetChildren()) do
+                    for _, c in ipairs(critters:GetChildren()) do
                         if c:GetAttribute("EntityID") == currentlyLockedID then
                             local humCheck = c:FindFirstChildWhichIsA("Humanoid")
                             if not humCheck or humCheck.Health > 0 then
@@ -1028,7 +1074,7 @@ task.spawn(function()
                                  end
                                 break
                             end
-                         end
+                        end
                     end
                 end
                 
