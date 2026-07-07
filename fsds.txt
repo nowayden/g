@@ -5,7 +5,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "ez", SubTitle = "", TabWidth = 160,
+    Title = "tuff?", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -631,7 +631,7 @@ local function plant(entityid, itemID)
     end
 end
 
--- Hyper-optimized auto plant loop (CONTINUOUS INSTANT - NO WAITS WHATSOEVER)
+-- Hyper-optimized auto plant loop (Fixed per-plant yielding)
 local localPlantDebounce = {}
 task.spawn(function()
     while true do
@@ -642,6 +642,7 @@ task.spawn(function()
         end
         
         local range = tonumber(Options.plantrange.Value) or 30
+        local delay = tonumber(Options.plantdelay.Value) or 0.1
         local itemID = fruittoitemid[Options.fruitdropdown.Value] or 94
         
         local deployables = workspace:FindFirstChild("Deployables")
@@ -665,6 +666,8 @@ task.spawn(function()
                             if dist <= range then
                                 localPlantDebounce[entityid] = tick()
                                 plant(entityid, itemID)
+                                
+                                -- Delay removed: nonstop planting
                             end
                         end
                     end
@@ -680,7 +683,7 @@ task.spawn(function()
             end
         end
         
-        -- ABSOLUTELY NO WAIT - instant continuous scanning
+        -- Base loop idle
         runs.Heartbeat:Wait() 
     end
 end)
