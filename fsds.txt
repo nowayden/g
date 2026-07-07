@@ -1,11 +1,11 @@
-print("loadingygsfysdgy8fsgfsduifosdfodshfosidifseifeoiufoisueiosurtfe89573492857293852739852798572938327985239823789539278523985723985798572938579825798237598237958327983279853279853223")
-print("---------------------xd-------------")
+print("loading")
+print("----------------------------------")
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "ez", SubTitle = "", TabWidth = 160,
+    Title = "eheloz", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -666,8 +666,6 @@ task.spawn(function()
                             if dist <= range then
                                 localPlantDebounce[entityid] = tick()
                                 plant(entityid, itemID)
-                                
-                                -- No per-plant delay. Continue planting immediately.
                             end
                         end
                     end
