@@ -5,7 +5,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "ez", SubTitle = "", TabWidth = 160,
+    Title = "ways", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -490,7 +490,7 @@ end)
 -- ====== OPTIMIZED FARMING HELPERS ======
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
 
--- Used exclusively for UI tracker fallbacks
+-- Used for UI tracker fallbacks and classic harvesting
 local function getbushes(range, fruitname)
     local bushes = {}
     if not root then return bushes end
@@ -694,41 +694,17 @@ task.spawn(function()
     end
 end)
 
--- Hyper-optimized auto harvest loop (Direct execution, zero table sorts)
-local localHarvestDebounce = {}
+-- Classic auto harvest loop
 task.spawn(function()
     while true do
-        if not Options.harvesttoggle.Value then table.clear(localHarvestDebounce); task.wait(0.1) continue end
         local range = tonumber(Options.harvestrange.Value) or 30
-        local fruitname = Options.fruitdropdown.Value
-        if root then
-            local charPos = root.Position
-            local children = workspace:GetChildren()
-            for i = 1, #children do
-                local model = children[i]
-                if model:IsA("Model") and model.Name:find(fruitname) then
-                    local eid = model:GetAttribute("EntityID")
-                    if eid and not localHarvestDebounce[eid] then
-                        local ppart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-                        if ppart then
-                            local dist = (ppart.Position - charPos).Magnitude
-                            if dist <= range then
-                                localHarvestDebounce[eid] = tick()
-                                pickup(eid)
-                            end
-                        end
-                    end
-                end
-            end
-            
-            local now = tick()
-            for id, timeHarvested in pairs(localHarvestDebounce) do
-                if now - timeHarvested > 1.5 then
-                    localHarvestDebounce[id] = nil
-                end
+        if Options.harvesttoggle.Value and root then
+            local bushes = getbushes(range, Options.fruitdropdown.Value)
+            for _, bush in ipairs(bushes) do
+                pickup(bush.entityid)
             end
         end
-        runs.Heartbeat:Wait()
+        task.wait(0.1)
     end
 end)
 
