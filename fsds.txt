@@ -1,11 +1,11 @@
-print("loading holy tuff lol")
+print("loading cooked.")
 print("----------------------------------")
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "auratuff", SubTitle = "", TabWidth = 160,
+    Title = "", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -560,37 +560,37 @@ local function getClosestBushPos(range, fruitname)
     return targetPos
 end
 
-local lastPos = Vector3.zero
+local lastPos = Vector3.new()
 local stuckTimer = 0
 local lastCheck = 0
 
 local function walkToTarget(targetPosition)
-    if not (hum and root and targetPosition) then return end
-
-    hum:MoveTo(targetPosition)
-
-    local now = tick()
-    if now - lastCheck < 0.35 then return end
-
-    local moved = (root.Position - lastPos).Magnitude
-    local dist = (root.Position - targetPosition).Magnitude
-
-    if dist > 3 then
-        if moved < 0.5 then
-            stuckTimer += (now - lastCheck)
-            if stuckTimer >= 2 then
-                hum.Jump = true
+    if hum and root and targetPosition then
+        hum:MoveTo(targetPosition)
+        local now = tick()
+        local dt = now - lastCheck
+        if lastCheck == 0 or dt > 0.5 then
+            lastCheck = now
+            lastPos = root.Position
+            stuckTimer = 0
+            return
+        end
+        lastCheck = now
+        if (root.Position - targetPosition).Magnitude > 3 then
+            if (root.Position - lastPos).Magnitude < 1 * dt then
+                stuckTimer = stuckTimer + dt
+                if stuckTimer >= 3 then
+                    hum.Jump = true
+                    stuckTimer = 0
+                end
+            else
                 stuckTimer = 0
             end
         else
             stuckTimer = 0
         end
-    else
-        stuckTimer = 0
+        lastPos = root.Position
     end
-
-    lastPos = root.Position
-    lastCheck = now
 end
 
 local function pathToPlantbox(range)
@@ -608,26 +608,20 @@ local function pathToBushesOrBoxes(range, fruitname)
     end
 end
 
--- RunService for maximum pathing fluidity
+-- RunService for maximum pathing fluidity (Throttled loop scan rate to solve FPS lag)
 task.spawn(function()
     while true do
-        if Options.tweentoplantbox.Value then
-            pathToPlantbox(tonumber(Options.tweenrange.Value) or 250)
-            task.wait(0.05)
-        else
-            task.wait(0.15)
-        end
+        if not Options.tweentoplantbox.Value then task.wait(0.1) continue end
+        pathToPlantbox(tonumber(Options.tweenrange.Value) or 250)
+        task.wait(0.1)
     end
 end)
 
 task.spawn(function()
     while true do
-        if Options.tweentobush.Value then
-            pathToBushesOrBoxes(tonumber(Options.tweenrange.Value) or 250, Options.fruitdropdown.Value)
-            task.wait(0.05)
-        else
-            task.wait(0.15)
-        end
+        if not Options.tweentobush.Value then task.wait(0.1) continue end
+        pathToBushesOrBoxes(tonumber(Options.tweenrange.Value) or 20, Options.fruitdropdown.Value)
+        task.wait(0.1)
     end
 end)
 
