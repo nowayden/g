@@ -694,6 +694,9 @@ task.spawn(function()
     end
 end)
 
+-- Table to remember what we've already picked up so we don't spam the server
+local recentlyHarvested = {}
+
 task.spawn(function()
     while true do
         if not Options.harvesttoggle.Value then
@@ -703,28 +706,43 @@ task.spawn(function()
 
         local harvestrange = tonumber(Options.harvestrange.Value) or 30
         local selectedfruit = Options.fruitdropdown.Value
-
         local bushes = getbushes(harvestrange, selectedfruit)
 
-        -- Only sort and iterate if there are actually bushes to process
         if bushes and #bushes > 0 then
             table.sort(bushes, function(a, b) return a.dist < b.dist end)
             
+            local actionsThisFrame = 0
+            
             for _, bush in ipairs(bushes) do
-                -- Stop immediately if the user turns the toggle off mid-harvest
                 if not Options.harvesttoggle.Value then break end
                 
-                pickup(bush.entityid)
-                
-                -- This tiny yield is the most important part.
-                -- It spreads the pickup actions across multiple frames instead of freezing the game.
-                task.wait(0.05) 
+                -- Check if we already picked this bush up recently
+                if not recentlyHarvested[bush.entityid] then
+                    pickup(bush.entityid)
+                    recentlyHarvested[bush.entityid] = os.clock() -- Mark it as harvested with the current time
+                    
+                    actionsThisFrame = actionsThisFrame + 1
+                    
+                    -- Every 15 bushes, wait a single frame (task.wait())
+                    -- This prevents game freezing on massive clusters (50+ bushes) 
+                    -- while still completing the entire batch in less than 0.1 seconds.
+                    if actionsThisFrame % 15 == 0 then
+                        task.wait() 
+                    end
+                end
             end
         end
 
-        -- Increased the overall wait time. 
-        -- 0.1 is too fast for a harvest loop and doesn't give the server enough time to delete the bushes you just picked up.
-        task.wait(0.5)
+        -- Clean up the memory table so it doesn't grow infinitely
+        -- Removes bushes from the blacklist after 3 seconds (in case bushes respawn with the same ID)
+        local currentTime = os.clock()
+        for id, timeHarvested in pairs(recentlyHarvested) do
+            if currentTime - timeHarvested > 3 then
+                recentlyHarvested[id] = nil
+            end
+        end
+
+        task.wait(0.1) -- Fast loop is back!
     end
 end)
 
