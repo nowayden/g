@@ -5,7 +5,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "", SubTitle = "", TabWidth = 160,
+    Title = "tuff", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -759,13 +759,53 @@ task.spawn(function()
     end
 end)
 
+local localHarvestDebounce = {}
 task.spawn(function()
     while true do
-        if not Options.harvesttoggle.Value then task.wait(0.1) continue end
-        local bushes = getbushes(tonumber(Options.harvestrange.Value) or 30, Options.fruitdropdown.Value)
-        table.sort(bushes, function(a, b) return a.dist < b.dist end)
-        for _, bush in ipairs(bushes) do pickup(bush.entityid) end
-        task.wait(0.1)
+        if not Options.harvesttoggle.Value then 
+            table.clear(localHarvestDebounce)
+            task.wait(0.1) 
+            continue 
+        end
+        
+        local range = tonumber(Options.harvestrange.Value) or 30
+        local fruitName = Options.fruitdropdown.Value
+        
+        if root then
+            local charPos = root.Position
+            local children = workspace:GetChildren()
+            
+            for i = 1, #children do
+                local model = children[i]
+                -- Check if it is the target fruit
+                if model.ClassName == "Model" and model.Name:find(fruitName) then
+                    local entityid = model:GetAttribute("EntityID")
+                    
+                    -- If we haven't already sent a pickup packet for this exact entity recently
+                    if entityid and not localHarvestDebounce[entityid] then
+                        local ppart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+                        if ppart then
+                            local dist = (ppart.Position - charPos).Magnitude
+                            if dist <= range then
+                                -- Log it locally to prevent packet spam
+                                localHarvestDebounce[entityid] = tick()
+                                pickup(entityid) -- Instantly fires the remote
+                            end
+                        end
+                    end
+                end
+            end
+            
+            -- Memory cleanup: Remove debounces after 1.5 seconds (gives the server time to delete the bush)
+            local now = tick()
+            for id, timeHarvested in pairs(localHarvestDebounce) do
+                if now - timeHarvested > 1.5 then
+                    localHarvestDebounce[id] = nil
+                end
+            end
+        end
+        
+        task.wait(0.05) -- Faster execution tick for instant feel, but perfectly safe due to the debounce
     end
 end)
 
