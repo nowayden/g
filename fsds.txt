@@ -700,14 +700,31 @@ task.spawn(function()
             task.wait(0.1)
             continue
         end
+
         local harvestrange = tonumber(Options.harvestrange.Value) or 30
         local selectedfruit = Options.fruitdropdown.Value
+
         local bushes = getbushes(harvestrange, selectedfruit)
-        table.sort(bushes, function(a, b) return a.dist < b.dist end)
-        for _, bush in ipairs(bushes) do
-            pickup(bush.entityid)
+
+        -- Only sort and iterate if there are actually bushes to process
+        if bushes and #bushes > 0 then
+            table.sort(bushes, function(a, b) return a.dist < b.dist end)
+            
+            for _, bush in ipairs(bushes) do
+                -- Stop immediately if the user turns the toggle off mid-harvest
+                if not Options.harvesttoggle.Value then break end
+                
+                pickup(bush.entityid)
+                
+                -- This tiny yield is the most important part.
+                -- It spreads the pickup actions across multiple frames instead of freezing the game.
+                task.wait(0.05) 
+            end
         end
-        task.wait(0.1)
+
+        -- Increased the overall wait time. 
+        -- 0.1 is too fast for a harvest loop and doesn't give the server enough time to delete the bushes you just picked up.
+        task.wait(0.5)
     end
 end)
 
