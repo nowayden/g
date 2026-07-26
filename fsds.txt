@@ -1,11 +1,11 @@
-print("loading")
+print("loading cooked.")
 print("----------------------------------")
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "tuff", SubTitle = "", TabWidth = 160,
+    Title = "", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -240,85 +240,56 @@ end)
 
 -- Resource Aura
 local resourceActive, resourceConn, lastResourceTime = false, nil, 0
-local cachedResources = {}
-local lastResourceCacheUpdate = 0
-
--- Updates the resource list only once a second to prevent FPS drops
-local function getResourceCache()
-    local ct = tick()
-    if ct - lastResourceCacheUpdate > 1 then
-        lastResourceCacheUpdate = ct
-        local newCache = {}
-        local resourcesFolder = workspace:FindFirstChild("Resources")
-        
-        if resourcesFolder then
-            local desc = resourcesFolder:GetDescendants()
-            for i = 1, #desc do
-                local r = desc[i]
-                if r:IsA("Model") and r:GetAttribute("EntityID") then
-                    table.insert(newCache, r)
-                end
-            end
-        end
-        
-        local wsChildren = workspace:GetChildren()
-        for i = 1, #wsChildren do
-            local r = wsChildren[i]
-            if r:IsA("Model") and r:GetAttribute("EntityID") then
-                local n = r.Name
-                -- Unrolled OR checks are much faster than looping through a table of strings
-                if string.find(n, "Node") or string.find(n, "Stone") or string.find(n, "Lode") or 
-                   string.find(n, "Rock") or string.find(n, "Coal") or string.find(n, "Guardian") then
-                    table.insert(newCache, r)
-                end
-            end
-        end
-        cachedResources = newCache
-    end
-    return cachedResources
-end
-
 local function startResource()
     if resourceActive then return end
     resourceActive = true
     resourceConn = runs.Heartbeat:Connect(function()
-        if not Options.resourceauratoggle.Value then 
-            resourceConn:Disconnect(); resourceConn = nil; resourceActive = false; return 
-        end
+        if not Options.resourceauratoggle.Value then resourceConn:Disconnect(); resourceConn = nil; resourceActive = false; return end
         if not root or not GameUtil.Data.equipped then return end
-        
         local ct = tick()
         if ct - lastResourceTime < (tonumber(Options.resourcecooldownslider.Value) or 0.1) then return end
-        lastResourceTime = ct -- Update time immediately
-        
         local range = tonumber(Options.resourceaurarange.Value) or 20
         local tc = tonumber(Options.resourcetargetdropdown.Value) or 1
-        local targets = {}
+        local targets, all = {}, {}
         
-        local allResources = getResourceCache()
-        local myPos = root.Position
-        
-        for i = 1, #allResources do
-            local res = allResources[i]
-            if res.Parent then -- Ensure it hasn't been destroyed
-                local pp = res.PrimaryPart or res:FindFirstChildWhichIsA("BasePart")
-                if pp then
-                    local dist = (pp.Position - myPos).Magnitude
-                    if dist <= range then
-                        table.insert(targets, {eid = res:GetAttribute("EntityID"), dist = dist})
+        if workspace:FindFirstChild("Resources") then
+            for _, r in pairs(workspace.Resources:GetDescendants()) do 
+                if r:IsA("Model") then 
+                    table.insert(all, r) 
+                end 
+            end
+        end
+ 
+        local resourceKeywords = {"Node", "Stone", "Lode", "Rock", "Coal", "Guardian"}
+        for _, r in pairs(workspace:GetChildren()) do 
+            if r:IsA("Model") then
+                local matchFound = false
+                for _, kw in ipairs(resourceKeywords) do
+                    if string.find(r.Name, kw) then
+                        matchFound = true
+                        break
                     end
+                end
+                if matchFound then
+                    table.insert(all, r)
+                end
+            end 
+        end
+        
+        for _, res in pairs(all) do
+            if res:IsA("Model") and res:GetAttribute("EntityID") then
+                local pp = res.PrimaryPart or res:FindFirstChildWhichIsA("BasePart")
+                if pp and (pp.Position - root.Position).Magnitude <= range then
+                    table.insert(targets, {eid = res:GetAttribute("EntityID"), dist = (pp.Position - root.Position).Magnitude})
                 end
             end
         end
-        
         if #targets > 0 then
-            -- Only sort if there's more than 1 target to save CPU cycles
-            if #targets > 1 then
-                table.sort(targets, function(a,b) return a.dist < b.dist end)
-            end
+            table.sort(targets, function(a,b) return a.dist < b.dist end)
             local sel = {}
             for i = 1, math.min(tc, #targets) do table.insert(sel, targets[i].eid) end
             swingtool(sel)
+            lastResourceTime = ct
         end
     end)
 end
@@ -337,46 +308,28 @@ function StartDeployableAura(range)
     deployableAuraActive = true
     range = range or 25
 
-    -- Cache folders outside the rapid loop
-    local foldersToScan = {
-        workspace:FindFirstChild("Deployables"),
-        workspace:FindFirstChild("Rubble"),
-        workspace:FindFirstChild("dropChests")
-    }
-
     deployableAuraConnection = RS.Heartbeat:Connect(function()
         if not deployableAuraActive or isTraderActive then return end
 
         local currentTime = tick()
         if currentTime - lastDeployableSwingTime < 0.1 then return end
-        lastDeployableSwingTime = currentTime
 
         local char = plr.Character
         local rootPart = char and char:FindFirstChild("HumanoidRootPart")
         if not rootPart then return end
-        
-        local myPos = rootPart.Position
+
         local targetList = {}
+        local folders = {"Deployables", "Rubble", "dropChests"}
       
-        for i = 1, #foldersToScan do
-            local folder = foldersToScan[i]
-            -- Re-fetch if the folder was somehow deleted and recreated
-            if not folder or not folder.Parent then
-                if i == 1 then foldersToScan[i] = workspace:FindFirstChild("Deployables")
-                elseif i == 2 then foldersToScan[i] = workspace:FindFirstChild("Rubble")
-                elseif i == 3 then foldersToScan[i] = workspace:FindFirstChild("dropChests") end
-                folder = foldersToScan[i]
-            end
-            
+        for _, folderName in ipairs(folders) do
+            local folder = workspace:FindFirstChild(folderName)
             if folder then
-                local children = folder:GetChildren()
-                for j = 1, #children do
-                    local child = children[j]
+                for _, child in pairs(folder:GetChildren()) do
                     local eid = child:GetAttribute("EntityID")
             
                     if eid then
                         local pp = child.PrimaryPart or child:FindFirstChildWhichIsA("BasePart")
-                        if pp and (pp.Position - myPos).Magnitude <= range then
+                        if pp and (pp.Position - rootPart.Position).Magnitude <= range then
                             table.insert(targetList, {entityID = eid, buffer = 0})
                         end
                     end
@@ -392,6 +345,7 @@ function StartDeployableAura(range)
                     timestamp = clock.getServerTime(true)
                 })
             end)
+            lastDeployableSwingTime = currentTime
         end
     end)
 end
@@ -406,50 +360,31 @@ local SchuylerActive, critterConn, lastCritterTime = false, nil, 0
 local function startCritter()
     if SchuylerActive then return end
     SchuylerActive = true
-    local critterFolder = workspace:FindFirstChild("Critters")
-    
     critterConn = runs.Heartbeat:Connect(function()
         if not Options.critterauratoggle.Value then critterConn:Disconnect(); critterConn = nil; SchuylerActive = false; return end
         if not root or not GameUtil.Data.equipped then return end
-        
         local ct = tick()
         if ct - lastCritterTime < (tonumber(Options.crittercooldownslider.Value) or 0.1) then return end
-        lastCritterTime = ct
-        
         local range = tonumber(Options.critterrangeslider.Value) or 20
         local tc = tonumber(Options.crittertargetdropdown.Value) or 1
         local targets = {}
-        
-        -- Safely re-fetch if needed
-        if not critterFolder or not critterFolder.Parent then
-            critterFolder = workspace:FindFirstChild("Critters")
-        end
-        
-        if critterFolder then
-            local children = critterFolder:GetChildren()
-            local myPos = root.Position
-            
-            for i = 1, #children do
-                local c = children[i]
+        local folder = workspace:FindFirstChild("Critters")
+        if folder then
+            for _, c in pairs(folder:GetChildren()) do
                 if c:IsA("Model") and c:GetAttribute("EntityID") then
                     local pp = c.PrimaryPart or c:FindFirstChildWhichIsA("BasePart")
-                    if pp then
-                        local dist = (pp.Position - myPos).Magnitude
-                        if dist <= range then
-                            table.insert(targets, {eid = c:GetAttribute("EntityID"), dist = dist})
-                        end
-                    end
+                    if pp and (pp.Position - root.Position).Magnitude <= range then
+                        table.insert(targets, {eid = c:GetAttribute("EntityID"), dist = (pp.Position - root.Position).Magnitude})
+                     end
                 end
             end
         end
-        
         if #targets > 0 then
-            if #targets > 1 then
-                table.sort(targets, function(a,b) return a.dist < b.dist end)
-            end
+            table.sort(targets, function(a,b) return a.dist < b.dist end)
             local sel = {}
             for i = 1, math.min(tc, #targets) do table.insert(sel, targets[i].eid) end
             swingtool(sel)
+            lastCritterTime = ct
         end
     end)
 end
@@ -734,10 +669,10 @@ task.spawn(function()
                                 
                                 -- Apply the slider delay PER PLANT to prevent packet dropping.
                                 -- If slider is 0, yield exactly 1 frame so the server doesn't rate-limit.
-                                if delay <= 0.04 then 
+                                if delay <= 0.01 then 
                                     runs.Heartbeat:Wait() 
                                 else 
-                                    task.wait(0.04) 
+                                    task.wait(0) 
                                 end
                             end
                         end
@@ -748,7 +683,7 @@ task.spawn(function()
             -- Cleanup stale debounces (if planted but server packet dropped)
             local now = tick()
             for id, timePlanted in pairs(localPlantDebounce) do
-                if now - timePlanted > 0.04 then
+                if now - timePlanted > 0.01 then
                     localPlantDebounce[id] = nil
                 end
             end
@@ -759,53 +694,20 @@ task.spawn(function()
     end
 end)
 
-local localHarvestDebounce = {}
 task.spawn(function()
     while true do
-        if not Options.harvesttoggle.Value then 
-            table.clear(localHarvestDebounce)
-            task.wait(0.1) 
-            continue 
+        if not Options.harvesttoggle.Value then
+            task.wait(0.1)
+            continue
         end
-        
-        local range = tonumber(Options.harvestrange.Value) or 30
-        local fruitName = Options.fruitdropdown.Value
-        
-        if root then
-            local charPos = root.Position
-            local children = workspace:GetChildren()
-            
-            for i = 1, #children do
-                local model = children[i]
-                -- Check if it is the target fruit
-                if model.ClassName == "Model" and model.Name:find(fruitName) then
-                    local entityid = model:GetAttribute("EntityID")
-                    
-                    -- If we haven't already sent a pickup packet for this exact entity recently
-                    if entityid and not localHarvestDebounce[entityid] then
-                        local ppart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-                        if ppart then
-                            local dist = (ppart.Position - charPos).Magnitude
-                            if dist <= range then
-                                -- Log it locally to prevent packet spam
-                                localHarvestDebounce[entityid] = tick()
-                                pickup(entityid) -- Instantly fires the remote
-                            end
-                        end
-                    end
-                end
-            end
-            
-            -- Memory cleanup: Remove debounces after 1.5 seconds (gives the server time to delete the bush)
-            local now = tick()
-            for id, timeHarvested in pairs(localHarvestDebounce) do
-                if now - timeHarvested > 1.5 then
-                    localHarvestDebounce[id] = nil
-                end
-            end
+        local harvestrange = tonumber(Options.harvestrange.Value) or 30
+        local selectedfruit = Options.fruitdropdown.Value
+        local bushes = getbushes(harvestrange, selectedfruit)
+        table.sort(bushes, function(a, b) return a.dist < b.dist end)
+        for _, bush in ipairs(bushes) do
+            pickup(bush.entityid)
         end
-        
-        task.wait(0.05) -- Faster execution tick for instant feel, but perfectly safe due to the debounce
+        task.wait(0.1)
     end
 end)
 
