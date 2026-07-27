@@ -5,7 +5,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "", SubTitle = "", TabWidth = 160,
+    Title = "tuuff", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -694,55 +694,36 @@ task.spawn(function()
     end
 end)
 
--- Table to remember what we've already picked up so we don't spam the server
-local recentlyHarvested = {}
+local queued = {}
 
 task.spawn(function()
     while true do
-        if not Options.harvesttoggle.Value then
-            task.wait(0.1)
-            continue
-        end
+        if Options.harvesttoggle.Value then
+            local harvestrange = tonumber(Options.harvestrange.Value) or 30
+            local selectedfruit = Options.fruitdropdown.Value
+            local bushes = getbushes(harvestrange, selectedfruit)
 
-        local harvestrange = tonumber(Options.harvestrange.Value) or 30
-        local selectedfruit = Options.fruitdropdown.Value
-        local bushes = getbushes(harvestrange, selectedfruit)
-
-        if bushes and #bushes > 0 then
-            table.sort(bushes, function(a, b) return a.dist < b.dist end)
-            
-            local actionsThisFrame = 0
-            
-            for _, bush in ipairs(bushes) do
-                if not Options.harvesttoggle.Value then break end
-                
-                -- Check if we already picked this bush up recently
-                if not recentlyHarvested[bush.entityid] then
-                    pickup(bush.entityid)
-                    recentlyHarvested[bush.entityid] = os.clock() -- Mark it as harvested with the current time
-                    
-                    actionsThisFrame = actionsThisFrame + 1
-                    
-                    -- Every 15 bushes, wait a single frame (task.wait())
-                    -- This prevents game freezing on massive clusters (50+ bushes) 
-                    -- while still completing the entire batch in less than 0.1 seconds.
-                    if actionsThisFrame % 15 == 0 then
-                        task.wait() 
+            if bushes then
+                -- Fires EVERY bush in range simultaneously in 1 single frame
+                for i = 1, #bushes do
+                    local id = bushes[i].entityid
+                    if not queued[id] then
+                        queued[id] = true
+                        task.spawn(pickup, id) -- Fires instantly without blocking the thread
                     end
                 end
             end
         end
+        
+        task.wait(0.05) -- Keeps checking for new spawns instantly
+    end
+end)
 
-        -- Clean up the memory table so it doesn't grow infinitely
-        -- Removes bushes from the blacklist after 3 seconds (in case bushes respawn with the same ID)
-        local currentTime = os.clock()
-        for id, timeHarvested in pairs(recentlyHarvested) do
-            if currentTime - timeHarvested > 3 then
-                recentlyHarvested[id] = nil
-            end
-        end
-
-        task.wait(0.1) -- Fast loop is back!
+-- Background thread: Clears the memory cache every 5 seconds so fresh spawns work
+task.spawn(function()
+    while true do
+        task.wait(5)
+        table.clear(queued)
     end
 end)
 
