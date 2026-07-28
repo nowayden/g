@@ -5,7 +5,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "", SubTitle = "", TabWidth = 160,
+    Title = "elo", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -407,7 +407,6 @@ local function startQueenServantAura()
         if ct - lastQueenServantTime < cooldown then return end
         local range = (Options.critterrangeslider and tonumber(Options.critterrangeslider.Value)) or 20
         
-        -- Default target count updated to hit 6 targets simultaneously
         local tc = 6 
 
         local targets = {}
@@ -490,21 +489,39 @@ end)
 -- ====== OPTIMIZED FARMING HELPERS ======
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
 
--- Used exclusively for UI tracker fallbacks
+-- UPDATED: Scans workspace, Deployables, and Resources recursively
 local function getbushes(range, fruitname)
     local bushes = {}
     if not root then return bushes end
     local charPos = root.Position
-    local children = workspace:GetChildren()
-    for i = 1, #children do
-        local model = children[i]
-        if model:IsA("Model") and model.Name:find(fruitname) then
-            local ppart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-            if ppart then
-                local dist = (ppart.Position - charPos).Magnitude
-                if dist <= range then
-                    local entityid = model:GetAttribute("EntityID")
-                    if entityid then table.insert(bushes, { entityid = entityid, model = model, dist = dist }) end
+    local targetLower = fruitname:lower()
+
+    local searchFolders = { workspace }
+    if workspace:FindFirstChild("Deployables") then table.insert(searchFolders, workspace.Deployables) end
+    if workspace:FindFirstChild("Resources") then table.insert(searchFolders, workspace.Resources) end
+
+    local checked = {}
+
+    for _, folder in ipairs(searchFolders) do
+        local instances = (folder == workspace) and folder:GetChildren() or folder:GetDescendants()
+        for _, obj in ipairs(instances) do
+            if not checked[obj] and (obj:IsA("Model") or obj:IsA("BasePart")) then
+                checked[obj] = true
+                local nameLower = obj.Name:lower()
+                if nameLower:find(targetLower, 1, true) then
+                    local ppart = obj:IsA("Model") and (obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")) or obj
+                    if ppart then
+                        local dist = (ppart.Position - charPos).Magnitude
+                        if dist <= range then
+                            local entityid = obj:GetAttribute("EntityID") 
+                                or ppart:GetAttribute("EntityID") 
+                                or (obj.Parent and obj.Parent:GetAttribute("EntityID"))
+                            
+                            if entityid then
+                                table.insert(bushes, { entityid = entityid, model = obj, dist = dist })
+                            end
+                        end
+                    end
                 end
             end
         end
@@ -512,7 +529,6 @@ local function getbushes(range, fruitname)
     return bushes
 end
 
--- Optimized linear scan functions for pathing (O(n), no sorting, no memory allocation)
 local function getClosestPlantBoxPos(range)
     local closestDist = range
     local targetPos = nil
@@ -537,21 +553,32 @@ local function getClosestPlantBoxPos(range)
     return targetPos
 end
 
+-- UPDATED: Scans workspace, Deployables, and Resources for closest bush
 local function getClosestBushPos(range, fruitname)
     local closestDist = range
     local targetPos = nil
-    if root then
-        local charPos = root.Position
-        local children = workspace:GetChildren()
-        for i = 1, #children do
-            local model = children[i]
-            if model:IsA("Model") and model.Name:find(fruitname) then
-                local ppart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-                if ppart then
-                    local dist = (ppart.Position - charPos).Magnitude
-                    if dist < closestDist then
-                        closestDist = dist
-                        targetPos = ppart.Position
+    if not root then return nil end
+    local charPos = root.Position
+    local targetLower = fruitname:lower()
+
+    local searchFolders = { workspace }
+    if workspace:FindFirstChild("Deployables") then table.insert(searchFolders, workspace.Deployables) end
+    if workspace:FindFirstChild("Resources") then table.insert(searchFolders, workspace.Resources) end
+
+    local checked = {}
+    for _, folder in ipairs(searchFolders) do
+        local instances = (folder == workspace) and folder:GetChildren() or folder:GetDescendants()
+        for _, obj in ipairs(instances) do
+            if not checked[obj] and (obj:IsA("Model") or obj:IsA("BasePart")) then
+                checked[obj] = true
+                if obj.Name:lower():find(targetLower, 1, true) then
+                    local ppart = obj:IsA("Model") and (obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")) or obj
+                    if ppart then
+                        local dist = (ppart.Position - charPos).Magnitude
+                        if dist < closestDist then
+                            closestDist = dist
+                            targetPos = ppart.Position
+                        end
                     end
                 end
             end
@@ -608,7 +635,7 @@ local function pathToBushesOrBoxes(range, fruitname)
     end
 end
 
--- RunService for maximum pathing fluidity (Throttled loop scan rate to solve FPS lag)
+-- RunService pathing loops
 task.spawn(function()
     while true do
         if not Options.tweentoplantbox.Value then task.wait(0.1) continue end
@@ -631,7 +658,7 @@ local function plant(entityid, itemID)
     end
 end
 
--- Hyper-optimized auto plant loop (Fixed per-plant yielding)
+-- Auto plant loop
 local localPlantDebounce = {}
 task.spawn(function()
     while true do
@@ -656,7 +683,6 @@ task.spawn(function()
                     local hasSeed = box:FindFirstChild("Seed")
                     local entityid = box:GetAttribute("EntityID")
                     
-                    -- If server confirms it has a seed, clear local debounce
                     if hasSeed and entityid then
                         localPlantDebounce[entityid] = nil
                     elseif not hasSeed and entityid and not localPlantDebounce[entityid] then
@@ -667,8 +693,6 @@ task.spawn(function()
                                 localPlantDebounce[entityid] = tick()
                                 plant(entityid, itemID)
                                 
-                                -- Apply the slider delay PER PLANT to prevent packet dropping.
-                                -- If slider is 0, yield exactly 1 frame so the server doesn't rate-limit.
                                 if delay <= 0.01 then 
                                     runs.Heartbeat:Wait() 
                                 else 
@@ -680,7 +704,6 @@ task.spawn(function()
                 end
             end
             
-            -- Cleanup stale debounces (if planted but server packet dropped)
             local now = tick()
             for id, timePlanted in pairs(localPlantDebounce) do
                 if now - timePlanted > 0.01 then
@@ -689,64 +712,57 @@ task.spawn(function()
             end
         end
         
-        -- Base loop idle
         runs.Heartbeat:Wait() 
     end
 end)
 
-local localHarvestDebounce = {}
+-- Auto Harvest Loop
+local recentlyHarvested = {}
+
 task.spawn(function()
     while true do
-        if not Options.harvesttoggle.Value then 
-            table.clear(localHarvestDebounce)
-            task.wait(0.1) 
-            continue 
+        if not Options.harvesttoggle.Value then
+            task.wait(0.1)
+            continue
         end
-        
-        -- The server will completely reject packets sent from further than 25 studs.
-        -- We MUST clamp the maximum range to 25 so it doesn't trigger the debounce too early!
-        local range = math.min(tonumber(Options.harvestrange.Value) or 25, 25)
-        local fruitName = Options.fruitdropdown.Value
-        
-        if root then
-            local charPos = root.Position
-            local children = workspace:GetChildren()
+
+        local harvestrange = tonumber(Options.harvestrange.Value) or 30
+        local selectedfruit = Options.fruitdropdown.Value
+        local bushes = getbushes(harvestrange, selectedfruit)
+
+        if bushes and #bushes > 0 then
+            table.sort(bushes, function(a, b) return a.dist < b.dist end)
             
-            for i = 1, #children do
-                local model = children[i]
-                -- Check if it is the target fruit
-                if model.ClassName == "Model" and model.Name:find(fruitName) then
-                    local entityid = model:GetAttribute("EntityID")
+            local actionsThisFrame = 0
+            
+            for _, bush in ipairs(bushes) do
+                if not Options.harvesttoggle.Value then break end
+                
+                if not recentlyHarvested[bush.entityid] then
+                    pickup(bush.entityid)
+                    recentlyHarvested[bush.entityid] = os.clock()
                     
-                    -- If we haven't already sent a pickup packet for this exact entity recently
-                    if entityid and not localHarvestDebounce[entityid] then
-                        
-                        -- Use GetPivot() to ensure accurate distance calculation matching the game's new system
-                        local dist = (model:GetPivot().Position - charPos).Magnitude
-                        
-                        if dist <= range then
-                            -- Log it locally to prevent packet spam
-                            localHarvestDebounce[entityid] = tick()
-                            pickup(entityid) -- Instantly fires the remote
-                        end
+                    actionsThisFrame = actionsThisFrame + 1
+                    
+                    if actionsThisFrame % 15 == 0 then
+                        task.wait() 
                     end
                 end
             end
-            
-            -- Memory cleanup: Remove debounces after 1.5 seconds (gives the server time to delete the bush)
-            local now = tick()
-            for id, timeHarvested in pairs(localHarvestDebounce) do
-                if now - timeHarvested > 1.5 then
-                    localHarvestDebounce[id] = nil
-                end
+        end
+
+        local currentTime = os.clock()
+        for id, timeHarvested in pairs(recentlyHarvested) do
+            if currentTime - timeHarvested > 3 then
+                recentlyHarvested[id] = nil
             end
         end
-        
-        task.wait(0.05) -- Faster execution tick for instant feel, but perfectly safe due to the debounce
+
+        task.wait(0.1)
     end
 end)
 
--- REWRITTEN HIGH-ACCURACY PARALLEL TRACKING LOOP
+-- PARALLEL TRACKING LOOP
 task.spawn(function()
     local lastCount = nil
     local trackedBushes = {}
@@ -756,22 +772,19 @@ task.spawn(function()
         local currentCount = getInventoryCount(targetFruit) or 0
         local gained = 0
         
-        -- 1. Inventory Delta Processing
         if lastCount == nil then
             lastCount = currentCount
-            print("[Tracker] Context Engine Init baseline total for " .. targetFruit .. ": " .. tostring(lastCount))
-         else
+            print("[Tracker] Baseline total for " .. targetFruit .. ": " .. tostring(lastCount))
+        else
             if currentCount > lastCount then
                 gained = currentCount - lastCount
-                print("[Tracker Inventory Match] Found Increment: +" .. tostring(gained) .. " |\nItem: " .. targetFruit)
+                print("[Tracker Inventory Match] Found Increment: +" .. tostring(gained) .. " | Item: " .. targetFruit)
                 lastCount = currentCount
             elseif currentCount < lastCount then
-                print("[Tracker Inventory Recalibrate] Drop/Spent detected. Adjusting inventory baseline down to: " .. tostring(currentCount))
                 lastCount = currentCount
             end
-         end
+        end
         
-        -- 2. Bush Deletion Fallback Processing
         if Options.harvesttoggle.Value and targetFruit == "Bloodfruit" and root then
             local harvestrange = tonumber(Options.harvestrange.Value) or 30
             local bushes = getbushes(harvestrange, "Bloodfruit")
@@ -780,7 +793,7 @@ task.spawn(function()
                 if not workspace:FindFirstChild(data.name) and (data.pos - root.Position).Magnitude <= harvestrange then
                     if gained == 0 then
                          gained = 3
-                         print("[Tracker Fallback Match] Bush deletion registered within radius! Force-adding +3 fruits.")
+                         print("[Tracker Fallback] Bush deletion registered! Force-adding +3 fruits.")
                     end
                     trackedBushes[id] = nil
                  end
@@ -796,13 +809,11 @@ task.spawn(function()
              end
         end
         
-        -- 3. Metric Calculations and UI Updates
         if gained > 0 then
              if not farmStats.timerStarted then
                 farmStats.timerStarted = true
                 farmStats.startTime = tick()
                 farmStats.sessionStartTime = tick()
-                print("[Tracker Stopwatch] Initial harvest verified.\nTimer running.")
             end
             farmStats.bloodfruits = farmStats.bloodfruits + gained
             farmStats.totalAllTime = farmStats.totalAllTime + gained
@@ -828,7 +839,7 @@ task.spawn(function()
     end
 end)
 
--- Plant box placement (Tight Edge-to-Edge Snapping)
+-- Plant box placement
 function placeSingleSnappedBox()
     local char = plr.Character
     if not (char and char:FindFirstChild("HumanoidRootPart")) then return end
@@ -839,7 +850,7 @@ function placeSingleSnappedBox()
     local sp = Vector3.new(math.round(pos.X/gs)*gs, pos.Y, math.round(pos.Z/gs)*gs)
     local rp = RaycastParams.new()
     rp.FilterType, rp.FilterDescendantsInstances, rp.IgnoreWater = Enum.RaycastFilterType.Blacklist, {char}, true
-     local rr = workspace:Raycast(Vector3.new(sp.X, sp.Y+100, sp.Z), Vector3.new(0,-200,0), rp)
+    local rr = workspace:Raycast(Vector3.new(sp.X, sp.Y+100, sp.Z), Vector3.new(0,-200,0), rp)
     local fp = rr and rr.Position or sp
     local rot = CFrame.Angles(0, 0, 0)
     if packets.PlaceStructure and packets.PlaceStructure.send then
@@ -1025,25 +1036,21 @@ local function getPrioritizedTarget()
                 if not humCheck or humCheck.Health > 0 then
                     local dist = (pp.Position - root.Position).Magnitude
                     
-                    -- Priority 0: Wandering Trader Event Logic
                     if c.Name == "Wandering Trader" then
                         if dist < traderMinDist then
                             traderMinDist = dist
                             traderInstance = c
                         end
-                    -- Priority 1: The Voodoo Spider Queen
                     elseif c.Name == "The Voodoo Spider Queen" and not traderInstance then
                         if dist < queenMinDist then
                             queenMinDist = dist
                             queenInstance = c
                         end
-                    -- Priority 2: Soul Minion
                     elseif c.Name == "Soul Minion" and not traderInstance and not queenInstance then
                         if dist < minionMinDist then
                             minionMinDist = dist
                             minionInstance = c
                         end
-                    -- Priority 3: Void Ant
                      elseif c.Name == "Void Ant" and not traderInstance and not queenInstance and not minionInstance then
                         if dist < antMinDist then
                             antMinDist = dist
@@ -1062,7 +1069,7 @@ local function getPrioritizedTarget()
     return nil
 end
 
--- Completely Rewritten Lockout Execution Loop
+-- Lockout Execution Loop
 task.spawn(function()
     local currentlyLockedID = nil
     local targetExpiryDelay = 0
@@ -1071,13 +1078,11 @@ task.spawn(function()
         if Options.tpsoulminionstoggle and Options.tpsoulminionstoggle.Value and root then
             local rightNow = tick()
              
-            -- Firmly enforce the 3-second delay period after any target vanishes
             if rightNow < targetExpiryDelay then
                 task.wait(0.05)
                 continue
             end
              
-            -- If we are currently tracking an ID, make sure it still exists in workspace
             local activeTargetStillAlive = false
             if currentlyLockedID then
                 local critters = workspace:FindFirstChild("Critters")
@@ -1089,7 +1094,6 @@ task.spawn(function()
                                 activeTargetStillAlive = true
                                 local targetPart = c.PrimaryPart or c:FindFirstChildWhichIsA("BasePart")
                                 if targetPart then
-                                    -- Continuous strict position lock teleportation
                                     root.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
                                 end
                                 break
@@ -1098,7 +1102,6 @@ task.spawn(function()
                     end
                 end
                 
-                -- TARGET ELIMINATED: If it was alive last frame but is now gone/dead, initiate the 3-second lockout delay
                  if not activeTargetStillAlive then
                     print("[Exploit Engine] Target eliminated!\nTriggering strict 3-second swap delay.")
                     targetExpiryDelay = rightNow + 1.5
@@ -1106,7 +1109,6 @@ task.spawn(function()
                 end
             end
             
-             -- If we aren't tracking anything, look for the next prioritized target
             if not currentlyLockedID and rightNow >= targetExpiryDelay then
                 local nextTarget = getPrioritizedTarget()
                 if nextTarget then
