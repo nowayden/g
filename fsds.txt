@@ -5,7 +5,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "elo", SubTitle = "", TabWidth = 160,
+    Title = "", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -489,7 +489,7 @@ end)
 -- ====== OPTIMIZED FARMING HELPERS ======
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
 
--- UPDATED: Scans workspace, Deployables, and Resources recursively
+-- UPDATED: Scans workspace, Crops, Deployables, and Resources recursively
 local function getbushes(range, fruitname)
     local bushes = {}
     if not root then return bushes end
@@ -497,6 +497,8 @@ local function getbushes(range, fruitname)
     local targetLower = fruitname:lower()
 
     local searchFolders = { workspace }
+    -- Adding specific target directories to the recursive search pipeline
+    if workspace:FindFirstChild("Crops") then table.insert(searchFolders, workspace.Crops) end
     if workspace:FindFirstChild("Deployables") then table.insert(searchFolders, workspace.Deployables) end
     if workspace:FindFirstChild("Resources") then table.insert(searchFolders, workspace.Resources) end
 
@@ -553,7 +555,7 @@ local function getClosestPlantBoxPos(range)
     return targetPos
 end
 
--- UPDATED: Scans workspace, Deployables, and Resources for closest bush
+-- UPDATED: Scans workspace, Crops, Deployables, and Resources for closest bush
 local function getClosestBushPos(range, fruitname)
     local closestDist = range
     local targetPos = nil
@@ -562,6 +564,8 @@ local function getClosestBushPos(range, fruitname)
     local targetLower = fruitname:lower()
 
     local searchFolders = { workspace }
+    -- Adding specific target directories to the recursive search pipeline
+    if workspace:FindFirstChild("Crops") then table.insert(searchFolders, workspace.Crops) end
     if workspace:FindFirstChild("Deployables") then table.insert(searchFolders, workspace.Deployables) end
     if workspace:FindFirstChild("Resources") then table.insert(searchFolders, workspace.Resources) end
 
