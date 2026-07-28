@@ -1,11 +1,11 @@
-print("loading")
+print("loading cooked.")
 print("----------------------------------")
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "", SubTitle = "", TabWidth = 160,
+    Title = "helo", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -563,6 +563,31 @@ local function getClosestPlantBoxPos(range)
     return targetPos
 end
 
+-- Optimized linear scan functions for pathing
+local function getClosestPlantBoxPos(range)
+    local closestDist = range
+    local targetPos = nil
+    local deployables = workspace:FindFirstChild("Deployables")
+    if deployables and root then
+        local charPos = root.Position
+        local children = deployables:GetChildren()
+        for i = 1, #children do
+            local box = children[i]
+            if box.Name == "Plant Box" and not box:FindFirstChild("Seed") then
+                local ppart = box.PrimaryPart or box:FindFirstChildWhichIsA("BasePart")
+                if ppart then
+                    local dist = (ppart.Position - charPos).Magnitude
+                    if dist < closestDist then
+                        closestDist = dist
+                        targetPos = ppart.Position
+                    end
+                end
+            end
+        end
+    end
+    return targetPos
+end
+
 local function getClosestBushPos(range, fruitname)
     local closestDist = range
     local targetPos = nil
@@ -637,7 +662,7 @@ local function pathToBushesOrBoxes(range, fruitname)
     end
 end
 
--- RunService for maximum pathing fluidity (Throttled loop scan rate to solve FPS lag)
+-- Pathing loops with automatic anti-stuck jump logic
 task.spawn(function()
     while true do
         if not Options.tweentoplantbox.Value then task.wait(0.1) continue end
@@ -649,7 +674,7 @@ end)
 task.spawn(function()
     while true do
         if not Options.tweentobush.Value then task.wait(0.1) continue end
-        pathToBushesOrBoxes(tonumber(Options.tweenrange.Value) or 20, Options.fruitdropdown.Value)
+        pathToBushesOrBoxes(tonumber(Options.tweenrange.Value) or 250, Options.fruitdropdown.Value)
         task.wait(0.1)
     end
 end)
