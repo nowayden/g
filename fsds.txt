@@ -1,11 +1,11 @@
-print("loading cooked.")
+print("loading")
 print("----------------------------------")
 local Library = loadstring(game:HttpGetAsync("https://github.com/1dontgiveaf/Fluent-Renewed/releases/download/v1.0/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "aaaa", SubTitle = "", TabWidth = 160,
+    Title = "", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -568,16 +568,19 @@ local function getClosestBushPos(range, fruitname)
     local targetPos = nil
     if root then
         local charPos = root.Position
-        local children = workspace:GetChildren()
-        for i = 1, #children do
-            local model = children[i]
-            if model:IsA("Model") and model.Name:find(fruitname) then
-                local ppart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-                if ppart then
-                    local dist = (ppart.Position - charPos).Magnitude
-                    if dist < closestDist then
-                        closestDist = dist
-                        targetPos = ppart.Position
+        local cropsFolder = workspace:FindFirstChild("Crops")
+        if cropsFolder then
+            local children = cropsFolder:GetChildren()
+            for i = 1, #children do
+                local model = children[i]
+                if model:IsA("Model") and model.Name:find(fruitname) then
+                    local ppart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+                    if ppart then
+                        local dist = (ppart.Position - charPos).Magnitude
+                        if dist < closestDist then
+                            closestDist = dist
+                            targetPos = ppart.Position
+                        end
                     end
                 end
             end
