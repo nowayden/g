@@ -5,7 +5,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "", SubTitle = "", TabWidth = 160,
+    Title = "aaaa", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -512,11 +512,16 @@ end)
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
 
 -- Used exclusively for UI tracker fallbacks
+-- Updated getbushes function to look inside workspace.Crops
 local function getbushes(range, fruitname)
     local bushes = {}
     if not root then return bushes end
     local charPos = root.Position
-    local children = workspace:GetChildren()
+    
+    local cropsFolder = workspace:FindFirstChild("Crops")
+    if not cropsFolder then return bushes end
+    
+    local children = cropsFolder:GetChildren()
     for i = 1, #children do
         local model = children[i]
         if model:IsA("Model") and model.Name:find(fruitname) then
