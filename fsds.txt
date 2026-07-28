@@ -5,7 +5,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "tuuff", SubTitle = "", TabWidth = 160,
+    Title = "", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -694,36 +694,55 @@ task.spawn(function()
     end
 end)
 
-local queued = {}
-
+local localHarvestDebounce = {}
 task.spawn(function()
     while true do
-        if Options.harvesttoggle.Value then
-            local harvestrange = tonumber(Options.harvestrange.Value) or 30
-            local selectedfruit = Options.fruitdropdown.Value
-            local bushes = getbushes(harvestrange, selectedfruit)
-
-            if bushes then
-                -- Fires EVERY bush in range simultaneously in 1 single frame
-                for i = 1, #bushes do
-                    local id = bushes[i].entityid
-                    if not queued[id] then
-                        queued[id] = true
-                        task.spawn(pickup, id) -- Fires instantly without blocking the thread
+        if not Options.harvesttoggle.Value then 
+            table.clear(localHarvestDebounce)
+            task.wait(0.1) 
+            continue 
+        end
+        
+        -- The server will completely reject packets sent from further than 25 studs.
+        -- We MUST clamp the maximum range to 25 so it doesn't trigger the debounce too early!
+        local range = math.min(tonumber(Options.harvestrange.Value) or 25, 25)
+        local fruitName = Options.fruitdropdown.Value
+        
+        if root then
+            local charPos = root.Position
+            local children = workspace:GetChildren()
+            
+            for i = 1, #children do
+                local model = children[i]
+                -- Check if it is the target fruit
+                if model.ClassName == "Model" and model.Name:find(fruitName) then
+                    local entityid = model:GetAttribute("EntityID")
+                    
+                    -- If we haven't already sent a pickup packet for this exact entity recently
+                    if entityid and not localHarvestDebounce[entityid] then
+                        
+                        -- Use GetPivot() to ensure accurate distance calculation matching the game's new system
+                        local dist = (model:GetPivot().Position - charPos).Magnitude
+                        
+                        if dist <= range then
+                            -- Log it locally to prevent packet spam
+                            localHarvestDebounce[entityid] = tick()
+                            pickup(entityid) -- Instantly fires the remote
+                        end
                     end
+                end
+            end
+            
+            -- Memory cleanup: Remove debounces after 1.5 seconds (gives the server time to delete the bush)
+            local now = tick()
+            for id, timeHarvested in pairs(localHarvestDebounce) do
+                if now - timeHarvested > 1.5 then
+                    localHarvestDebounce[id] = nil
                 end
             end
         end
         
-        task.wait(0.05) -- Keeps checking for new spawns instantly
-    end
-end)
-
--- Background thread: Clears the memory cache every 5 seconds so fresh spawns work
-task.spawn(function()
-    while true do
-        task.wait(5)
-        table.clear(queued)
+        task.wait(0.05) -- Faster execution tick for instant feel, but perfectly safe due to the debounce
     end
 end)
 
