@@ -5,7 +5,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "aura", SubTitle = "", TabWidth = 160,
+    Title = "", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -741,7 +741,7 @@ task.spawn(function()
         -- Removes bushes from the blacklist after 3 seconds (in case bushes respawn with the same ID)
         local currentTime = os.clock()
         for id, timeHarvested in pairs(recentlyHarvested) do
-            if currentTime - timeHarvested > 3 then
+            if currentTime - timeHarvested > 0.1 then
                 recentlyHarvested[id] = nil
             end
         end
