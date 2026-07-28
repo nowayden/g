@@ -5,7 +5,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "", SubTitle = "", TabWidth = 160,
+    Title = "oh", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -252,6 +252,7 @@ local function startResource()
         local tc = tonumber(Options.resourcetargetdropdown.Value) or 1
         local targets, all = {}, {}
         
+        -- 1. Scan Resources Folder
         if workspace:FindFirstChild("Resources") then
             for _, r in pairs(workspace.Resources:GetDescendants()) do 
                 if r:IsA("Model") then 
@@ -260,7 +261,8 @@ local function startResource()
             end
         end
  
-        local resourceKeywords = {"Node", "Stone", "Lode", "Rock", "Coal", "Guardian"}
+        -- 2. Scan Workspace Children (Added "Chunk" and "Ore" to keywords)
+        local resourceKeywords = {"Node", "Stone", "Lode", "Rock", "Coal", "Guardian", "Chunk", "Ore"}
         for _, r in pairs(workspace:GetChildren()) do 
             if r:IsA("Model") then
                 local matchFound = false
@@ -272,10 +274,28 @@ local function startResource()
                 end
                 if matchFound then
                     table.insert(all, r)
+                    
+                    -- FIX: Look inside the Chunk for nested nodes (like a Breakaway folder)
+                    local breakaway = r:FindFirstChild("Breakaway")
+                    if breakaway then
+                        for _, desc in ipairs(breakaway:GetDescendants()) do
+                            if desc:IsA("Model") then
+                                table.insert(all, desc)
+                            end
+                        end
+                    end
+                end
+            -- FIX: If the chunk broke and left the Breakaway folder behind in the workspace
+            elseif r:IsA("Folder") and r.Name == "Breakaway" then
+                for _, desc in ipairs(r:GetDescendants()) do
+                    if desc:IsA("Model") then
+                        table.insert(all, desc)
+                    end
                 end
             end 
         end
         
+        -- Process valid targets
         for _, res in pairs(all) do
             if res:IsA("Model") and res:GetAttribute("EntityID") then
                 local pp = res.PrimaryPart or res:FindFirstChildWhichIsA("BasePart")
@@ -284,6 +304,7 @@ local function startResource()
                 end
             end
         end
+        
         if #targets > 0 then
             table.sort(targets, function(a,b) return a.dist < b.dist end)
             local sel = {}
@@ -293,7 +314,6 @@ local function startResource()
         end
     end)
 end
-Options.resourceauratoggle:OnChanged(function(s) if s then startResource() else resourceActive = false; if resourceConn then resourceConn:Disconnect(); resourceConn = nil end end end)
 
 -- ========= [ DEPLOYABLE AURA FROM V9 ] =========
 local RS = runs
@@ -490,15 +510,12 @@ end)
 -- ====== OPTIMIZED FARMING HELPERS ======
 local fruittoitemid = {Bloodfruit = 94, Bluefruit = 377, Lemon = 99, Coconut = 1, Jelly = 604, Banana = 606, Orange = 602, Oddberry = 32, Berry = 35, Strangefruit = 302, Strawberry = 282, Sunfruit = 128, Pumpkin = 80, ["Prickly Pear"] = 378, Apple = 243, Barley = 247, Cloudberry = 101, Carrot = 147, Blossom = 958}
 
--- Used exclusively for UI tracker fallbacks & harvesting (updated to check workspace.Crops)
+-- Used exclusively for UI tracker fallbacks
 local function getbushes(range, fruitname)
     local bushes = {}
     if not root then return bushes end
-    local cropsFolder = workspace:FindFirstChild("Crops")
-    if not cropsFolder then return bushes end
-    
     local charPos = root.Position
-    local children = cropsFolder:GetChildren()
+    local children = workspace:GetChildren()
     for i = 1, #children do
         local model = children[i]
         if model:IsA("Model") and model.Name:find(fruitname) then
@@ -543,10 +560,9 @@ end
 local function getClosestBushPos(range, fruitname)
     local closestDist = range
     local targetPos = nil
-    local cropsFolder = workspace:FindFirstChild("Crops")
-    if root and cropsFolder then
+    if root then
         local charPos = root.Position
-        local children = cropsFolder:GetChildren()
+        local children = workspace:GetChildren()
         for i = 1, #children do
             local model = children[i]
             if model:IsA("Model") and model.Name:find(fruitname) then
@@ -779,10 +795,9 @@ task.spawn(function()
         if Options.harvesttoggle.Value and targetFruit == "Bloodfruit" and root then
             local harvestrange = tonumber(Options.harvestrange.Value) or 30
             local bushes = getbushes(harvestrange, "Bloodfruit")
-            local cropsFolder = workspace:FindFirstChild("Crops")
             
             for id, data in pairs(trackedBushes) do
-                if not (cropsFolder and cropsFolder:FindFirstChild(data.name)) and (data.pos - root.Position).Magnitude <= harvestrange then
+                if not workspace:FindFirstChild(data.name) and (data.pos - root.Position).Magnitude <= harvestrange then
                     if gained == 0 then
                          gained = 3
                          print("[Tracker Fallback Match] Bush deletion registered within radius! Force-adding +3 fruits.")
