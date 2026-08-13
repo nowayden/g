@@ -34,7 +34,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "datebayo!", SubTitle = "", TabWidth = 160,
+    Title = "datebayo", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -267,83 +267,125 @@ Options.itemdropdown:OnChanged(function(v)
     for item, state in pairs(v) do if state then table.insert(selecteditems, item) end end
 end)
 
--- Resource Aura
-local resourceActive, resourceConn, lastResourceTime = false, nil, 0
+-- Resource Aura (optimized)
+local resourceActive, resourceConn = false, nil
+local lastResourceTime, lastResourceScan = 0, 0
+local cachedTargets = {}
+
+local resourceKeywords = {"Node", "Stone", "Lode", "Rock", "Coal", "Guardian", "Chunk", "Ore"}
+
+local function isResourceName(name)
+    for i = 1, #resourceKeywords do
+        if string.find(name, resourceKeywords[i], 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
+local function scanResources(range)
+    local list = {}
+    if not root then return list end
+    local charPos = root.Position
+    local rangeSq = range * range
+
+    local function tryAdd(model)
+        if not model:IsA("Model") then return end
+        local eid = model:GetAttribute("EntityID")
+        if not eid then return end
+        local pp = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+        if not pp then return end
+        local delta = pp.Position - charPos
+        local distSq = delta.X * delta.X + delta.Y * delta.Y + delta.Z * delta.Z
+        if distSq <= rangeSq then
+            table.insert(list, {eid = eid, distSq = distSq})
+        end
+    end
+
+    local resources = workspace:FindFirstChild("Resources")
+    if resources then
+        for _, child in ipairs(resources:GetChildren()) do
+            tryAdd(child)
+            if child:IsA("Folder") and child.Name == "Breakaway" then
+                for _, desc in ipairs(child:GetChildren()) do
+                    tryAdd(desc)
+                end
+            end
+        end
+    end
+
+    for _, child in ipairs(workspace:GetChildren()) do
+        if child:IsA("Model") and isResourceName(child.Name) then
+            tryAdd(child)
+            local breakaway = child:FindFirstChild("Breakaway")
+            if breakaway then
+                for _, desc in ipairs(breakaway:GetChildren()) do
+                    tryAdd(desc)
+                end
+            end
+        elseif child:IsA("Folder") and child.Name == "Breakaway" then
+            for _, desc in ipairs(child:GetChildren()) do
+                tryAdd(desc)
+            end
+        end
+    end
+
+    table.sort(list, function(a, b) return a.distSq < b.distSq end)
+    return list
+end
+
 local function startResource()
     if resourceActive then return end
     resourceActive = true
+
     resourceConn = runs.Heartbeat:Connect(function()
-        if not Options.resourceauratoggle.Value then resourceConn:Disconnect(); resourceConn = nil; resourceActive = false; return end
+        if not Options.resourceauratoggle.Value then
+            if resourceConn then resourceConn:Disconnect() end
+            resourceConn = nil
+            resourceActive = false
+            return
+        end
+
         if not root or not GameUtil.Data.equipped then return end
+
         local ct = tick()
-        if ct - lastResourceTime < (tonumber(Options.resourcecooldownslider.Value) or 0.1) then return end
+        local cooldown = tonumber(Options.resourcecooldownslider.Value) or 0.1
+        if ct - lastResourceTime < cooldown then return end
+
         local range = tonumber(Options.resourceaurarange.Value) or 20
         local tc = tonumber(Options.resourcetargetdropdown.Value) or 1
-        local targets, all = {}, {}
-        
-        -- 1. Scan Resources Folder
-        if workspace:FindFirstChild("Resources") then
-            for _, r in pairs(workspace.Resources:GetDescendants()) do 
-                if r:IsA("Model") then 
-                    table.insert(all, r) 
-                end 
-            end
+
+        -- Rescan only every 0.45s instead of every swing
+        if ct - lastResourceScan > 0.45 or #cachedTargets == 0 then
+            cachedTargets = scanResources(range)
+            lastResourceScan = ct
         end
- 
-        -- 2. Scan Workspace Children (Added "Chunk" and "Ore" to keywords)
-        local resourceKeywords = {"Node", "Stone", "Lode", "Rock", "Coal", "Guardian", "Chunk", "Ore"}
-        for _, r in pairs(workspace:GetChildren()) do 
-            if r:IsA("Model") then
-                local matchFound = false
-                for _, kw in ipairs(resourceKeywords) do
-                    if string.find(r.Name, kw) then
-                        matchFound = true
-                        break
-                    end
-                end
-                if matchFound then
-                    table.insert(all, r)
-                    
-                    -- FIX: Look inside the Chunk for nested nodes (like a Breakaway folder)
-                    local breakaway = r:FindFirstChild("Breakaway")
-                    if breakaway then
-                        for _, desc in ipairs(breakaway:GetDescendants()) do
-                            if desc:IsA("Model") then
-                                table.insert(all, desc)
-                            end
-                        end
-                    end
-                end
-            -- FIX: If the chunk broke and left the Breakaway folder behind in the workspace
-            elseif r:IsA("Folder") and r.Name == "Breakaway" then
-                for _, desc in ipairs(r:GetDescendants()) do
-                    if desc:IsA("Model") then
-                        table.insert(all, desc)
-                    end
-                end
-            end 
+
+        if #cachedTargets == 0 then return end
+
+        local sel = {}
+        local limit = math.min(tc, #cachedTargets)
+        for i = 1, limit do
+            sel[i] = cachedTargets[i].eid
         end
-        
-        -- Process valid targets
-        for _, res in pairs(all) do
-            if res:IsA("Model") and res:GetAttribute("EntityID") then
-                local pp = res.PrimaryPart or res:FindFirstChildWhichIsA("BasePart")
-                if pp and (pp.Position - root.Position).Magnitude <= range then
-                    table.insert(targets, {eid = res:GetAttribute("EntityID"), dist = (pp.Position - root.Position).Magnitude})
-                end
-            end
-        end
-        
-        if #targets > 0 then
-            table.sort(targets, function(a,b) return a.dist < b.dist end)
-            local sel = {}
-            for i = 1, math.min(tc, #targets) do table.insert(sel, targets[i].eid) end
-            swingtool(sel)
-            lastResourceTime = ct
-        end
+
+        swingtool(sel)
+        lastResourceTime = ct
     end)
 end
-Options.resourceauratoggle:OnChanged(function(s) if s then startResource() else resourceActive = false; if resourceConn then resourceConn:Disconnect(); resourceConn = nil end end end)
+
+Options.resourceauratoggle:OnChanged(function(s)
+    if s then
+        startResource()
+    else
+        resourceActive = false
+        if resourceConn then
+            resourceConn:Disconnect()
+            resourceConn = nil
+        end
+        table.clear(cachedTargets)
+    end
+end)
 
 -- ========= [ DEPLOYABLE AURA FROM V9 ] =========
 local RS = runs
