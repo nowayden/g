@@ -447,40 +447,90 @@ function StopDeployableAura()
     if deployableAuraConnection then deployableAuraConnection:Disconnect() end
 end
 
--- Critter Aura
-local SchuylerActive, critterConn, lastCritterTime = false, nil, 0
-local function startCritter()
-    if SchuylerActive then return end
-    SchuylerActive = true
-    critterConn = runs.Heartbeat:Connect(function()
-        if not Options.critterauratoggle.Value then critterConn:Disconnect(); critterConn = nil; SchuylerActive = false; return end
-        if not root or not GameUtil.Data.equipped then return end
-        local ct = tick()
-        if ct - lastCritterTime < (tonumber(Options.crittercooldownslider.Value) or 0.1) then return end
-        local range = tonumber(Options.critterrangeslider.Value) or 20
-        local tc = tonumber(Options.crittertargetdropdown.Value) or 1
-        local targets = {}
-        local folder = workspace:FindFirstChild("Critters")
-        if folder then
-            for _, c in pairs(folder:GetChildren()) do
-                if c:IsA("Model") and c:GetAttribute("EntityID") then
-                    local pp = c.PrimaryPart or c:FindFirstChildWhichIsA("BasePart")
-                    if pp and (pp.Position - root.Position).Magnitude <= range then
-                        table.insert(targets, {eid = c:GetAttribute("EntityID"), dist = (pp.Position - root.Position).Magnitude})
-                     end
+-- Critter Aura (optimized)
+local SchuylerActive, critterConn = false, nil
+local lastCritterTime, lastCritterScan = 0, 0
+local cachedCritterTargets = {}
+
+local function scanCritters(range)
+    local list = {}
+    if not root then return list end
+    local charPos = root.Position
+    local rangeSq = range * range
+    local folder = workspace:FindFirstChild("Critters")
+    if not folder then return list end
+
+    for _, c in ipairs(folder:GetChildren()) do
+        if c:IsA("Model") then
+            local eid = c:GetAttribute("EntityID")
+            if eid then
+                local pp = c.PrimaryPart or c:FindFirstChildWhichIsA("BasePart")
+                if pp then
+                    local delta = pp.Position - charPos
+                    local distSq = delta.X * delta.X + delta.Y * delta.Y + delta.Z * delta.Z
+                    if distSq <= rangeSq then
+                        table.insert(list, {eid = eid, distSq = distSq})
+                    end
                 end
             end
         end
-        if #targets > 0 then
-            table.sort(targets, function(a,b) return a.dist < b.dist end)
-            local sel = {}
-            for i = 1, math.min(tc, #targets) do table.insert(sel, targets[i].eid) end
-            swingtool(sel)
-            lastCritterTime = ct
+    end
+
+    table.sort(list, function(a, b) return a.distSq < b.distSq end)
+    return list
+end
+
+local function startCritter()
+    if SchuylerActive then return end
+    SchuylerActive = true
+
+    critterConn = runs.Heartbeat:Connect(function()
+        if not Options.critterauratoggle.Value then
+            if critterConn then critterConn:Disconnect() end
+            critterConn = nil
+            SchuylerActive = false
+            return
         end
+
+        if not root or not GameUtil.Data.equipped then return end
+
+        local ct = tick()
+        local cooldown = tonumber(Options.crittercooldownslider.Value) or 0.1
+        if ct - lastCritterTime < cooldown then return end
+
+        local range = tonumber(Options.critterrangeslider.Value) or 20
+        local tc = tonumber(Options.crittertargetdropdown.Value) or 1
+
+        if ct - lastCritterScan > 0.45 or #cachedCritterTargets == 0 then
+            cachedCritterTargets = scanCritters(range)
+            lastCritterScan = ct
+        end
+
+        if #cachedCritterTargets == 0 then return end
+
+        local sel = {}
+        local limit = math.min(tc, #cachedCritterTargets)
+        for i = 1, limit do
+            sel[i] = cachedCritterTargets[i].eid
+        end
+
+        swingtool(sel)
+        lastCritterTime = ct
     end)
 end
-Options.critterauratoggle:OnChanged(function(s) if s then startCritter() else SchuylerActive = false; if critterConn then critterConn:Disconnect(); critterConn = nil end end end)
+
+Options.critterauratoggle:OnChanged(function(s)
+    if s then
+        startCritter()
+    else
+        SchuylerActive = false
+        if critterConn then
+            critterConn:Disconnect()
+            critterConn = nil
+        end
+        table.clear(cachedCritterTargets)
+    end
+end)
 
 -- Queen Ant's Servant Aura
 local queenServantActive, queenServantConn, lastQueenServantTime = false, nil, 0
