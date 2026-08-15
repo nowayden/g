@@ -583,14 +583,24 @@ end
 task.spawn(function()
     while true do
         local range = tonumber(Options.pickuprange.Value) or 35
+
+        -- Auto Pickup (instant, original behavior)
         if Options.autopickuptoggle.Value and root then
-            for _, item in ipairs(workspace.Items:GetChildren()) do
-                if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
-                     if (item.Position - root.Position).Magnitude <= range then pickup(item:GetAttribute("EntityID")) end
+            local itemsFolder = workspace:FindFirstChild("Items")
+            if itemsFolder then
+                for _, item in ipairs(itemsFolder:GetChildren()) do
+                    if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
+                        if (item.Position - root.Position).Magnitude <= range then
+                            pickup(item:GetAttribute("EntityID"))
+                        end
+                    end
                 end
             end
         end
-           local deployablesFolder = workspace:FindFirstChild("Deployables")
+
+        -- Chest pickup (paced)
+        if Options.chestpickuptoggle.Value and root then
+            local deployablesFolder = workspace:FindFirstChild("Deployables")
             if deployablesFolder then
                 local count = 0
                 for _, chest in ipairs(deployablesFolder:GetChildren()) do
@@ -614,7 +624,7 @@ task.spawn(function()
             end
         end
 
-        task.wait(0.08)
+        task.wait(0.01)
     end
 end)
 
