@@ -581,15 +581,21 @@ end
 
 -- Pickup loop
 task.spawn(function()
+    local function shouldPickup(name)
+        if #selecteditems == 0 then
+            return true
+        end
+        return table.find(selecteditems, name) ~= nil
+    end
+
     while true do
         local range = tonumber(Options.pickuprange.Value) or 35
 
-        -- Auto Pickup (instant, original behavior)
         if Options.autopickuptoggle.Value and root then
             local itemsFolder = workspace:FindFirstChild("Items")
             if itemsFolder then
                 for _, item in ipairs(itemsFolder:GetChildren()) do
-                    if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
+                    if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and shouldPickup(item.Name) then
                         if (item.Position - root.Position).Magnitude <= range then
                             pickup(item:GetAttribute("EntityID"))
                         end
@@ -598,7 +604,6 @@ task.spawn(function()
             end
         end
 
-        -- Chest pickup (paced)
         if Options.chestpickuptoggle.Value and root then
             local deployablesFolder = workspace:FindFirstChild("Deployables")
             if deployablesFolder then
@@ -610,7 +615,7 @@ task.spawn(function()
                         if base and (base.Position - root.Position).Magnitude <= range then
                             for _, item in ipairs(chest.Contents:GetChildren()) do
                                 if not Options.chestpickuptoggle.Value then break end
-                                if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
+                                if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and shouldPickup(item.Name) then
                                     pickup(item:GetAttribute("EntityID"))
                                     count = count + 1
                                     if count % 3 == 0 then
