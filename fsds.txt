@@ -34,7 +34,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "datebayo!!!", SubTitle = "", TabWidth = 160,
+    Title = "datebayo", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -651,6 +651,55 @@ runs.Heartbeat:Connect(function()
             drop(Options.droptextbox.Value)
             debounce = tick()
         end
+    end
+end)
+
+Tabs.Pickup:AddToggle("dropalltoggle", {
+    Title = "Auto Drop All",
+    Default = false
+})
+
+local dropAllDebounce = 0
+runs.Heartbeat:Connect(function()
+    if not Options.dropalltoggle or not Options.dropalltoggle.Value then return end
+    if tick() - dropAllDebounce < 0.15 then return end
+    dropAllDebounce = tick()
+
+    local inv = plr.PlayerGui:FindFirstChild("MainGui")
+        and plr.PlayerGui.MainGui:FindFirstChild("RightPanel")
+        and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory")
+        and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
+    if not inv then return end
+
+    for _, child in ipairs(inv:GetChildren()) do
+        if child:IsA("ImageLabel") and child.LayoutOrder and child.Name ~= "" then
+            pcall(function()
+                if packets.DropBagItem and packets.DropBagItem.send then
+                    packets.DropBagItem.send(child.LayoutOrder)
+                end
+            end)
+        end
+    end
+end)
+
+Tabs.Pickup:AddToggle("itemdeletertoggle", {
+    Title = "Item Deleter (workspace.Items)",
+    Default = false
+})
+
+task.spawn(function()
+    while true do
+        if Options.itemdeletertoggle and Options.itemdeletertoggle.Value then
+            local folder = workspace:FindFirstChild("Items")
+            if folder then
+                for _, item in ipairs(folder:GetChildren()) do
+                    pcall(function()
+                        item:Destroy()
+                    end)
+                end
+            end
+        end
+        task.wait(0.2)
     end
 end)
 
