@@ -659,25 +659,61 @@ Tabs.Pickup:AddToggle("dropalltoggle", {
     Default = false
 })
 
-local dropAllDebounce = 0
-runs.Heartbeat:Connect(function()
-    if not Options.dropalltoggle or not Options.dropalltoggle.Value then return end
-    if tick() - dropAllDebounce < 0.15 then return end
-    dropAllDebounce = tick()
+local function getSlotQuantity(slot)
+    local quantityImg = slot:FindFirstChild("QuantityImage")
+    local textObj = (quantityImg and quantityImg:FindFirstChild("QuantityText"))
+        or slot:FindFirstChild("Amount")
+        or slot:FindFirstChild("Count")
+        or slot:FindFirstChildWhichIsA("TextLabel")
+    if textObj and textObj.Text then
+        return tonumber(textObj.Text:match("%d+")) or 1
+    end
+    return 1
+end
 
+local function dropAllInventoryFast()
     local inv = plr.PlayerGui:FindFirstChild("MainGui")
         and plr.PlayerGui.MainGui:FindFirstChild("RightPanel")
         and plr.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory")
         and plr.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
     if not inv then return end
+    if not (packets.DropBagItem and packets.DropBagItem.send) then return end
 
+    local groups = {}
     for _, child in ipairs(inv:GetChildren()) do
-        if child:IsA("ImageLabel") and child.LayoutOrder and child.Name ~= "" then
-            pcall(function()
-                if packets.DropBagItem and packets.DropBagItem.send then
-                    packets.DropBagItem.send(child.LayoutOrder)
+        if child:IsA("ImageLabel") and typeof(child.LayoutOrder) == "number" and child.Name ~= "" then
+            local name = child.Name
+            if not groups[name] then groups[name] = {} end
+            table.insert(groups[name], {
+                slot = child.LayoutOrder,
+                qty = getSlotQuantity(child)
+            })
+        end
+    end
+
+    for _, entries in pairs(groups) do
+        for _, entry in ipairs(entries) do
+            local n = entry.qty
+            if n < 1 then n = 1 end
+            for i = 1, n do
+                if i % 40 == 0 then
+                    if not (Options.dropalltoggle and Options.dropalltoggle.Value) then return end
+                    runs.Heartbeat:Wait()
                 end
-            end)
+                packets.DropBagItem.send(entry.slot)
+            end
+            if not (Options.dropalltoggle and Options.dropalltoggle.Value) then return end
+        end
+    end
+end
+    
+task.spawn(function()
+    while true do
+        if Options.dropalltoggle and Options.dropalltoggle.Value then
+            dropAllInventoryFast()
+            task.wait(0.05)
+        else
+            task.wait(0.15)
         end
     end
 end)
