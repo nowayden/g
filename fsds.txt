@@ -34,7 +34,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "datebayo", SubTitle = "", TabWidth = 160,
+    Title = "datebayo!!!", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -185,18 +185,27 @@ Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Con
 Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees"}, Default = "0 degrees"})
 Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placeSingleSnappedBox() end})
 
-Tabs.Farming:AddSection("Gold Farming")
-Tabs.Farming:AddButton({
-    Title = "Farm Gold",
-    Callback = function()
-        local selecteditems = {"Gold", "Raw Gold", "Coins", "Coin Stack", "Coin2"}
-        for _, item in ipairs(workspace.Items:GetChildren()) do
-            if (item:IsA("BasePart") or item:IsA("MeshPart")) and item:GetAttribute("EntityID") and table.find(selecteditems, item.Name) then
-                if packets.Pickup and packets.Pickup.send then packets.Pickup.send(item:GetAttribute("EntityID")) end
+Tabs.Farming:AddSection("Bush Deleter")
+Tabs.Farming:AddToggle("bushdeletertoggle", {
+    Title = "Bush Deleter (workspace.Crops)",
+    Default = false
+})
+
+task.spawn(function()
+    while true do
+        if Options.bushdeletertoggle and Options.bushdeletertoggle.Value then
+            local folder = workspace:FindFirstChild("Crops")
+            if folder then
+                for _, obj in ipairs(folder:GetChildren()) do
+                    pcall(function()
+                        obj:Destroy()
+                    end)
+                end
             end
         end
+        task.wait(0.2)
     end
-})
+end)
 
 -- Farming Tracker UI Components
 Tabs.Farming:AddSection("Farming Statistics")
