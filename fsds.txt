@@ -207,6 +207,28 @@ task.spawn(function()
     end
 end)
 
+Tabs.Farming:AddSection("Resource Deleter")
+Tabs.Farming:AddToggle("resourcedeletertoggle", {
+    Title = "Resource Deleter (workspace.Resources)",
+    Default = false
+})
+
+task.spawn(function()
+    while true do
+        if Options.resourcedeletertoggle and Options.resourcedeletertoggle.Value then
+            local folder = workspace:FindFirstChild("Resources")
+            if folder then
+                for _, obj in ipairs(folder:GetChildren()) do
+                    pcall(function()
+                        obj:Destroy()
+                    end)
+                end
+            end
+        end
+        task.wait(0.2)
+    end
+end)
+
 -- Farming Tracker UI Components
 Tabs.Farming:AddSection("Farming Statistics")
 local BloodfruitParagraph = Tabs.Farming:AddParagraph("BloodfruitStats", { Title = "Bloodfruits Harvested", Content = "0 (Per Min: 0 |\nPer Hour: 0)" })
