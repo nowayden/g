@@ -123,7 +123,7 @@ plr.CharacterAdded:Connect(updateCharacter)
 -- Main Tab
 Tabs.Main:AddSection("Movement")
 Tabs.Main:CreateToggle("wstoggle", { Title = "Walkspeed", Default = false })
-Tabs.Main:CreateSlider("wsslider", { Title = "Value", Min = 1, Max = 500, Rounding = 1, Default = 16 })
+Tabs.Main:CreateSlider("wsslider", { Title = "Value", Min = 1, Max = 150, Rounding = 1, Default = 16 })
 Tabs.Main:CreateToggle("jptoggle", { Title = "JumpPower", Default = false })
 Tabs.Main:CreateSlider("jpslider", { Title = "Value", Min = 1, Max = 65, Rounding = 1, Default = 50 })
 Tabs.Main:CreateToggle("msatoggle", { Title = "No Mountain Slip", Default = false })
