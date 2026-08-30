@@ -34,7 +34,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "datebayo", SubTitle = "", TabWidth = 160,
+    Title = "datebayo!!!", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -184,6 +184,69 @@ Tabs.Farming:AddSection("Plant Box Placer")
 Tabs.Farming:AddToggle("placeplantboxestoggle", { Title = "Place Plant Boxes Continuously", Default = false })
 Tabs.Farming:AddDropdown("rotationdropdown", {Title = "Plant Box Rotation", Values = {"0 degrees"}, Default = "0 degrees"})
 Tabs.Farming:AddButton({Title = "Place Single Plant Box (Snapped)", Callback = function() placeSingleSnappedBox() end})
+
+Tabs.Map:AddSection("Kill Aura")
+Tabs.Map:CreateToggle("killauratoggle", { Title = "Kill Aura", Default = false })
+Tabs.Map:CreateSlider("killaurarange", { Title = "Range", Min = 1, Max = 25, Rounding = 1, Default = 20 })
+Tabs.Map:CreateSlider("killauracooldown", { Title = "Cooldown (s)", Min = 0.05, Max = 1, Rounding = 2, Default = 0.12 })
+
+local killAuraActive, killAuraConn, lastKillTime = false, nil, 0
+
+local function startKillAura()
+    if killAuraActive then return end
+    killAuraActive = true
+
+    killAuraConn = runs.Heartbeat:Connect(function()
+        if not Options.killauratoggle.Value then
+            if killAuraConn then killAuraConn:Disconnect() end
+            killAuraConn = nil
+            killAuraActive = false
+            return
+        end
+
+        if not root or not GameUtil.Data.equipped then return end
+
+        local ct = tick()
+        local cooldown = tonumber(Options.killauracooldown.Value) or 0.12
+        if ct - lastKillTime < cooldown then return end
+
+        local range = tonumber(Options.killaurarange.Value) or 20
+        local targets = {}
+
+        for _, player in ipairs(game.Players:GetPlayers()) do
+            if player ~= plr and player.Character then
+                local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                local hum = player.Character:FindFirstChildOfClass("Humanoid")
+                if hrp and hum and hum.Health > 0 then
+                    local dist = (hrp.Position - root.Position).Magnitude
+                    if dist <= range then
+                        local eid = player.Character:GetAttribute("EntityID")
+                        if eid then
+                            table.insert(targets, eid)
+                        end
+                    end
+                end
+            end
+        end
+
+        if #targets > 0 then
+            swingtool(targets)
+            lastKillTime = ct
+        end
+    end)
+end
+
+Options.killauratoggle:OnChanged(function(state)
+    if state then
+        startKillAura()
+    else
+        killAuraActive = false
+        if killAuraConn then
+            killAuraConn:Disconnect()
+            killAuraConn = nil
+        end
+    end
+end)
 
 Tabs.Farming:AddSection("Bush Deleter")
 Tabs.Farming:AddToggle("bushdeletertoggle", {
