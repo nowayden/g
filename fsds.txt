@@ -1315,6 +1315,90 @@ Tabs.Potions:AddToggle("AutoPotionToggle", {
     end
 })
 
+Tabs.Potions:AddSection("God Set")
+Tabs.Potions:AddToggle("godsetcraftertoggle", {
+    Title = "God Set Crafter",
+    Default = false
+})
+
+local GOD_HALO = 16
+local GOD_CHEST = 26
+local GOD_LEGS = 288
+local GOD_ROCK = 368
+
+local function getItemSlot(itemID)
+    -- tries to find the inventory index of the crafted item
+    local list = game.Players.LocalPlayer.PlayerGui:FindFirstChild("MainGui")
+        and game.Players.LocalPlayer.PlayerGui.MainGui:FindFirstChild("RightPanel")
+        and game.Players.LocalPlayer.PlayerGui.MainGui.RightPanel:FindFirstChild("Inventory")
+        and game.Players.LocalPlayer.PlayerGui.MainGui.RightPanel.Inventory:FindFirstChild("List")
+    if not list then return nil end
+
+    for _, slot in ipairs(list:GetChildren()) do
+        if slot:IsA("ImageLabel") and typeof(slot.LayoutOrder) == "number" then
+            -- you may need to match by name instead if LayoutOrder isn't the index
+            if slot.Name == "God Halo" or slot.Name == "God Chestplate" or slot.Name == "God Legs" then
+                return slot.LayoutOrder
+            end
+        end
+    end
+end
+
+local godCrafting = false
+task.spawn(function()
+    while true do
+        if Options.godsetcraftertoggle and Options.godsetcraftertoggle.Value and not godCrafting then
+            godCrafting = true
+            pcall(function()
+                if packets.CraftItem then
+                    packets.CraftItem.send(GOD_HALO)
+                    task.wait(0.4)
+                    packets.CraftItem.send(GOD_CHEST)
+                    task.wait(0.4)
+                    packets.CraftItem.send(GOD_LEGS)
+                    task.wait(0.4)
+                    packets.CraftItem.send(GOD_ROCK)
+                    task.wait(0.6)
+                end
+
+                -- Equip via UseBagItem (uses inventory slot)
+                if packets.UseBagItem then
+                    local slot = getItemSlot()
+                    if slot then
+                        packets.UseBagItem.send(slot) -- may need to call per piece
+task.wait(0.5)
+                        packets.UseBagItem.send(slot) -- may need to call per piece
+task.wait(0.5)
+                        packets.UseBagItem.send(slot) -- may need to call per piece
+task.wait(0.5)
+                        packets.UseBagItem.send(slot) -- may need to call per piece
+task.wait(0.5)
+                        packets.UseBagItem.send(slot) -- may need to call per piece
+task.wait(0.5)
+                    end
+                end
+            end)
+            godCrafting = false
+            task.wait(2)
+        else
+            task.wait(0.3)
+        end
+    end
+end)
+
+Tabs.Potions:AddButton({
+    Title = "Teleport to Cheater2S",
+    Callback = function()
+        local target = game.Players:FindFirstChild("Cheater2S")
+        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                hrp.CFrame = target.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
+            end
+        end
+    end
+})
+
 -- Auto Rebirth System
 local autoRebirthRunning = false
 local hasConfirmedRebirth = false
