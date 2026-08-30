@@ -1422,13 +1422,10 @@ task.spawn(function()
             pcall(function()
                 if packets.CraftItem then
                     packets.CraftItem.send(GOD_HALO)
-                    task.wait(0.4)
+            
                     packets.CraftItem.send(GOD_CHEST)
-                    task.wait(0.4)
                     packets.CraftItem.send(GOD_LEGS)
-                    task.wait(0.4)
                     packets.CraftItem.send(GOD_ROCK)
-                    task.wait(0.6)
                 end
 
                 -- Equip via UseBagItem (uses inventory slot)
@@ -1436,15 +1433,10 @@ task.spawn(function()
                     local slot = getItemSlot()
                     if slot then
                         packets.UseBagItem.send(slot) -- may need to call per piece
-task.wait(0.5)
                         packets.UseBagItem.send(slot) -- may need to call per piece
-task.wait(0.5)
                         packets.UseBagItem.send(slot) -- may need to call per piece
-task.wait(0.5)
                         packets.UseBagItem.send(slot) -- may need to call per piece
-task.wait(0.5)
                         packets.UseBagItem.send(slot) -- may need to call per piece
-task.wait(0.5)
                     end
                 end
             end)
