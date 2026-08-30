@@ -34,7 +34,7 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/1dontgiveaf/Fluent-Renewed/refs/heads/main/Addons/InterfaceManager.luau"))()
 
 local Window = Library:CreateWindow{
-    Title = "datebayo!!!", SubTitle = "", TabWidth = 160,
+    Title = "datebayo!!!!!!!!", SubTitle = "", TabWidth = 160,
     Size = UDim2.fromOffset(830, 525), Resize = true, MinSize = Vector2.new(470, 380),
     Acrylic = true, Theme = "Dark", MinimizeKey = Enum.KeyCode.LeftControl
 }
@@ -192,6 +192,7 @@ Tabs.Map:CreateSlider("killauracooldown", { Title = "Cooldown (s)", Min = 0.05, 
 
 local killAuraActive, killAuraConn, lastKillTime = false, nil, 0
 
+-- Replace the kill aura scan part with this test version
 local function startKillAura()
     if killAuraActive then return end
     killAuraActive = true
@@ -220,9 +221,12 @@ local function startKillAura()
                 if hrp and hum and hum.Health > 0 then
                     local dist = (hrp.Position - root.Position).Magnitude
                     if dist <= range then
-                        local eid = player.Character:GetAttribute("EntityID")
+                        -- try both EntityID and the character itself
+                        local eid = player.Character:GetAttribute("EntityID") or player.Character:GetAttribute("ID")
                         if eid then
                             table.insert(targets, eid)
+                        else
+                            print("No EntityID on", player.Name)
                         end
                     end
                 end
@@ -230,6 +234,7 @@ local function startKillAura()
         end
 
         if #targets > 0 then
+            print("Hitting", #targets, "players")
             swingtool(targets)
             lastKillTime = ct
         end
